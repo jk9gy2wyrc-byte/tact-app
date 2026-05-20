@@ -1,0 +1,83 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+:root {
+  --bg: #0d0f11;
+  --surface: #141619;
+  --surface2: #1c1f23;
+  --border: #2a2d33;
+  --text: #e8eaed;
+  --text2: #8b9098;
+  --green: #26a69a;
+  --red: #ef5350;
+  --yellow: #f59e0b;
+  --blue: #3b82f6;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  overflow-x: hidden;
+}
+
+.mono { font-family: 'JetBrains Mono', monospace; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+
+input, select, textarea {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus { border-color: var(--blue); }
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  border-radius: 8px;
+  border: none;
+  padding: 7px 14px;
+  transition: opacity 0.15s;
+}
+button:hover { opacity: 0.85; }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-primary { background: var(--blue); color: #fff; }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+
+table { border-collapse: collapse; width: 100%; }
+th {
+  background: var(--surface2);
+  color: var(--text2);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 7px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+td { padding: 5px 8px; font-size: 12px; border-bottom: 1px solid var(--border); }
+tr:nth-child(even) td { background: #1a1d21; }
+tr:hover td { background: #20242a; }
+
+.tag-tp { color: var(--green); font-weight: 600; }
+.tag-sl { color: var(--red); font-weight: 600; }
+.tag-be { color: var(--yellow); font-weight: 600; }
+.pos { color: var(--green); }
+.neg { color: var(--red); }
+.be  { color: var(--yellow); }

@@ -1,0 +1,234 @@
+import { useState, useEffect } from "react";
+import { Route, Switch, Link, useRoute } from "wouter";
+import Dashboard from "./pages/dashboard";
+import LiveTrades from "./pages/live-trades";
+import BacktestTrades from "./pages/backtest-trades";
+import Charts from "./pages/charts";
+import Import from "./pages/import";
+import MCSim from "./pages/mc-simulation";
+import AdminUsers from "./pages/admin-users";
+import { setSession, clearSession, getSession, type Session } from "./lib/session";
+
+// ─── NAV (admin gets extra tab) ──────────────────────────────────────────────
+function buildNav(role: string) {
+  const nav = [
+    { path: "/", label: "Dashboard", icon: "◻" },
+    { path: "/live", label: "Live Trades", icon: "●" },
+    { path: "/backtest", label: "Backtest DB", icon: "▦" },
+    { path: "/charts", label: "Charts", icon: "↗" },
+    { path: "/mc", label: "Monte Carlo", icon: "⟳" },
+    { path: "/import", label: "Import", icon: "↑" },
+  ];
+  if (role === 'admin') nav.push({ path: "/users", label: "Users", icon: "👥" });
+  return nav;
+}
+
+function NavItem({ path, label, icon }: { path: string; label: string; icon: string }) {
+  const [active] = useRoute(path === "/" ? "/" : path + "*");
+  return (
+    <Link href={path}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px',
+        background: active ? '#1c2030' : 'transparent',
+        borderLeft: active ? '2px solid var(--blue)' : '2px solid transparent',
+        cursor: 'pointer', transition: 'background 0.15s',
+        color: active ? 'var(--text)' : 'var(--text2)',
+        fontSize: 13, borderRadius: '0 8px 8px 0', margin: '1px 8px 1px 0',
+      }}>
+        <span style={{ fontSize: 13, fontFamily: 'monospace' }}>{icon}</span>
+        <span>{label}</span>
+      </div>
+    </Link>
+  );
+}
+
+// ─── LOGIN PAGE ───────────────────────────────────────────────────────────────
+function Login({ onAuth }: { onAuth: (s: Session) => void }) {
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [login, setLogin] = useState('');
+  const [pass, setPass] = useState('');
+  const [pass2, setPass2] = useState('');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const reset = (m: 'login' | 'register') => { setMode(m); setErr(''); setPass(''); setPass2(''); };
+
+  const submit = async () => {
+    setErr('');
+    if (!login.trim()) return setErr('Введи логін');
+    if (!pass) return setErr('Введи пароль');
+
+    if (mode === 'register') {
+      if (pass !== pass2) return setErr('Паролі не співпадають');
+      if (pass.length < 4) return setErr('Пароль мінімум 4 символи');
+      if (login.length < 3) return setErr('Логін мінімум 3 символи');
+    }
+
+    setLoading(true);
+    try {
+      const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login: login.trim(), password: pass }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setErr(data.error ?? 'Помилка'); return; }
+      onAuth({ login: data.login, role: data.role, id: data.id });
+    } catch {
+      setErr('Помилка мережі');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', marginBottom: 10, fontSize: 14,
+    borderRadius: 10, padding: '10px 14px', boxSizing: 'border-box',
+    background: 'var(--surface2)', border: '1px solid var(--border)',
+    color: 'var(--text)', outline: 'none',
+  };
+
+  return (
+    <div style={{
+      minHeight: '100vh', background: 'var(--bg)', display: 'flex',
+      alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 16, padding: '40px 48px', width: 340,
+      }}>
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '0.04em' }}>TSCT</div>
+          <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>Trading Control Tool</div>
+        </div>
+
+        {/* Tab */}
+        <div style={{ display: 'flex', marginBottom: 24, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
+          {(['login', 'register'] as const).map(m => (
+            <button key={m} onClick={() => reset(m)} style={{
+              flex: 1, padding: '9px 0', fontSize: 12, fontWeight: 600,
+              background: mode === m ? 'var(--blue)' : 'transparent',
+              color: mode === m ? '#fff' : 'var(--text2)',
+              border: 'none', cursor: 'pointer', transition: 'background 0.15s',
+            }}>
+              {m === 'login' ? 'Увійти' : 'Зареєструватись'}
+            </button>
+          ))}
+        </div>
+
+        {/* Fields */}
+        <input
+          placeholder="Логін"
+          value={login}
+          onChange={e => { setLogin(e.target.value); setErr(''); }}
+          onKeyDown={e => e.key === 'Enter' && submit()}
+          style={inputStyle}
+          autoFocus
+        />
+        <input
+          type="password"
+          placeholder="Пароль"
+          value={pass}
+          onChange={e => { setPass(e.target.value); setErr(''); }}
+          onKeyDown={e => e.key === 'Enter' && submit()}
+          style={inputStyle}
+        />
+        {mode === 'register' && (
+          <input
+            type="password"
+            placeholder="Пароль ще раз"
+            value={pass2}
+            onChange={e => { setPass2(e.target.value); setErr(''); }}
+            onKeyDown={e => e.key === 'Enter' && submit()}
+            style={inputStyle}
+          />
+        )}
+
+        {err && (
+          <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10, textAlign: 'center' }}>{err}</div>
+        )}
+
+        <button
+          className="btn-primary"
+          onClick={submit}
+          disabled={loading}
+          style={{ width: '100%', borderRadius: 10, padding: '10px 0', marginTop: 4, opacity: loading ? 0.7 : 1 }}
+        >
+          {loading ? '...' : mode === 'login' ? 'Увійти' : 'Створити акаунт'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+export default function App() {
+  const [session, setSessionState] = useState<Session | null>(() => getSession());
+
+  // Seed admin on mount
+  useEffect(() => { fetch('/api/auth/seed').catch(() => {}); }, []);
+
+  const handleAuth = (s: Session) => {
+    setSession(s);
+    setSessionState(s);
+  };
+
+  const handleLogout = () => {
+    clearSession();
+    setSessionState(null);
+  };
+
+  if (!session) return <Login onAuth={handleAuth} />; 
+
+  const nav = buildNav(session.role);
+
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh' }}>
+      {/* Sidebar */}
+      <aside style={{
+        width: 186, background: 'var(--surface)', borderRight: '1px solid var(--border)',
+        display: 'flex', flexDirection: 'column', flexShrink: 0, position: 'fixed',
+        top: 0, left: 0, height: '100vh', zIndex: 100,
+      }}>
+        <div style={{ padding: '18px 16px 14px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: '0.06em' }}>TSCT</div>
+          <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 3 }}>Trading Control Tool</div>
+          {/* Current user */}
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: 11, color: session.role === 'admin' ? '#facc15' : 'var(--blue)' }}>
+              {session.login} {session.role === 'admin' && '★'}
+            </div>
+            <button
+              onClick={handleLogout}
+              style={{ fontSize: 9, color: 'var(--text2)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            >
+              вийти
+            </button>
+          </div>
+        </div>
+        <nav style={{ paddingTop: 10, flex: 1 }}>
+          {nav.map(n => <NavItem key={n.path} {...n} />)}
+        </nav>
+      </aside>
+
+      {/* Main */}
+      <main style={{ marginLeft: 186, flex: 1, minHeight: '100vh', background: 'var(--bg)' }}>
+        <Switch>
+          <Route path="/" component={Dashboard} />
+          <Route path="/live" component={LiveTrades} />
+          <Route path="/backtest" component={BacktestTrades} />
+          <Route path="/charts" component={Charts} />
+          <Route path="/mc" component={MCSim} />
+          <Route path="/import" component={Import} />
+          {session.role === 'admin' && (
+            <Route path="/users">
+              <AdminUsers currentLogin={session.login} />
+            </Route>
+          )}
+        </Switch>
+      </main>
+    </div>
+  );
+}
