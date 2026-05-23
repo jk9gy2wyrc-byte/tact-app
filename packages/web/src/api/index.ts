@@ -739,6 +739,29 @@ const app = new Hono()
     return c.json({ ok: true, trade }, 200);
   })
 
+  .put('/backtest-trades/:id', async (c) => {
+    const uid = Number(c.req.query('userId') ?? 0);
+    const id = Number(c.req.param('id'));
+    const body = await c.req.json();
+    const { instrument, date, direction, rr, session, result, cost } = body;
+    const month = date ? String(date).slice(0, 7) : undefined;
+    const year = date ? Number(String(date).slice(0, 4)) : undefined;
+    const costVal = cost != null ? Number(cost) : -0.1;
+    const grossVal = result === 'tp' ? Number(rr ?? 1) : result === 'sl' ? -1 : 0;
+    const netVal = Math.round((grossVal + costVal) * 100) / 100;
+    const updates: any = {
+      ...(instrument && { instrument: String(instrument).toUpperCase() }),
+      ...(date && { month, year }),
+      ...(direction !== undefined && { direction }),
+      ...(rr !== undefined && { rr: rr != null ? Number(rr) : null }),
+      ...(session !== undefined && { session }),
+      ...(result !== undefined && { result, grossR: grossVal, netR: netVal }),
+      cost: costVal,
+    };
+    await db.update(backtestTrades).set(updates).where(eq(backtestTrades.id, id));
+    return c.json({ ok: true }, 200);
+  })
+
   .delete('/backtest-trades/:id', async (c) => {
     const uid = Number(c.req.query('userId') ?? 0);
     const id = Number(c.req.param('id'));
