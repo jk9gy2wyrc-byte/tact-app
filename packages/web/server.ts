@@ -11,9 +11,14 @@ const server = new Hono();
 // API
 server.route('/', app);
 
-// Static + SPA fallback
+// Static files
 server.use('/*', serveStatic({ root: distDir }));
-server.get('/*', serveStatic({ path: resolve(distDir, 'index.html') }));
+
+// SPA fallback — all unmatched routes serve index.html
+server.get('*', async (c) => {
+  const html = await Bun.file(resolve(distDir, 'index.html')).text();
+  return c.html(html);
+});
 
 export default {
   port,
