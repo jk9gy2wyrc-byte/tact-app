@@ -75,6 +75,11 @@ td { padding: 5px 8px; font-size: 12px; border-bottom: 1px solid var(--border); 
 tr:nth-child(even) td { background: #1a1d21; }
 tr:hover td { background: #20242a; }
 
+@media (max-width: 600px) {
+  th { padding: 5px 5px; font-size: 10px; letter-spacing: 0; }
+  td { padding: 4px 5px; font-size: 11px; }
+}
+
 .tag-tp { color: var(--green); font-weight: 600; }
 .tag-sl { color: var(--red); font-weight: 600; }
 .tag-be { color: var(--yellow); font-weight: 600; }

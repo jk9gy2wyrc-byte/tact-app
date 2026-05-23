@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from "react";
+import { useMobile } from "../hooks/useMobile";
 import { useQuery } from "@tanstack/react-query";
 import { uidParam } from "../lib/session";
 import {
@@ -18,6 +19,12 @@ const CHART_STYLE = {
   padding: 18,
   marginBottom: 20,
 };
+// Mobile override applied inline where isMobile is available
+function chartStyle(isMobile: boolean) {
+  return isMobile
+    ? { ...CHART_STYLE, padding: '12px 8px', borderRadius: 8 }
+    : CHART_STYLE;
+}
 
 // Colors
 const LIVE_COLOR  = '#7eb8f7'; // pastel blue
@@ -200,6 +207,7 @@ function MetricChart({
   unit = '',
   height = 220,
   explanation,
+  isMobile = false,
 }: {
   title: string;
   btSeries: number[];
@@ -209,6 +217,7 @@ function MetricChart({
   unit?: string;
   height?: number;
   explanation?: string;
+  isMobile?: boolean;
 }) {
   const BT_PTS = 120;
   const LV_PTS = 60;
@@ -242,7 +251,7 @@ function MetricChart({
   const hasMC = !!mcpSeries && mcpSeries.med.length > 0;
 
   return (
-    <div style={CHART_STYLE}>
+    <div style={chartStyle(isMobile)}>
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>{title}</div>
       {btSeries.length === 0 ? (
         <div style={{ color: 'var(--text2)', padding: 24, textAlign: 'center' }}>Немає даних</div>
@@ -333,6 +342,7 @@ const defaultStress = {
 };
 
 export default function Charts() {
+  const isMobile = useMobile();
   const { data, isLoading, error } = useQuery({ queryKey: ['stats'], queryFn: fetchStats });
 
   // ── Stress state ──────────────────────────────────────────────────────────
@@ -444,11 +454,11 @@ export default function Charts() {
   const lastP95Eq = mcp95.at(-1);
 
   return (
-    <div style={{ padding: '24px 28px' }}>
-      <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 20 }}>Charts</div>
+    <div style={{ padding: isMobile ? '12px 10px' : '24px 28px', overflowX: 'hidden', boxSizing: 'border-box', width: '100%' }}>
+      <div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 600, marginBottom: isMobile ? 12 : 20 }}>Charts</div>
 
       {/* LEGEND */}
-      <div style={{ display: 'flex', gap: 20, marginBottom: 20, fontSize: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: isMobile ? 10 : 20, marginBottom: isMobile ? 12 : 20, fontSize: isMobile ? 11 : 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <span><span style={{ color: BT_COLOR,      fontWeight: 700 }}>━</span> Бектест</span>
         <span><span style={{ color: LIVE_COLOR,    fontWeight: 700 }}>━</span> Live (синій)</span>
         <span><span style={{ color: MC_MED_COLOR,  fontWeight: 700 }}>- -</span> MC median (білий)</span>
@@ -456,13 +466,13 @@ export default function Charts() {
       </div>
 
       {/* EQUITY CURVES */}
-      <div style={CHART_STYLE}>
+      <div style={chartStyle(isMobile)}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Equity Curves — Cumulative Net R</div>
         {btEq.length === 0 ? (
           <div style={{ color: 'var(--text2)', padding: 40, textAlign: 'center' }}>Немає даних бектесту.</div>
         ) : (
           <>
-            <ResponsiveContainer width="100%" height={340}>
+            <ResponsiveContainer width="100%" height={isMobile ? 220 : 340}>
               <LineChart data={eqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
                 <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
@@ -535,9 +545,10 @@ export default function Charts() {
       </div>
 
       {/* STATS TABLE */}
-      <div style={CHART_STYLE}>
+      <div style={chartStyle(isMobile)}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Порівняння метрик</div>
-        <table>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table style={{ minWidth: 400 }}>
           <thead>
             <tr>
               <th>Метрика</th>
@@ -574,10 +585,11 @@ export default function Charts() {
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* ROLLING CHARTS — 2 cols */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
         <MetricChart
           title="Win Rate (rolling)"
           btSeries={(btRolling.wr as number[]).map((v: number) => Math.round(v * 1000) / 10)}
@@ -589,6 +601,7 @@ export default function Charts() {
           } : undefined}
           refY={50}
           unit="%"
+          isMobile={isMobile}
           explanation="Відсоток виграшних угод (результат = TP) у ковзному вікні. Бектест вікно = 20 трейдів, Live = 10 трейдів. Допомагає відслідкувати, чи ваш Win Rate відповідає статистичному очікуванню стратегії. Значне падіння нижче помаранчевої межі (p5) — сигнал деградації."
         />
         <MetricChart
@@ -597,6 +610,7 @@ export default function Charts() {
           lvSeries={lvRolling.avgRR}
           mcpSeries={rrMC}
           refY={1}
+          isMobile={isMobile}
           explanation="Середнє співвідношення ризик/прибуток за ковзним вікном. Показує, чи тримаєте ви якість входів у порівнянні з бектестом. Значне відхилення від сірої лінії вказує на зміну в якості виконання угод."
         />
         <MetricChart
@@ -605,6 +619,7 @@ export default function Charts() {
           lvSeries={lvRolling.pf}
           mcpSeries={pfMC}
           refY={1}
+          isMobile={isMobile}
           explanation="Profit Factor = Сума виграшів / Сума програшів у ковзному вікні. PF > 1 означає прибутковість. Значення нижче 1 — стратегія збиткова в цьому вікні. Порівнюйте з бектестом і діапазоном MC."
         />
         <MetricChart
@@ -613,6 +628,7 @@ export default function Charts() {
           lvSeries={lvRolling.maxDD}
           mcpSeries={ddMC}
           refY={0}
+          isMobile={isMobile}
           explanation="Максимальна просадка (в одиницях R) від піку до дна у ковзному вікні. Менше = краще. Якщо Live просадка перевищує p95 — стратегія виходить за межі очікуваної волатильності ризиків."
         />
       </div>
@@ -623,12 +639,13 @@ export default function Charts() {
         lvSeries={lvRolling.stdDev}
         mcpSeries={sdMC}
         refY={0}
-        height={200}
+        height={isMobile ? 160 : 200}
+        isMobile={isMobile}
         explanation="Стандартне відхилення розподілу Net R у ковзному вікні. Вимірює консистентність результатів. Низьке значення = стабільні результати. Різкий ріст StdDev означає підвищену нестабільність у live-торгівлі відносно бектесту."
       />
 
       {/* MC EQUITY RANGE */}
-      <div style={CHART_STYLE}>
+      <div style={chartStyle(isMobile)}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Monte Carlo — Expected Equity Range</div>
         <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 12 }}>
           500 симуляцій на основі розподілу Net R з бектесту. Білий = медіана, помаранчевий = p5/p95.
@@ -637,7 +654,7 @@ export default function Charts() {
           <div style={{ color: 'var(--text2)', padding: 20, textAlign: 'center' }}>Немає даних</div>
         ) : (
           <>
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={isMobile ? 160 : 200}>
               <LineChart data={eqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
                 <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
@@ -656,7 +673,7 @@ export default function Charts() {
       </div>
 
       {/* ── STRESS TEST ──────────────────────────────────────────────────────── */}
-      <div style={{ ...CHART_STYLE, border: stressOpen ? '1px solid #f8717155' : '1px solid var(--border)' }}>
+      <div style={{ ...chartStyle(isMobile), border: stressOpen ? '1px solid #f8717155' : '1px solid var(--border)' }}>
         {/* Header */}
         <div
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}
@@ -681,7 +698,7 @@ export default function Charts() {
         {stressOpen && (
           <div style={{ marginTop: 20 }}>
             {/* Sliders grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 32px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 0 : '0 32px' }}>
 
               {/* LEFT COLUMN */}
               <div>
@@ -872,7 +889,7 @@ export default function Charts() {
                         <span><span style={{ color: STRESS_MED_COLOR }}>- -</span> Stress median</span>
                         <span><span style={{ color: LIVE_COLOR }}>━</span> Live</span>
                       </div>
-                      <ResponsiveContainer width="100%" height={260}>
+                      <ResponsiveContainer width="100%" height={isMobile ? 200 : 260}>
                         <LineChart data={stressEqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
                           <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />

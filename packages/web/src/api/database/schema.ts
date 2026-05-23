@@ -42,6 +42,9 @@ export const liveTrades = sqliteTable("live_trades", {
   grossR: real("gross_r"),
   cost: real("cost").default(-0.1),
   netR: real("net_r"),
+  profitDollars: real("profit_dollars"),           // $ P&L
+  notes: text("notes"),                            // free-text notes
+  attachments: text("attachments"),                // JSON: [{type:'image'|'link', url, label}]
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });

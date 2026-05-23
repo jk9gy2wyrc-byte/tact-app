@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { Route, Switch, Link, useRoute } from "wouter";
 import Dashboard from "./pages/dashboard";
 import LiveTrades from "./pages/live-trades";
+import LiveAnalysis from "./pages/live-analysis";
 import BacktestTrades from "./pages/backtest-trades";
+import BacktestAnalysis from "./pages/backtest-analysis";
 import Charts from "./pages/charts";
 import Import from "./pages/import";
 import MCSim from "./pages/mc-simulation";
@@ -14,7 +16,9 @@ function buildNav(role: string) {
   const nav = [
     { path: "/", label: "Dashboard", icon: "◻" },
     { path: "/live", label: "Live Trades", icon: "●" },
+    { path: "/live-analysis", label: "Live Analysis", icon: "▲" },
     { path: "/backtest", label: "Backtest DB", icon: "▦" },
+    { path: "/backtest-analysis", label: "BT Analysis", icon: "▲" },
     { path: "/charts", label: "Charts", icon: "↗" },
     { path: "/mc", label: "Monte Carlo", icon: "⟳" },
     { path: "/import", label: "Import", icon: "↑" },
@@ -23,20 +27,19 @@ function buildNav(role: string) {
   return nav;
 }
 
-function NavItem({ path, label, icon }: { path: string; label: string; icon: string }) {
+function NavItem({ path, label }: { path: string; label: string; icon?: string }) {
   const [active] = useRoute(path === "/" ? "/" : path + "*");
   return (
     <Link href={path}>
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px',
+        display: 'flex', alignItems: 'center', padding: '9px 16px',
         background: active ? '#1c2030' : 'transparent',
         borderLeft: active ? '2px solid var(--blue)' : '2px solid transparent',
         cursor: 'pointer', transition: 'background 0.15s',
         color: active ? 'var(--text)' : 'var(--text2)',
         fontSize: 13, borderRadius: '0 8px 8px 0', margin: '1px 8px 1px 0',
       }}>
-        <span style={{ fontSize: 13, fontFamily: 'monospace' }}>{icon}</span>
-        <span>{label}</span>
+        {label}
       </div>
     </Link>
   );
@@ -109,7 +112,7 @@ function Login({ onAuth }: { onAuth: (s: Session) => void }) {
           {(['login', 'register'] as const).map(m => (
             <button key={m} onClick={() => reset(m)} style={{
               flex: 1, padding: '9px 0', fontSize: 12, fontWeight: 600,
-              background: mode === m ? 'var(--blue)' : 'transparent',
+              background: mode === m ? '#4b5263' : 'transparent',
               color: mode === m ? '#fff' : 'var(--text2)',
               border: 'none', cursor: 'pointer', transition: 'background 0.15s',
             }}>
@@ -163,12 +166,28 @@ function Login({ onAuth }: { onAuth: (s: Session) => void }) {
   );
 }
 
+// ─── MOBILE HOOK ──────────────────────────────────────────────────────────────
+function useIsMobile() {
+  const [mobile, setMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < 768);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
+  return mobile;
+}
+
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [session, setSessionState] = useState<Session | null>(() => getSession());
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   // Seed admin on mount
   useEffect(() => { fetch('/api/auth/seed').catch(() => {}); }, []);
+
+  // Close drawer on nav (mobile)
+  useEffect(() => { if (!isMobile) setDrawerOpen(false); }, [isMobile]);
 
   const handleAuth = (s: Session) => {
     setSession(s);
@@ -180,23 +199,17 @@ export default function App() {
     setSessionState(null);
   };
 
-  if (!session) return <Login onAuth={handleAuth} />; 
+  if (!session) return <Login onAuth={handleAuth} />;
 
   const nav = buildNav(session.role);
 
-  return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
-      {/* Sidebar */}
-      <aside style={{
-        width: 186, background: 'var(--surface)', borderRight: '1px solid var(--border)',
-        display: 'flex', flexDirection: 'column', flexShrink: 0, position: 'fixed',
-        top: 0, left: 0, height: '100vh', zIndex: 100,
-      }}>
-        <div style={{ padding: '18px 16px 14px', borderBottom: '1px solid var(--border)' }}>
+  const SidebarContent = () => (
+    <>
+      <div style={{ padding: '18px 16px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: '0.06em' }}>TSCT</div>
           <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 3 }}>Trading Control Tool</div>
-          {/* Current user */}
-          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ fontSize: 11, color: session.role === 'admin' ? '#facc15' : 'var(--blue)' }}>
               {session.login} {session.role === 'admin' && '★'}
             </div>
@@ -208,17 +221,94 @@ export default function App() {
             </button>
           </div>
         </div>
-        <nav style={{ paddingTop: 10, flex: 1 }}>
-          {nav.map(n => <NavItem key={n.path} {...n} />)}
-        </nav>
-      </aside>
+        {isMobile && (
+          <button
+            onClick={() => setDrawerOpen(false)}
+            style={{ background: 'none', border: 'none', color: 'var(--text2)', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}
+          >
+            ✕
+          </button>
+        )}
+      </div>
+      <nav style={{ paddingTop: 10, flex: 1 }} onClick={() => isMobile && setDrawerOpen(false)}>
+        {nav.map(n => <NavItem key={n.path} {...n} />)}
+      </nav>
+    </>
+  );
+
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh' }}>
+      {/* Desktop sidebar */}
+      {!isMobile && (
+        <aside style={{
+          width: 186, background: 'var(--surface)', borderRight: '1px solid var(--border)',
+          display: 'flex', flexDirection: 'column', flexShrink: 0, position: 'fixed',
+          top: 0, left: 0, height: '100vh', zIndex: 100,
+        }}>
+          <SidebarContent />
+        </aside>
+      )}
+
+      {/* Mobile drawer overlay */}
+      {isMobile && drawerOpen && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 200,
+            background: 'rgba(0,0,0,0.55)',
+          }}
+          onClick={() => setDrawerOpen(false)}
+        />
+      )}
+
+      {/* Mobile drawer */}
+      {isMobile && (
+        <aside style={{
+          position: 'fixed', top: 0, left: 0, height: '100vh', zIndex: 201,
+          width: 220, background: 'var(--surface)', borderRight: '1px solid var(--border)',
+          display: 'flex', flexDirection: 'column',
+          transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.22s cubic-bezier(.4,0,.2,1)',
+        }}>
+          <SidebarContent />
+        </aside>
+      )}
+
+      {/* Mobile top bar */}
+      {isMobile && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 150,
+          height: 48, background: 'var(--surface)', borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', padding: '0 16px', gap: 14,
+        }}>
+          <button
+            onClick={() => setDrawerOpen(o => !o)}
+            style={{
+              background: 'none', border: 'none', color: 'var(--text)',
+              fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0,
+              display: 'flex', alignItems: 'center',
+            }}
+          >
+            ☰
+          </button>
+          <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: '0.06em' }}>TSCT</div>
+          <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text2)' }}>
+            {session.login.includes('@') ? session.login.split('@')[0] : session.login}
+          </div>
+        </div>
+      )}
 
       {/* Main */}
-      <main style={{ marginLeft: 186, flex: 1, minHeight: '100vh', background: 'var(--bg)' }}>
+      <main style={{
+        marginLeft: isMobile ? 0 : 186,
+        marginTop: isMobile ? 48 : 0,
+        flex: 1, minHeight: '100vh', background: 'var(--bg)',
+      }}>
         <Switch>
           <Route path="/" component={Dashboard} />
           <Route path="/live" component={LiveTrades} />
+          <Route path="/live-analysis" component={LiveAnalysis} />
           <Route path="/backtest" component={BacktestTrades} />
+          <Route path="/backtest-analysis" component={BacktestAnalysis} />
           <Route path="/charts" component={Charts} />
           <Route path="/mc" component={MCSim} />
           <Route path="/import" component={Import} />

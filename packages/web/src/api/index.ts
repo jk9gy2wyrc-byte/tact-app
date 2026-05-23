@@ -267,14 +267,14 @@ const app = new Hono()
     // Monthly breakdown for live
     const liveByMonth: Record<string, { n: number; totalR: number; wr: number; avgRR: number }> = {};
     for (const t of lv) {
-      if (!liveByMonth[t.month]) liveByMonth[t.month] = { n: 0, totalR: 0, wr: 0, avgRR: 0 };
-      liveByMonth[t.month].n++;
-      liveByMonth[t.month].totalR += t.netR ?? 0;
+      const mk = (t.month ?? '').slice(0, 7); // always YYYY-MM
+      if (!liveByMonth[mk]) liveByMonth[mk] = { n: 0, totalR: 0, wr: 0, avgRR: 0 };
+      liveByMonth[mk].n++;
+      liveByMonth[mk].totalR += t.netR ?? 0;
     }
     for (const m of Object.keys(liveByMonth)) {
-      const trades = lv.filter(t => t.month === m);
+      const trades = lv.filter(t => (t.month ?? '').slice(0, 7) === m);
       const wins = trades.filter(t => t.result === 'tp').length;
-      const losses = trades.filter(t => t.result === 'sl').length;
       liveByMonth[m].wr = wins / trades.length || 0;
       liveByMonth[m].totalR = Math.round(liveByMonth[m].totalR * 100) / 100;
       const rrs = trades.filter(t => t.rr != null).map(t => t.rr!);
@@ -515,14 +515,13 @@ const app = new Hono()
   // ─── LIVE TRADES ──────────────────────────────────────────────────────────
   .get('/live-trades', async (c) => {
     const uid = Number(c.req.query('userId') ?? 0);
-    const trades = await db.select().from(liveTrades).where(eq(liveTrades.userId, uid)).orderBy(asc(liveTrades.month), asc(liveTrades.tradeNum)).all();
+    const trades = await db.select().from(liveTrades).where(eq(liveTrades.userId, uid)).orderBy(desc(liveTrades.id)).all();
     return c.json(trades, 200);
   })
 
   .post('/live-trades',
     zValidator('json', z.object({
-      month: z.string(),
-      tradeNum: z.number(),
+      date: z.string(), // YYYY-MM-DD
       asset: z.string().optional(),
       direction: z.string().optional(),
       rr: z.number().optional(),
@@ -530,16 +529,24 @@ const app = new Hono()
       result: z.enum(['tp', 'sl', 'be']),
       grossR: z.number(),
       cost: z.number().optional(),
+      netR: z.number().optional(),
+      profitDollars: z.number().optional(),
+      notes: z.string().optional(),
+      attachments: z.string().optional(), // JSON string
     })),
     async (c) => {
       const body = c.req.valid('json');
       const uid = Number(c.req.query('userId') ?? 0);
+      // auto tradeNum = max existing + 1
+      const existing = await db.select({ n: liveTrades.tradeNum }).from(liveTrades).where(eq(liveTrades.userId, uid)).all();
+      const maxNum = existing.length > 0 ? Math.max(...existing.map(r => r.n ?? 0)) : 0;
+      const tradeNum = maxNum + 1;
       const cost = body.cost ?? -0.1;
-      const netR = Math.round((body.grossR + cost) * 100) / 100;
+      const netR = body.netR ?? Math.round((body.grossR + cost) * 100) / 100;
       const [trade] = await db.insert(liveTrades).values({
         userId: uid,
-        month: body.month,
-        tradeNum: body.tradeNum,
+        month: body.date.slice(0, 7), // store as YYYY-MM always
+        tradeNum,
         asset: body.asset,
         direction: body.direction,
         rr: body.rr,
@@ -548,6 +555,9 @@ const app = new Hono()
         grossR: body.grossR,
         cost,
         netR,
+        profitDollars: body.profitDollars,
+        notes: body.notes,
+        attachments: body.attachments,
       }).returning();
       return c.json(trade, 200);
     }
@@ -555,8 +565,7 @@ const app = new Hono()
 
   .put('/live-trades/:id',
     zValidator('json', z.object({
-      month: z.string().optional(),
-      tradeNum: z.number().optional(),
+      date: z.string().optional(),
       asset: z.string().optional(),
       direction: z.string().optional(),
       rr: z.number().optional(),
@@ -564,6 +573,10 @@ const app = new Hono()
       result: z.enum(['tp', 'sl', 'be']).optional(),
       grossR: z.number().optional(),
       cost: z.number().optional(),
+      netR: z.number().optional(),
+      profitDollars: z.number().nullable().optional(),
+      notes: z.string().nullable().optional(),
+      attachments: z.string().nullable().optional(), // JSON string
     })),
     async (c) => {
       const id = Number(c.req.param('id'));
@@ -572,11 +585,13 @@ const app = new Hono()
       const existing = await db.select().from(liveTrades).where(eq(liveTrades.id, id)).get();
       if (!existing) return c.json({ error: 'not found' }, 404);
       if (existing.userId !== uid) return c.json({ error: 'Forbidden' }, 403);
-      const grossR = body.grossR ?? existing.grossR ?? 0;
-      const cost = body.cost ?? existing.cost ?? -0.1;
-      const netR = Math.round((grossR + cost) * 100) / 100;
+      const { date, ...rest } = body;
       const [updated] = await db.update(liveTrades)
-        .set({ ...body, grossR, cost, netR, updatedAt: new Date().toISOString() })
+        .set({
+          ...rest,
+          ...(date ? { month: date } : {}),
+          updatedAt: new Date().toISOString(),
+        })
         .where(eq(liveTrades.id, id)).returning();
       return c.json(updated, 200);
     }
@@ -688,7 +703,185 @@ const app = new Hono()
     const uid = Number(c.req.query('userId') ?? 0);
     await db.delete(backtestTrades).where(eq(backtestTrades.userId, uid));
     return c.json({ ok: true }, 200);
+  })
+
+  // ── Manual backtest entry ──────────────────────────────────────────────────
+  .post('/backtest-manual', async (c) => {
+    const uid = Number(c.req.query('userId') ?? 0);
+    const body = await c.req.json();
+    const { instrument, date, direction, rr, session, result, grossR, cost } = body;
+    if (!instrument || !date || !result) return c.json({ error: 'instrument, date and result are required' }, 400);
+    const month = String(date).slice(0, 7);
+    const year = Number(String(date).slice(0, 4));
+    const costVal = cost != null ? Number(cost) : -0.1;
+    const grossVal = grossR != null ? Number(grossR) : (result === 'tp' ? Number(rr ?? 1) : result === 'sl' ? -1 : 0);
+    const netVal = Math.round((grossVal + costVal) * 100) / 100;
+    // auto tradeNum
+    const existing = await db.select({ n: backtestTrades.tradeNum })
+      .from(backtestTrades)
+      .where(eq(backtestTrades.userId, uid))
+      .all();
+    const maxNum = existing.length > 0 ? Math.max(...existing.map(r => r.n ?? 0)) : 0;
+    const [trade] = await db.insert(backtestTrades).values({
+      userId: uid,
+      instrument: String(instrument).toUpperCase(),
+      year,
+      month,
+      tradeNum: maxNum + 1,
+      direction: direction ?? null,
+      rr: rr != null ? Number(rr) : null,
+      session: session ?? null,
+      result,
+      grossR: grossVal,
+      cost: costVal,
+      netR: netVal,
+    }).returning();
+    return c.json({ ok: true, trade }, 200);
+  })
+
+  .delete('/backtest-trades/:id', async (c) => {
+    const uid = Number(c.req.query('userId') ?? 0);
+    const id = Number(c.req.param('id'));
+    await db.delete(backtestTrades).where(eq(backtestTrades.id, id));
+    return c.json({ ok: true }, 200);
+  })
+
+  // ── Bulk backtest entry (from manual database builder) ────────────────────
+  .post('/backtest-bulk', async (c) => {
+    const uid = Number(c.req.query('userId') ?? 0);
+    const body = await c.req.json();
+    const { trades } = body as { trades: any[] };
+    if (!Array.isArray(trades) || trades.length === 0) return c.json({ error: 'trades array required' }, 400);
+
+    const existing = await db.select({ n: backtestTrades.tradeNum })
+      .from(backtestTrades).where(eq(backtestTrades.userId, uid)).all();
+    let maxNum = existing.length > 0 ? Math.max(...existing.map(r => r.n ?? 0)) : 0;
+
+    const toInsert = trades.map(t => {
+      const month = String(t.date).slice(0, 7);
+      const year = Number(String(t.date).slice(0, 4));
+      const costVal = t.cost != null ? Number(t.cost) : -0.1;
+      const grossVal = t.grossR != null ? Number(t.grossR) : (t.result === 'tp' ? Number(t.rr ?? 1) : t.result === 'sl' ? -1 : 0);
+      const netVal = Math.round((grossVal + costVal) * 100) / 100;
+      maxNum += 1;
+      return {
+        userId: uid,
+        instrument: String(t.instrument).toUpperCase(),
+        year, month,
+        tradeNum: maxNum,
+        direction: t.direction ?? null,
+        rr: t.rr != null ? Number(t.rr) : null,
+        session: t.session ?? null,
+        result: t.result,
+        grossR: grossVal,
+        cost: costVal,
+        netR: netVal,
+      };
+    });
+
+    for (let i = 0; i < toInsert.length; i += 50) {
+      await db.insert(backtestTrades).values(toInsert.slice(i, i + 50));
+    }
+    return c.json({ ok: true, inserted: toInsert.length }, 200);
   });
+
+// ─── ForexFactory news (red/orange, USD/EUR/GBP only) ───────────────────────
+let newsCache: { ts: number; data: any[] } = { ts: 0, data: [] };
+
+import { spawnSync } from 'child_process';
+
+async function scrapeForexFactory(): Promise<any[]> {
+  const scriptPath = '/home/user/tsct-app/scripts/scrape_news.py';
+  const result = spawnSync('python3', [scriptPath], { timeout: 40000, encoding: 'utf8' });
+  if (result.error) throw result.error;
+  const out = (result.stdout ?? '').trim();
+  if (!out) return [];
+  return JSON.parse(out);
+}
+
+app.get('/news', async (c) => {
+  const now = Date.now();
+  if (now - newsCache.ts < 5 * 60 * 1000) {
+    return c.json(newsCache.data);
+  }
+  try {
+    const data = await scrapeForexFactory();
+    newsCache = { ts: now, data };
+    return c.json(data);
+  } catch (e) {
+    console.error('news scrape error', e);
+    // return stale if available
+    if (newsCache.data.length > 0) return c.json(newsCache.data);
+    return c.json([]);
+  }
+});
+
+// ─── Market weekly change ───────────────────────────────────────────────────
+let pricesCache: { ts: number; data: any } = { ts: 0, data: null };
+
+async function fetchWeeklyChanges() {
+  const symbols: Record<string, string> = {
+    EUR: 'EURUSD=X',
+    GBP: 'GBPUSD=X',
+    XAU: 'GC=F',
+    GER: '%5EGDAXI',
+  };
+  const results: Record<string, { change: number; current: number; open: number } | null> = {};
+
+  await Promise.all(
+    Object.entries(symbols).map(async ([key, sym]) => {
+      try {
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=7d`;
+        const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        const json = await res.json() as any;
+        const result = json?.chart?.result?.[0];
+        if (!result) { results[key] = null; return; }
+
+        const closes: number[] = result.indicators?.quote?.[0]?.close ?? [];
+        const timestamps: number[] = result.timestamps ?? result.timestamp ?? [];
+
+        // Filter out null/undefined closes
+        const valid = closes.map((c, i) => ({ c, t: timestamps[i] })).filter(x => x.c != null);
+        if (valid.length < 2) { results[key] = null; return; }
+
+        // Find Monday of current week (UTC)
+        const now = new Date();
+        const dayOfWeek = now.getUTCDay(); // 0=Sun,1=Mon,...6=Sat
+        const daysFromMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        const monStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysFromMon);
+
+        // Filter candles from Monday onwards
+        const weekCandles = valid.filter(x => x.t * 1000 >= monStart);
+        if (weekCandles.length === 0) { results[key] = null; return; }
+
+        const weekOpen = weekCandles[0].c;
+        const current = valid[valid.length - 1].c;
+        const change = ((current - weekOpen) / weekOpen) * 100;
+
+        results[key] = { change: Math.round(change * 100) / 100, current, open: weekOpen };
+      } catch {
+        results[key] = null;
+      }
+    })
+  );
+  return results;
+}
+
+app.get('/prices', async (c) => {
+  const now = Date.now();
+  if (now - pricesCache.ts < 10 * 60 * 1000 && pricesCache.data) {
+    return c.json(pricesCache.data);
+  }
+  try {
+    const data = await fetchWeeklyChanges();
+    pricesCache = { ts: now, data };
+    return c.json(data);
+  } catch (e) {
+    console.error('prices error', e);
+    if (pricesCache.data) return c.json(pricesCache.data);
+    return c.json({});
+  }
+});
 
 export type AppType = typeof app;
 export default app;
