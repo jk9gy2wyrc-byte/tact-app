@@ -336,7 +336,7 @@ function EditModal({ trade, onClose, onSave, isPending }: {
                         borderRadius: 8, padding: '6px 10px',
                       }}>
                         <a href={lk.url} target="_blank" rel="noreferrer" style={{
-                          flex: 1, fontSize: 12, color: 'var(--accent, #3b82f6)',
+                          flex: 1, fontSize: 12, color: 'var(--text2)',
                           textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                         }}>
                           🔗 {lk.label}
@@ -474,7 +474,7 @@ function TradeCard({ t, onEdit, onDelete }: { t: any; onEdit: () => void; onDele
             </div>
           )}
           {links.filter((lk: Attachment) => !lk.type || lk.type === 'link').map((lk: Attachment, i: number) => (
-            <a key={i} href={lk.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--accent, #3b82f6)', textDecoration: 'none' }}>
+            <a key={i} href={lk.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--text2)', textDecoration: 'none' }}>
               🔗 {lk.label}
             </a>
           ))}
@@ -761,7 +761,7 @@ export default function LiveTrades() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                   {tLinks.map((lk: Attachment, i: number) => (
                                     <a key={i} href={lk.url} target="_blank" rel="noreferrer"
-                                      style={{ fontSize: 11, color: 'var(--accent, #3b82f6)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                                      style={{ fontSize: 11, color: 'var(--text2)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
                                       🔗 {lk.label.length > 20 ? lk.label.slice(0, 20) + '…' : lk.label}
                                     </a>
                                   ))}

@@ -178,7 +178,7 @@ function DatabaseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
                     onClick={() => { setUseCustom(false); setDefaultInst(inst); }}
                     style={{
                       padding: '4px 10px', fontSize: 11, borderRadius: 6,
-                      background: (!useCustom && defaultInst === inst) ? 'var(--blue)' : 'var(--surface2)',
+                      background: (!useCustom && defaultInst === inst) ? '#4b5263' : 'var(--surface2)',
                       color: (!useCustom && defaultInst === inst) ? '#fff' : 'var(--text)',
                       border: '1px solid var(--border)', fontFamily: 'monospace', fontWeight: 600, cursor: 'pointer',
                     }}>{inst}</button>
@@ -187,7 +187,7 @@ function DatabaseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
                   onClick={() => setUseCustom(true)}
                   style={{
                     padding: '4px 10px', fontSize: 11, borderRadius: 6,
-                    background: useCustom ? 'var(--blue)' : 'var(--surface2)',
+                    background: useCustom ? '#4b5263' : 'var(--surface2)',
                     color: useCustom ? '#fff' : 'var(--text2)',
                     border: '1px solid var(--border)', cursor: 'pointer',
                   }}>+</button>
@@ -424,7 +424,7 @@ function ManualTab() {
                   onClick={() => { setUseCustomInst(false); setForm(p => ({ ...p, instrument: inst })); }}
                   style={{
                     padding: '5px 14px', fontSize: 12, borderRadius: 8, cursor: 'pointer',
-                    background: (!useCustomInst && form.instrument === inst) ? 'var(--blue)' : 'var(--surface2)',
+                    background: (!useCustomInst && form.instrument === inst) ? '#4b5263' : 'var(--surface2)',
                     color: (!useCustomInst && form.instrument === inst) ? '#fff' : 'var(--text)',
                     border: '1px solid var(--border)', fontFamily: 'monospace', fontWeight: 600,
                   }}>{inst}</button>
@@ -433,7 +433,7 @@ function ManualTab() {
                 onClick={() => setUseCustomInst(true)}
                 style={{
                   padding: '5px 14px', fontSize: 12, borderRadius: 8, cursor: 'pointer',
-                  background: useCustomInst ? 'var(--blue)' : 'var(--surface2)',
+                  background: useCustomInst ? '#4b5263' : 'var(--surface2)',
                   color: useCustomInst ? '#fff' : 'var(--text2)',
                   border: '1px solid var(--border)',
                 }}>+ Custom</button>
@@ -564,7 +564,7 @@ export default function Import() {
 
   const tabStyle = (active: boolean): React.CSSProperties => ({
     padding: '6px 18px', fontSize: 13, borderRadius: 8, cursor: 'pointer',
-    background: active ? 'var(--blue)' : 'var(--surface2)',
+    background: active ? '#4b5263' : 'var(--surface2)',
     color: active ? '#fff' : 'var(--text2)',
     border: active ? 'none' : '1px solid var(--border)',
     fontFamily: 'inherit',
@@ -592,7 +592,7 @@ export default function Import() {
             onDrop={onDrop}
             onClick={() => fileRef.current?.click()}
             style={{
-              border: `2px dashed ${dragging ? 'var(--blue)' : 'var(--border)'}`,
+              border: `2px dashed ${dragging ? '#4b5263' : 'var(--border)'}`,
               borderRadius: 12, padding: isMobile ? '32px 20px' : '48px 32px',
               textAlign: 'center', cursor: 'pointer',
               background: dragging ? '#1a1d2a' : 'var(--surface)',

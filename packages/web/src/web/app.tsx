@@ -34,7 +34,7 @@ function NavItem({ path, label }: { path: string; label: string; icon?: string }
       <div style={{
         display: 'flex', alignItems: 'center', padding: '9px 16px',
         background: active ? '#1c2030' : 'transparent',
-        borderLeft: active ? '2px solid var(--blue)' : '2px solid transparent',
+        borderLeft: active ? '2px solid #4b5263' : '2px solid transparent',
         cursor: 'pointer', transition: 'background 0.15s',
         color: active ? 'var(--text)' : 'var(--text2)',
         fontSize: 13, borderRadius: '0 8px 8px 0', margin: '1px 8px 1px 0',
@@ -210,7 +210,7 @@ export default function App() {
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: '0.06em' }}>TSCT</div>
           <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 3 }}>Trading Control Tool</div>
           <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ fontSize: 11, color: session.role === 'admin' ? '#facc15' : 'var(--blue)' }}>
+            <div style={{ fontSize: 11, color: session.role === 'admin' ? '#facc15' : 'var(--text2)' }}>
               {session.login} {session.role === 'admin' && '★'}
             </div>
             <button

@@ -69,7 +69,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
             {[
               { label: 'Всього акаунтів', value: users.length, color: 'var(--text)' },
               { label: 'Адміни', value: admins.length, color: '#facc15' },
-              { label: 'Звичайні юзери', value: regulars.length, color: 'var(--blue)' },
+              { label: 'Звичайні юзери', value: regulars.length, color: 'var(--text2)' },
               { label: 'Нових за сьогодні', value: users.filter(u => {
                 if (!u.createdAt) return false;
                 const today = new Date().toISOString().slice(0, 10);
@@ -114,8 +114,8 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{
                           width: 28, height: 28, borderRadius: '50%',
-                          background: u.role === 'admin' ? '#facc1522' : '#3b82f622',
-                          border: `1px solid ${u.role === 'admin' ? '#facc1544' : '#3b82f644'}`,
+                          background: u.role === 'admin' ? '#facc1522' : '#4b526322',
+                          border: `1px solid ${u.role === 'admin' ? '#facc1544' : '#4b526344'}`,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           fontSize: 11, fontWeight: 700,
                           color: u.role === 'admin' ? '#facc15' : 'var(--blue)',
@@ -138,9 +138,9 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                     <td style={{ padding: '10px 16px' }}>
                       <span style={{
                         fontSize: 10, fontWeight: 700, padding: '2px 10px', borderRadius: 20,
-                        background: u.role === 'admin' ? '#facc1522' : '#3b82f622',
+                        background: u.role === 'admin' ? '#facc1522' : '#4b526322',
                         color: u.role === 'admin' ? '#facc15' : 'var(--blue)',
-                        border: `1px solid ${u.role === 'admin' ? '#facc1544' : '#3b82f644'}`,
+                        border: `1px solid ${u.role === 'admin' ? '#facc1544' : '#4b526344'}`,
                       }}>
                         {u.role === 'admin' ? '★ admin' : 'user'}
                       </span>

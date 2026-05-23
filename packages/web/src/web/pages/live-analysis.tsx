@@ -213,7 +213,7 @@ export default function LiveAnalysis() {
             style={{
               padding: "5px 14px", fontSize: 12, borderRadius: 8, cursor: "pointer",
               border: "1px solid var(--border)",
-              background: selectedMonth === "all" ? "var(--blue)" : "var(--surface)",
+              background: selectedMonth === "all" ? '#4b5263' : 'var(--surface)',
               color: selectedMonth === "all" ? "#fff" : "var(--text2)",
               fontWeight: selectedMonth === "all" ? 700 : 400,
               transition: "all 0.15s",
@@ -229,7 +229,7 @@ export default function LiveAnalysis() {
                 style={{
                   padding: "5px 14px", fontSize: 12, borderRadius: 8, cursor: "pointer",
                   border: "1px solid var(--border)",
-                  background: active ? "var(--blue)" : "var(--surface)",
+                  background: active ? '#4b5263' : 'var(--surface)',
                   color: active ? "#fff" : "var(--text2)",
                   fontWeight: active ? 700 : 400,
                   transition: "all 0.15s",

@@ -11,7 +11,7 @@
   --green: #26a69a;
   --red: #ef5350;
   --yellow: #f59e0b;
-  --blue: #3b82f6;
+  --blue: #8b9098;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -41,7 +41,7 @@ input, select, textarea {
   outline: none;
   transition: border-color 0.15s;
 }
-input:focus, select:focus { border-color: var(--blue); }
+input:focus, select:focus { border-color: #4b5263; }
 
 button {
   cursor: pointer;
@@ -55,7 +55,7 @@ button {
 button:hover { opacity: 0.85; }
 button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.btn-primary { background: var(--blue); color: #fff; }
+.btn-primary { background: #4b5263; color: #fff; }
 .btn-danger { background: var(--red); color: #fff; }
 .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
 
