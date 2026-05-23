@@ -7,7 +7,7 @@ import { useMobile } from "../hooks/useMobile";
 const PRESET_INSTRUMENTS = ['EUR', 'GBP', 'GER', 'XAU'];
 const RESULTS = ['tp', 'sl', 'be'] as const;
 const DIRECTIONS = ['long', 'short'] as const;
-const SESSIONS = ['London', 'NY', 'Asia', 'Overlap'];
+const SESSIONS = ['Asia', 'Frankfurt', 'London', 'Overlap', 'New York'];
 
 type Result = typeof RESULTS[number];
 type Direction = typeof DIRECTIONS[number] | '';
@@ -326,10 +326,38 @@ function DatabaseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   );
 }
 
+// ─── ToggleGroup ──────────────────────────────────────────────────────────────
+function ToggleGroup({ value, options, onChange, small }: {
+  value: string; options: string[]; onChange: (v: string) => void; small?: boolean;
+}) {
+  return (
+    <div style={{
+      display: 'flex', flexWrap: 'wrap', gap: 3,
+      background: 'var(--surface2)', border: '1px solid var(--border)',
+      borderRadius: 8, padding: 3,
+    }}>
+      {options.map(o => {
+        const active = value === o;
+        return (
+          <button key={o} type="button" onClick={() => onChange(o)} style={{
+            padding: small ? '2px 8px' : '3px 10px',
+            borderRadius: 6, fontSize: small ? 10 : 11,
+            fontWeight: active ? 600 : 400,
+            cursor: 'pointer', border: 'none',
+            background: active ? '#4b5263' : 'transparent',
+            color: active ? '#fff' : 'var(--text2)',
+            transition: 'background 0.15s, color 0.15s',
+          }}>{o}</button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Single Trade Form ────────────────────────────────────────────────────────
 const emptyForm = () => ({
   instrument: 'EUR', date: new Date().toISOString().slice(0, 10),
-  direction: 'long' as Direction, rr: '', session: '',
+  direction: 'long' as Direction, rr: '', session: 'London',
   result: 'tp' as Result, grossR: '', cost: '-0.1',
   customInstrument: '',
 });
@@ -453,16 +481,11 @@ function ManualTab() {
           </div>
           <div>
             <label style={labelStyle}>Result</label>
-            <select style={inputStyle} value={form.result} onChange={f('result')}>
-              {RESULTS.map(r => <option key={r} value={r}>{r.toUpperCase()}</option>)}
-            </select>
+            <ToggleGroup value={form.result} options={['tp','sl','be']} onChange={v => setForm(p=>({...p,result:v as Result}))} />
           </div>
           <div>
             <label style={labelStyle}>Direction</label>
-            <select style={inputStyle} value={form.direction} onChange={f('direction')}>
-              <option value="">—</option>
-              {DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
+            <ToggleGroup value={form.direction} options={['long','short']} onChange={v => setForm(p=>({...p,direction:v as Direction}))} />
           </div>
           <div>
             <label style={labelStyle}>RR Ratio</label>
@@ -481,10 +504,7 @@ function ManualTab() {
           </div>
           <div>
             <label style={labelStyle}>Session</label>
-            <select style={inputStyle} value={form.session} onChange={f('session')}>
-              <option value="">—</option>
-              {SESSIONS.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <ToggleGroup value={form.session} options={['Asia','Frankfurt','London','Overlap','New York']} onChange={v => setForm(p=>({...p,session:v}))} small />
           </div>
         </div>
 
