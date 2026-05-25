@@ -86,10 +86,10 @@ export default function LiveAnalysis() {
   if (isLoading) return <div style={{ padding: 32, color: "var(--text2)" }}>Loading...</div>;
   if (!allTrades.length) return <div style={{ padding: 32, color: "var(--text2)", textAlign: "center" }}>No live trades yet.</div>;
 
-  // ── all months list (for selector) ───────────────────────────────────────
+  // ── all months list (for selector) — newest first ─────────────────────────
   const allMonthKeys = Array.from(
     new Set(allTrades.map(t => (t.month ?? "").slice(0, 7)).filter(Boolean))
-  ).sort();
+  ).sort().reverse();
 
   // ── active trades = filtered by selected month ────────────────────────────
   const trades = selectedMonth === "all"
@@ -219,7 +219,7 @@ export default function LiveAnalysis() {
               transition: "all 0.15s",
             }}
           >All</button>
-          {/* Month buttons */}
+          {/* Month buttons — newest first */}
           {allMonthKeys.map(key => {
             const active = selectedMonth === key;
             return (
@@ -378,7 +378,6 @@ export default function LiveAnalysis() {
             </div>
           </>
         ) : (() => {
-          // Per-trade breakdown for selected month
           const dayData = sorted.map((t, i) => ({
             i: i + 1,
             label: `#${t.tradeNum ?? i + 1}`,
