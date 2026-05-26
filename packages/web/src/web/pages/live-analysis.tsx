@@ -86,10 +86,10 @@ export default function LiveAnalysis() {
   if (isLoading) return <div style={{ padding: 32, color: "var(--text2)" }}>Loading...</div>;
   if (!allTrades.length) return <div style={{ padding: 32, color: "var(--text2)", textAlign: "center" }}>No live trades yet.</div>;
 
-  // ── all months list (for selector) — newest first ─────────────────────────
+  // ── all months list (for selector) ───────────────────────────────────────
   const allMonthKeys = Array.from(
     new Set(allTrades.map(t => (t.month ?? "").slice(0, 7)).filter(Boolean))
-  ).sort().reverse();
+  ).sort();
 
   // ── active trades = filtered by selected month ────────────────────────────
   const trades = selectedMonth === "all"
@@ -206,38 +206,28 @@ export default function LiveAnalysis() {
       {/* ── HEADER + MONTH SELECTOR ── */}
       <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexDirection: isMobile ? "column" : "row", gap: 12 }}>
         <div style={{ fontSize: 18, fontWeight: 700 }}>Live Analysis</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {/* All button */}
-          <button
-            onClick={() => setSelectedMonth("all")}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <select
+            value={selectedMonth}
+            onChange={e => setSelectedMonth(e.target.value)}
             style={{
-              padding: "5px 14px", fontSize: 12, borderRadius: 8, cursor: "pointer",
+              padding: "6px 32px 6px 12px", fontSize: 13, borderRadius: 8, cursor: "pointer",
               border: "1px solid var(--border)",
-              background: selectedMonth === "all" ? '#4b5263' : 'var(--surface)',
-              color: selectedMonth === "all" ? "#fff" : "var(--text2)",
-              fontWeight: selectedMonth === "all" ? 700 : 400,
-              transition: "all 0.15s",
+              background: 'var(--surface2)',
+              color: "var(--text)",
+              outline: "none",
+              appearance: "none" as any,
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b9098' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+              backgroundRepeat: "no-repeat",
+              backgroundPosition: "right 10px center",
             }}
-          >All</button>
-          {/* Month buttons — newest first */}
-          {allMonthKeys.map(key => {
-            const active = selectedMonth === key;
-            return (
-              <button
-                key={key}
-                onClick={() => setSelectedMonth(active ? "all" : key)}
-                style={{
-                  padding: "5px 14px", fontSize: 12, borderRadius: 8, cursor: "pointer",
-                  border: "1px solid var(--border)",
-                  background: active ? '#4b5263' : 'var(--surface)',
-                  color: active ? "#fff" : "var(--text2)",
-                  fontWeight: active ? 700 : 400,
-                  transition: "all 0.15s",
-                }}
-              >{monthLabel(key)}</button>
-            );
-          })}
-          <span style={{ fontSize: 11, color: "var(--text2)", marginLeft: 4 }}>
+          >
+            <option value="all">All months</option>
+            {allMonthKeys.map(key => (
+              <option key={key} value={key}>{monthLabel(key)}</option>
+            ))}
+          </select>
+          <span style={{ fontSize: 11, color: "var(--text2)" }}>
             {trades.length} trades
           </span>
         </div>
@@ -378,6 +368,7 @@ export default function LiveAnalysis() {
             </div>
           </>
         ) : (() => {
+          // Per-trade breakdown for selected month
           const dayData = sorted.map((t, i) => ({
             i: i + 1,
             label: `#${t.tradeNum ?? i + 1}`,
