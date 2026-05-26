@@ -310,7 +310,6 @@ export default function App() {
           <Route path="/backtest" component={BacktestTrades} />
           <Route path="/backtest-analysis" component={BacktestAnalysis} />
           <Route path="/charts" component={Charts} />
-          <Route path="/mc" component={MCSim} />
           <Route path="/import" component={Import} />
           {session.role === 'admin' && (
             <Route path="/users">
