@@ -472,12 +472,13 @@ export default function Charts() {
   const ddMC = undefined;
   const sdMC = undefined;
 
-  // Last equity deviation
-  const lastBTEq  = btEq.at(-1);
-  const lastLvEq  = lvEq.at(-1);
-  const lastMedEq = mcMed.at(-1);
-  const lastP5Eq  = mcp5.at(-1);
-  const lastP95Eq = mcp95.at(-1);
+  // Last equity deviation — depends on active mode
+  const _lastNorm = normalizedEqData.at(-1);
+  const lastBTEq  = eqMode === 'normalized' ? (_lastNorm?.BT   ?? null) : btEq.at(-1);
+  const lastLvEq  = eqMode === 'normalized' ? (_lastNorm?.Live  ?? null) : lvEq.at(-1);
+  const lastMedEq = eqMode === 'normalized' ? (_lastNorm?.['MC p50'] ?? null) : mcMed.at(-1);
+  const lastP5Eq  = eqMode === 'normalized' ? (_lastNorm?.['MC p5']  ?? null) : mcp5.at(-1);
+  const lastP95Eq = eqMode === 'normalized' ? (_lastNorm?.['MC p95'] ?? null) : mcp95.at(-1);
 
   return (
     <div style={{ padding: isMobile ? '12px 10px' : '24px 28px', overflowX: 'hidden', boxSizing: 'border-box', width: '100%' }}>
