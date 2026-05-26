@@ -23,10 +23,48 @@ async function fetchPrices() {
   return r.json();
 }
 
-// News datetime helpers
-function parseNewsDateTime(dateStr: string): Date | null {
-  if (!dateStr) return null;
-  try { return new Date(dateStr); } catch { return null; }
+// ForexFactory times are in EST (UTC-4). User is UTC+3 → +7h shift
+const MONTH_MAP: Record<string, number> = {
+  Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11
+};
+
+/** Parse "Thu May 21" + "8:00am" (no leading-zero safe) → Date in UTC+3 */
+function parseFFDateTime(dateStr: string, timeStr: string): Date | null {
+  if (!dateStr || !timeStr) return null;
+  const t = timeStr.trim().toLowerCase();
+  if (t === 'all day' || t === 'tentative' || t === 'day 1' || t === 'day 2') return null;
+  const tm = t.match(/^(\d{1,2}):(\d{2})(am|pm)$/);
+  if (!tm) return null;
+  let h = parseInt(tm[1], 10);
+  const m = parseInt(tm[2], 10);
+  const ampm = tm[3];
+  if (ampm === 'am') { if (h === 12) h = 0; } else { if (h !== 12) h += 12; }
+  const dm = dateStr.trim().match(/^[A-Za-z]{3}\s([A-Za-z]{3})\s(\d{1,2})$/);
+  if (!dm) return null;
+  const mon = MONTH_MAP[dm[1]];
+  const day = parseInt(dm[2], 10);
+  if (mon === undefined) return null;
+  const year = new Date().getFullYear();
+  // Build UTC ms from EST (UTC-4): add 4h to get UTC, then add 3h to get UTC+3
+  const estMs = Date.UTC(year, mon, day, h, m, 0) + 4 * 3600_000;
+  return new Date(estMs + 3 * 3600_000);
+}
+
+/** Current time as UTC+3 Date */
+function nowUTC3(): Date {
+  return new Date(Date.now() + 3 * 3600_000);
+}
+
+/** Start of today (midnight) in UTC+3 */
+function todayStartUTC3(): Date {
+  const n = nowUTC3();
+  return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()));
+}
+
+/** Show news for today + next 2 days (3 days total) */
+function windowEndUTC3(): Date {
+  const today = todayStartUTC3();
+  return new Date(today.getTime() + 2 * 86400_000 + 86399_999);
 }
 
 function NewsWidget() {
@@ -46,110 +84,132 @@ function NewsWidget() {
   if (isLoading) return <div style={{ color: 'var(--text2)', fontSize: 12, padding: '8px 0' }}>Loading...</div>;
   if (isError) return <div style={{ color: 'var(--red)', fontSize: 12 }}>Failed to load news.</div>;
 
-  const nowMs = Date.now();
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const tomorrowStr = new Date(Date.now() + 86400_000).toISOString().slice(0, 10);
-  const dayAfterStr = new Date(Date.now() + 2 * 86400_000).toISOString().slice(0, 10);
+  const nowLocal = nowUTC3();
+  const todayStart = todayStartUTC3();
+  const windowEnd = windowEndUTC3();
 
-  // Filter to today + next 2 days, exclude past events (more than 15min ago)
+  // Enrich each item with parsed datetime + filter
   const enriched = (news as any[])
-    .map(item => ({ ...item, dt: parseNewsDateTime(item.date) }))
+    .map(item => {
+      const dt = parseFFDateTime(item.date, item.time);
+      return { ...item, dt };
+    })
     .filter(item => {
       if (!item.dt) return false;
-      const dateStr = item.dt.toISOString().slice(0, 10);
-      if (dateStr !== todayStr && dateStr !== tomorrowStr && dateStr !== dayAfterStr) return false;
-      return item.dt.getTime() >= nowMs - 15 * 60_000;
-    })
-    .sort((a, b) => a.dt.getTime() - b.dt.getTime());
+      const cutoff = new Date(nowLocal.getTime() - 15 * 60_000);
+      return item.dt >= cutoff && item.dt <= windowEnd;
+    });
 
   if (!enriched.length) return (
-    <div style={{ color: 'var(--text2)', fontSize: 12, padding: '8px 0' }}>No upcoming high-impact news.</div>
+    <div style={{ color: 'var(--text2)', fontSize: 12, padding: '8px 0' }}>No upcoming high-impact news this week.</div>
   );
 
-  // Group by date string YYYY-MM-DD
-  const groups: Record<string, typeof enriched> = {};
+  // Group by date string
+  const grouped: Record<string, typeof enriched> = {};
   for (const item of enriched) {
-    const key = item.dt.toISOString().slice(0, 10);
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(item);
+    const key = item.date;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(item);
   }
 
-  const dayLabel = (key: string) => {
-    if (key === todayStr) return 'Today · ' + key;
-    if (key === tomorrowStr) return 'Tomorrow · ' + key;
-    return key;
-  };
+  const nowMs = nowLocal.getTime();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {Object.keys(groups).sort().map(date => (
-        <div key={date}>
-          <div style={{
-            fontSize: 10, color: 'var(--text2)', fontWeight: 600,
-            textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5,
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-            {dayLabel(date)}
-            {groups[date].some(it => Math.abs(it.dt.getTime() - nowMs) <= 15 * 60_000) && (
-              <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 5px', fontWeight: 700 }}>LIVE</span>
-            )}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {groups[date].map((item, i) => {
-              const diffMin = (item.dt.getTime() - nowMs) / 60_000;
-              const isLive = Math.abs(diffMin) <= 15;
-              const isSoon = diffMin > 0 && diffMin <= 120;
-              const rowBg = isLive ? 'rgba(22,163,74,0.13)' : isSoon ? 'rgba(234,179,8,0.07)' : '#1a1d24';
-              const rowBorder = isLive ? 'rgba(22,163,74,0.5)' : isSoon ? 'rgba(234,179,8,0.25)' : '#2a2d36';
-              const localTime = item.dt.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Kiev' });
+      {Object.entries(grouped).map(([date, items]) => {
+        // Is any event in this group "live" right now?
+        const hasLive = items.some(it => it.dt && Math.abs(it.dt.getTime() - nowMs) <= 15 * 60_000);
+        return (
+          <div key={date}>
+            <div style={{
+              fontSize: 10, color: 'var(--text2)', fontWeight: 600,
+              textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5,
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              {date}
+              {hasLive && (
+                <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 5px', fontWeight: 700 }}>LIVE</span>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {items.map((item, i) => {
+                if (!item.dt) return null;
+                const diffMin = (item.dt.getTime() - nowMs) / 60_000;
+                const isLive = Math.abs(diffMin) <= 15;
+                const isSoon = diffMin > 0 && diffMin <= 120;
 
-              return (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '6px 10px', borderRadius: 7,
-                  background: rowBg, border: `1px solid ${rowBorder}`,
-                  transition: 'background 0.3s',
-                }}>
-                  <div style={{
-                    width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-                    background: item.impact === 'High' ? '#ef4444' : '#f97316',
-                    boxShadow: item.impact === 'High' ? '0 0 5px #ef4444aa' : '0 0 5px #f97316aa',
-                  }} />
-                  <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#9ca3af', minWidth: 28 }}>{item.currency}</span>
-                  <span style={{
-                    fontSize: 10, fontFamily: 'monospace', minWidth: 42,
-                    color: isLive ? '#4ade80' : isSoon ? '#facc15' : '#6b7280',
-                    fontWeight: isLive || isSoon ? 700 : 400,
-                  }}>{localTime}</span>
-                  <span style={{ flex: 1, minWidth: 0 }}>
+                let rowBg = '#1a1d24'; // default grey
+                let rowBorder = '#2a2d36';
+                if (isLive) { rowBg = 'rgba(22,163,74,0.13)'; rowBorder = 'rgba(22,163,74,0.5)'; }
+                else if (isSoon) { rowBg = 'rgba(234,179,8,0.07)'; rowBorder = 'rgba(234,179,8,0.25)'; }
+
+                // Format time in UTC+3
+                const localHH = item.dt.getUTCHours().toString().padStart(2, '0');
+                const localMM = item.dt.getUTCMinutes().toString().padStart(2, '0');
+                const localTime = `${localHH}:${localMM}`;
+
+                return (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '6px 10px', borderRadius: 7,
+                    background: rowBg,
+                    border: `1px solid ${rowBorder}`,
+                    transition: 'background 0.3s',
+                  }}>
+                    {/* Impact dot */}
+                    <div style={{
+                      width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                      background: item.impact === 'red' ? '#ef4444' : '#f97316',
+                      boxShadow: item.impact === 'red' ? '0 0 5px #ef4444aa' : '0 0 5px #f97316aa',
+                    }} />
+                    {/* Currency */}
                     <span style={{
-                      fontSize: 12,
+                      fontSize: 10, fontWeight: 700, fontFamily: 'monospace',
+                      color: '#9ca3af',
+                      minWidth: 28,
+                    }}>{item.currency}</span>
+                    {/* Time (UTC+3) */}
+                    <span style={{
+                      fontSize: 10, fontFamily: 'monospace', minWidth: 42,
+                      color: isLive ? '#4ade80' : isSoon ? '#facc15' : '#6b7280',
+                      fontWeight: isLive || isSoon ? 700 : 400,
+                    }}>{localTime}</span>
+                    {/* Title */}
+                    <span style={{
+                      fontSize: 12, flex: 1,
                       color: isLive ? '#f1f5f9' : isSoon ? '#e2e8f0' : '#94a3b8',
                       fontWeight: isLive ? 600 : 400,
                     }}>{item.title}</span>
-                    {(item.forecast || item.previous || item.actual) && (
-                      <span style={{ marginLeft: 8, fontSize: 10, fontFamily: 'monospace', color: '#6b7280' }}>
-                        {item.actual != null && <span style={{ color: item.actual > item.forecast ? '#4ade80' : '#f87171', marginRight: 4 }}>A:{item.actual}</span>}
-                        {item.forecast != null && <span style={{ marginRight: 4 }}>F:{item.forecast}</span>}
-                        {item.previous != null && <span>P:{item.previous}</span>}
+                    {/* Status badge */}
+                    {isLive && <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 6px', fontWeight: 700, flexShrink: 0 }}>NOW</span>}
+                    {isSoon && !isLive && (
+                      <span style={{ fontSize: 9, color: '#facc15', fontFamily: 'monospace', flexShrink: 0 }}>
+                        {diffMin < 60 ? `${Math.round(diffMin)}m` : `${Math.floor(diffMin / 60)}h${Math.round(diffMin % 60)}m`}
                       </span>
                     )}
-                  </span>
-                  {isLive && <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 6px', fontWeight: 700, flexShrink: 0 }}>NOW</span>}
-                  {isSoon && !isLive && (
-                    <span style={{ fontSize: 9, color: '#facc15', fontFamily: 'monospace', flexShrink: 0 }}>
-                      {diffMin < 60 ? `${Math.round(diffMin)}m` : `${Math.floor(diffMin / 60)}h${Math.round(diffMin % 60)}m`}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
+
+const ASSET_ICONS: Record<string, { label: string; symbol: React.ReactNode }> = {
+  EUR: { label: 'EUR/USD', symbol: <span style={{ fontSize: 17, fontWeight: 700, fontFamily: 'serif', color: 'var(--text2)' }}>€</span> },
+  GBP: { label: 'GBP/USD', symbol: <span style={{ fontSize: 17, fontWeight: 700, fontFamily: 'serif', color: 'var(--text2)' }}>£</span> },
+  XAU: { label: 'XAU/USD', symbol: (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="2" y="7" width="16" height="9" rx="2" fill="none" stroke="var(--text2)" strokeWidth="1.5"/>
+      <rect x="5" y="4" width="10" height="4" rx="1.5" fill="none" stroke="var(--text2)" strokeWidth="1.3"/>
+      <line x1="6" y1="11" x2="14" y2="11" stroke="var(--text2)" strokeWidth="1" strokeLinecap="round"/>
+    </svg>
+  )},
+  GER: { label: 'DAX',     symbol: <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text2)', fontFamily: 'monospace' }}>DAX</span> },
+};
 
 function WeeklyChanges() {
   const { data: prices, isLoading } = useQuery({
