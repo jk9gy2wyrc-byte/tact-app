@@ -224,10 +224,16 @@ function WeeklyChanges() {
   const dayOfWeek = now.getUTCDay();
   const daysFromMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   const monDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysFromMon));
-  const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const monName = monDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
   const todayName = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
   const weekLabel = daysFromMon === 0 ? todayName : `${monName} – ${todayName}`;
+
+  // Format price depending on asset
+  const fmtPrice = (key: string, val: number) => {
+    if (key === 'XAU') return val.toFixed(2);
+    if (key === 'GER') return val.toFixed(0);
+    return val.toFixed(5);
+  };
 
   return (
     <div>
@@ -238,6 +244,8 @@ function WeeklyChanges() {
         {Object.entries(ASSET_ICONS).map(([key, meta]) => {
           const entry = (prices as any)?.[key];
           const change: number | null = entry?.change ?? null;
+          const current: number | null = entry?.current ?? null;
+          const open: number | null = entry?.open ?? null;
           const isPos = change !== null && change >= 0;
           const color = change === null ? 'var(--text2)' : isPos ? '#4ade80' : '#f87171';
           const arrow = change === null ? '' : isPos ? '▲' : '▼';
@@ -245,9 +253,9 @@ function WeeklyChanges() {
           return (
             <div key={key} style={{
               display: 'flex', alignItems: 'center', gap: 10,
-              background: 'var(--surface)', border: '1px solid var(--border)',
+              background: 'var(--surface)', border: `1px solid ${change === null ? 'var(--border)' : isPos ? '#4ade8033' : '#f8717133'}`,
               borderRadius: 12, padding: '10px 16px',
-              flex: '1 1 140px', minWidth: 130,
+              flex: '1 1 160px', minWidth: 150,
             }}>
               <div style={{
                 width: 32, height: 32, borderRadius: 8,
@@ -257,11 +265,18 @@ function WeeklyChanges() {
               }}>
                 {meta.symbol}
               </div>
-              <div>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 2 }}>{meta.label}</div>
                 <div style={{ fontSize: 16, fontWeight: 600, fontFamily: 'monospace', color }}>
                   {isLoading ? '…' : change === null ? '—' : `${arrow} ${Math.abs(change).toFixed(2)}%`}
                 </div>
+                {!isLoading && current !== null && open !== null && (
+                  <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--text2)', marginTop: 3, display: 'flex', gap: 6 }}>
+                    <span title="Current price">{fmtPrice(key, current)}</span>
+                    <span style={{ color: 'var(--border)' }}>|</span>
+                    <span title="Week open" style={{ color: '#6b7280' }}>open {fmtPrice(key, open)}</span>
+                  </div>
+                )}
               </div>
             </div>
           );
