@@ -258,10 +258,10 @@ function MetricChart({
       ) : (
         <>
           <ResponsiveContainer width="100%" height={height}>
-            <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
+            <LineChart data={chartData} margin={{ top: 4, right: isMobile ? 4 : 16, bottom: 4, left: isMobile ? 0 : 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
-              <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
-              <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }}
+              <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickCount={isMobile ? 5 : undefined} interval={isMobile ? 'preserveStartEnd' : undefined} />
+              <YAxis stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} width={isMobile ? 30 : 45}
                 tickFormatter={(v) => unit ? `${v}${unit}` : v} />
               <Tooltip content={<DeviationTooltip />} />
               {refY !== undefined && <ReferenceLine y={refY} stroke="#374151" strokeDasharray="4 4" />}
@@ -357,7 +357,6 @@ export default function Charts() {
     step: number;
   }>(null);
   const [stressLoading, setStressLoading] = useState(false);
-  const [eqMode, setEqMode] = useState<'absolute' | 'normalized'>('absolute');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setSP = useCallback((key: keyof typeof defaultStress, val: number) => {
@@ -425,31 +424,6 @@ export default function Charts() {
     });
   }
 
-  // Normalized equity: avg cumulative R per trade index (0..1 normalized X)
-  const N_NORM = 100; // normalized points
-  const normalizedEqData: any[] = Array.from({ length: N_NORM }, (_, i) => {
-    const t = i / (N_NORM - 1); // 0..1
-    // BT: pick value at t * length
-    const btIdx = Math.min(Math.round(t * (btEq.length - 1)), btEq.length - 1);
-    const btVal = btEq.length > 0 ? (btEq[btIdx] / btEq.length) * (i + 1) : null;
-    // Live: pick value at t * length
-    const lvIdx = Math.min(Math.round(t * (lvEq.length - 1)), lvEq.length - 1);
-    const lvVal = lvEq.length > 0 ? (lvEq[lvIdx] / lvEq.length) * (i + 1) : null;
-    // MC median normalized
-    const mcIdx = Math.min(Math.round(t * (mcMed.length - 1)), mcMed.length - 1);
-    const mcVal = mcMed.length > 0 ? (mcMed[mcIdx] / (btEq.length || 1)) * (i + 1) : null;
-    const p5Val = mcp5.length > 0 ? (mcp5[mcIdx] / (btEq.length || 1)) * (i + 1) : null;
-    const p95Val = mcp95.length > 0 ? (mcp95[mcIdx] / (btEq.length || 1)) * (i + 1) : null;
-    return {
-      trade: i + 1,
-      BT: btVal != null ? Math.round(btVal * 100) / 100 : null,
-      Live: lvVal != null ? Math.round(lvVal * 100) / 100 : null,
-      'MC p50': mcVal != null ? Math.round(mcVal * 100) / 100 : null,
-      'MC p5': p5Val != null ? Math.round(p5Val * 100) / 100 : null,
-      'MC p95': p95Val != null ? Math.round(p95Val * 100) / 100 : null,
-    };
-  });
-
   // MC bands mapped to BT rolling length (100 MC pts -> N bt trades, interpolate)
   const mapMCtoRolling = (
     btLen: number,
@@ -472,16 +446,15 @@ export default function Charts() {
   const ddMC = undefined;
   const sdMC = undefined;
 
-  // Last equity deviation — depends on active mode
-  const _lastNorm = normalizedEqData.at(-1);
-  const lastBTEq  = eqMode === 'normalized' ? (_lastNorm?.BT   ?? null) : btEq.at(-1);
-  const lastLvEq  = eqMode === 'normalized' ? (_lastNorm?.Live  ?? null) : lvEq.at(-1);
-  const lastMedEq = eqMode === 'normalized' ? (_lastNorm?.['MC p50'] ?? null) : mcMed.at(-1);
-  const lastP5Eq  = eqMode === 'normalized' ? (_lastNorm?.['MC p5']  ?? null) : mcp5.at(-1);
-  const lastP95Eq = eqMode === 'normalized' ? (_lastNorm?.['MC p95'] ?? null) : mcp95.at(-1);
+  // Last equity deviation
+  const lastBTEq  = btEq.at(-1);
+  const lastLvEq  = lvEq.at(-1);
+  const lastMedEq = mcMed.at(-1);
+  const lastP5Eq  = mcp5.at(-1);
+  const lastP95Eq = mcp95.at(-1);
 
   return (
-    <div style={{ padding: isMobile ? '12px 10px' : '24px 28px', overflowX: 'hidden', boxSizing: 'border-box', width: '100%' }}>
+    <div style={{ padding: isMobile ? '12px 6px' : '24px 28px', overflowX: 'hidden', boxSizing: 'border-box', width: '100%', maxWidth: '100vw' }}>
       <div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 600, marginBottom: isMobile ? 12 : 20 }}>Charts</div>
 
       {/* LEGEND */}
@@ -494,43 +467,16 @@ export default function Charts() {
 
       {/* EQUITY CURVES */}
       <div style={chartStyle(isMobile)}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>
-            {eqMode === 'absolute' ? 'Equity Curves — Cumulative Net R' : 'Equity Curves — Avg Net R per Trade (нормалізовано)'}
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              onClick={() => setEqMode('absolute')}
-              style={{
-                fontSize: 11, padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)',
-                background: eqMode === 'absolute' ? '#4b5263' : 'var(--surface2)',
-                color: eqMode === 'absolute' ? '#fff' : 'var(--text2)', cursor: 'pointer',
-              }}
-            >Абсолютний</button>
-            <button
-              onClick={() => setEqMode('normalized')}
-              style={{
-                fontSize: 11, padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)',
-                background: eqMode === 'normalized' ? '#4b5263' : 'var(--surface2)',
-                color: eqMode === 'normalized' ? '#fff' : 'var(--text2)', cursor: 'pointer',
-              }}
-            >На угоду</button>
-          </div>
-        </div>
-        {eqMode === 'normalized' && (
-          <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 10, padding: '6px 10px', background: 'var(--surface2)', borderRadius: 6 }}>
-            💡 Нормалізовано: показує середній накопичений R на кожну угоду. BT ({btEq.length} угод) і Live ({lvEq.length} угод) порівнюються чесно незалежно від кількості.
-          </div>
-        )}
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Equity Curves — Cumulative Net R</div>
         {btEq.length === 0 ? (
           <div style={{ color: 'var(--text2)', padding: 40, textAlign: 'center' }}>Немає даних бектесту.</div>
         ) : (
           <>
             <ResponsiveContainer width="100%" height={isMobile ? 220 : 340}>
-              <LineChart data={eqMode === 'normalized' ? normalizedEqData : eqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
+              <LineChart data={eqData} margin={{ top: 4, right: isMobile ? 4 : 16, bottom: 4, left: isMobile ? 0 : 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
-                <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
-                <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
+                <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickCount={isMobile ? 5 : undefined} interval={isMobile ? 'preserveStartEnd' : undefined} />
+                <YAxis stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickCount={isMobile ? 5 : undefined} interval={isMobile ? 'preserveStartEnd' : undefined} />
                 <Tooltip content={<DeviationTooltip />} />
                 <ReferenceLine y={0} stroke="#2a2d33" strokeDasharray="4 4" />
                 <Line type="monotone" dataKey="MC p5"  stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
@@ -602,7 +548,7 @@ export default function Charts() {
       <div style={chartStyle(isMobile)}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Порівняння метрик</div>
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-        <table style={{ minWidth: 400 }}>
+        <table style={{ minWidth: isMobile ? 280 : 400, fontSize: isMobile ? 11 : 13 }}>
           <thead>
             <tr>
               <th>Метрика</th>
@@ -709,10 +655,10 @@ export default function Charts() {
         ) : (
           <>
             <ResponsiveContainer width="100%" height={isMobile ? 160 : 200}>
-              <LineChart data={eqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
+              <LineChart data={eqData} margin={{ top: 4, right: isMobile ? 4 : 16, bottom: 4, left: isMobile ? 0 : 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
-                <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
-                <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
+                <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickCount={isMobile ? 5 : undefined} interval={isMobile ? 'preserveStartEnd' : undefined} />
+                <YAxis stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickCount={isMobile ? 5 : undefined} interval={isMobile ? 'preserveStartEnd' : undefined} />
                 <Tooltip content={<SimpleTooltip />} />
                 <ReferenceLine y={0} stroke="#555" />
                 <Line type="monotone" dataKey="MC p5"  stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
@@ -944,10 +890,10 @@ export default function Charts() {
                         <span><span style={{ color: LIVE_COLOR }}>━</span> Live</span>
                       </div>
                       <ResponsiveContainer width="100%" height={isMobile ? 200 : 260}>
-                        <LineChart data={stressEqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
+                        <LineChart data={stressEqData} margin={{ top: 4, right: isMobile ? 4 : 16, bottom: 4, left: isMobile ? 0 : 8 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
-                          <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
-                          <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
+                          <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickCount={isMobile ? 5 : undefined} interval={isMobile ? 'preserveStartEnd' : undefined} />
+                          <YAxis stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickCount={isMobile ? 5 : undefined} interval={isMobile ? 'preserveStartEnd' : undefined} />
                           <Tooltip content={<SimpleTooltip />} />
                           <ReferenceLine y={0} stroke="#555" strokeDasharray="4 4" />
                           {/* Normal MC */}
