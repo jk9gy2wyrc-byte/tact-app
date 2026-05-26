@@ -23,30 +23,10 @@ async function fetchPrices() {
   return r.json();
 }
 
-// News datetime helpers — API returns ISO date string e.g. "2026-05-26T14:00:00+00:00"
-/** Parse ISO date string → local Date (UTC+3) */
+// News datetime helpers
 function parseNewsDateTime(dateStr: string): Date | null {
   if (!dateStr) return null;
-  try {
-    return new Date(dateStr);
-  } catch { return null; }
-}
-
-/** Current time */
-function nowUTC3(): Date {
-  return new Date();
-}
-
-/** Start of today (local midnight UTC) */
-function todayStartUTC3(): Date {
-  const n = new Date();
-  return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()));
-}
-
-/** Show news for today + next 2 days */
-function windowEndUTC3(): Date {
-  const today = todayStartUTC3();
-  return new Date(today.getTime() + 2 * 86400_000 + 86399_999);
+  try { return new Date(dateStr); } catch { return null; }
 }
 
 function NewsWidget() {
@@ -66,153 +46,110 @@ function NewsWidget() {
   if (isLoading) return <div style={{ color: 'var(--text2)', fontSize: 12, padding: '8px 0' }}>Loading...</div>;
   if (isError) return <div style={{ color: 'var(--red)', fontSize: 12 }}>Failed to load news.</div>;
 
-  const nowLocal = nowUTC3();
-  const todayStart = todayStartUTC3();
-  const windowEnd = windowEndUTC3();
+  const nowMs = Date.now();
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const tomorrowStr = new Date(Date.now() + 86400_000).toISOString().slice(0, 10);
+  const dayAfterStr = new Date(Date.now() + 2 * 86400_000).toISOString().slice(0, 10);
 
-  // Enrich each item with parsed datetime + filter
+  // Filter to today + next 2 days, exclude past events (more than 15min ago)
   const enriched = (news as any[])
-    .map(item => {
-      // API returns combined date field (ISO string)
-      const dt = parseNewsDateTime(item.date);
-      return { ...item, dt };
-    })
+    .map(item => ({ ...item, dt: parseNewsDateTime(item.date) }))
     .filter(item => {
       if (!item.dt) return false;
-      const cutoff = new Date(nowLocal.getTime() - 15 * 60_000);
-      return item.dt >= cutoff && item.dt <= windowEnd;
-    });
+      const dateStr = item.dt.toISOString().slice(0, 10);
+      if (dateStr !== todayStr && dateStr !== tomorrowStr && dateStr !== dayAfterStr) return false;
+      return item.dt.getTime() >= nowMs - 15 * 60_000;
+    })
+    .sort((a, b) => a.dt.getTime() - b.dt.getTime());
 
   if (!enriched.length) return (
-    <div style={{ color: 'var(--text2)', fontSize: 12, padding: '8px 0' }}>No upcoming high-impact news this week.</div>
+    <div style={{ color: 'var(--text2)', fontSize: 12, padding: '8px 0' }}>No upcoming high-impact news.</div>
   );
 
-  // Group by date (YYYY-MM-DD)
-  const grouped: Record<string, typeof enriched> = {};
+  // Group by date string YYYY-MM-DD
+  const groups: Record<string, typeof enriched> = {};
   for (const item of enriched) {
-    const key = item.dt ? item.dt.toISOString().slice(0, 10) : item.date?.slice(0, 10) ?? '';
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(item);
+    const key = item.dt.toISOString().slice(0, 10);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(item);
   }
 
-  // Sort groups by date
-  const sortedGroupKeys = Object.keys(grouped).sort();
-
-  // Day label helper
   const dayLabel = (key: string) => {
-    const today = new Date().toISOString().slice(0, 10);
-    const tomorrow = new Date(Date.now() + 86400_000).toISOString().slice(0, 10);
-    if (key === today) return 'Today · ' + key;
-    if (key === tomorrow) return 'Tomorrow · ' + key;
+    if (key === todayStr) return 'Today · ' + key;
+    if (key === tomorrowStr) return 'Tomorrow · ' + key;
     return key;
   };
 
-  const nowMs = nowLocal.getTime();
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {sortedGroupKeys.map((date) => { const items = grouped[date]; return (
-        // Is any event in this group "live" right now?
-        const hasLive = items.some(it => it.dt && Math.abs(it.dt.getTime() - nowMs) <= 15 * 60_000);
-        return (
-          <div key={date}>
-            <div style={{
-              fontSize: 10, color: 'var(--text2)', fontWeight: 600,
-              textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5,
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}>
-              {dayLabel(date)}
-              {hasLive && (
-                <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 5px', fontWeight: 700 }}>LIVE</span>
-              )}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {items.map((item, i) => {
-                if (!item.dt) return null;
-                const diffMin = (item.dt.getTime() - nowMs) / 60_000;
-                const isLive = Math.abs(diffMin) <= 15;
-                const isSoon = diffMin > 0 && diffMin <= 120;
+      {Object.keys(groups).sort().map(date => (
+        <div key={date}>
+          <div style={{
+            fontSize: 10, color: 'var(--text2)', fontWeight: 600,
+            textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5,
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            {dayLabel(date)}
+            {groups[date].some(it => Math.abs(it.dt.getTime() - nowMs) <= 15 * 60_000) && (
+              <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 5px', fontWeight: 700 }}>LIVE</span>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {groups[date].map((item, i) => {
+              const diffMin = (item.dt.getTime() - nowMs) / 60_000;
+              const isLive = Math.abs(diffMin) <= 15;
+              const isSoon = diffMin > 0 && diffMin <= 120;
+              const rowBg = isLive ? 'rgba(22,163,74,0.13)' : isSoon ? 'rgba(234,179,8,0.07)' : '#1a1d24';
+              const rowBorder = isLive ? 'rgba(22,163,74,0.5)' : isSoon ? 'rgba(234,179,8,0.25)' : '#2a2d36';
+              const localTime = item.dt.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Kiev' });
 
-                let rowBg = '#1a1d24'; // default grey
-                let rowBorder = '#2a2d36';
-                if (isLive) { rowBg = 'rgba(22,163,74,0.13)'; rowBorder = 'rgba(22,163,74,0.5)'; }
-                else if (isSoon) { rowBg = 'rgba(234,179,8,0.07)'; rowBorder = 'rgba(234,179,8,0.25)'; }
-
-                // Format time in local browser time
-                const localTime = item.dt
-                  ? item.dt.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Kiev' })
-                  : item.time ?? '';
-
-                return (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '6px 10px', borderRadius: 7,
-                    background: rowBg,
-                    border: `1px solid ${rowBorder}`,
-                    transition: 'background 0.3s',
-                  }}>
-                    {/* Impact dot */}
-                    <div style={{
-                      width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-                      background: item.impact === 'High' ? '#ef4444' : '#f97316',
-                      boxShadow: item.impact === 'High' ? '0 0 5px #ef4444aa' : '0 0 5px #f97316aa',
-                    }} />
-                    {/* Currency */}
+              return (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '6px 10px', borderRadius: 7,
+                  background: rowBg, border: `1px solid ${rowBorder}`,
+                  transition: 'background 0.3s',
+                }}>
+                  <div style={{
+                    width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                    background: item.impact === 'High' ? '#ef4444' : '#f97316',
+                    boxShadow: item.impact === 'High' ? '0 0 5px #ef4444aa' : '0 0 5px #f97316aa',
+                  }} />
+                  <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#9ca3af', minWidth: 28 }}>{item.currency}</span>
+                  <span style={{
+                    fontSize: 10, fontFamily: 'monospace', minWidth: 42,
+                    color: isLive ? '#4ade80' : isSoon ? '#facc15' : '#6b7280',
+                    fontWeight: isLive || isSoon ? 700 : 400,
+                  }}>{localTime}</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{
-                      fontSize: 10, fontWeight: 700, fontFamily: 'monospace',
-                      color: '#9ca3af',
-                      minWidth: 28,
-                    }}>{item.currency}</span>
-                    {/* Time (UTC+3) */}
-                    <span style={{
-                      fontSize: 10, fontFamily: 'monospace', minWidth: 42,
-                      color: isLive ? '#4ade80' : isSoon ? '#facc15' : '#6b7280',
-                      fontWeight: isLive || isSoon ? 700 : 400,
-                    }}>{localTime}</span>
-                    {/* Title + forecast/actual */}
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{
-                        fontSize: 12,
-                        color: isLive ? '#f1f5f9' : isSoon ? '#e2e8f0' : '#94a3b8',
-                        fontWeight: isLive ? 600 : 400,
-                      }}>{item.title}</span>
-                      {(item.forecast || item.previous || item.actual) && (
-                        <span style={{ marginLeft: 8, fontSize: 10, fontFamily: 'monospace', color: '#6b7280' }}>
-                          {item.actual != null && <span style={{ color: item.actual > item.forecast ? '#4ade80' : '#f87171', marginRight: 4 }}>A:{item.actual}</span>}
-                          {item.forecast != null && <span style={{ marginRight: 4 }}>F:{item.forecast}</span>}
-                          {item.previous != null && <span>P:{item.previous}</span>}
-                        </span>
-                      )}
-                    </span>
-                    {/* Status badge */}
-                    {isLive && <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 6px', fontWeight: 700, flexShrink: 0 }}>NOW</span>}
-                    {isSoon && !isLive && (
-                      <span style={{ fontSize: 9, color: '#facc15', fontFamily: 'monospace', flexShrink: 0 }}>
-                        {diffMin < 60 ? `${Math.round(diffMin)}m` : `${Math.floor(diffMin / 60)}h${Math.round(diffMin % 60)}m`}
+                      fontSize: 12,
+                      color: isLive ? '#f1f5f9' : isSoon ? '#e2e8f0' : '#94a3b8',
+                      fontWeight: isLive ? 600 : 400,
+                    }}>{item.title}</span>
+                    {(item.forecast || item.previous || item.actual) && (
+                      <span style={{ marginLeft: 8, fontSize: 10, fontFamily: 'monospace', color: '#6b7280' }}>
+                        {item.actual != null && <span style={{ color: item.actual > item.forecast ? '#4ade80' : '#f87171', marginRight: 4 }}>A:{item.actual}</span>}
+                        {item.forecast != null && <span style={{ marginRight: 4 }}>F:{item.forecast}</span>}
+                        {item.previous != null && <span>P:{item.previous}</span>}
                       </span>
                     )}
-                  </div>
-                );
-              })}
-            </div>
+                  </span>
+                  {isLive && <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 6px', fontWeight: 700, flexShrink: 0 }}>NOW</span>}
+                  {isSoon && !isLive && (
+                    <span style={{ fontSize: 9, color: '#facc15', fontFamily: 'monospace', flexShrink: 0 }}>
+                      {diffMin < 60 ? `${Math.round(diffMin)}m` : `${Math.floor(diffMin / 60)}h${Math.round(diffMin % 60)}m`}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        ); })}
+        </div>
+      ))}
     </div>
   );
 }
-
-const ASSET_ICONS: Record<string, { label: string; symbol: React.ReactNode }> = {
-  EUR: { label: 'EUR/USD', symbol: <span style={{ fontSize: 17, fontWeight: 700, fontFamily: 'serif', color: 'var(--text2)' }}>€</span> },
-  GBP: { label: 'GBP/USD', symbol: <span style={{ fontSize: 17, fontWeight: 700, fontFamily: 'serif', color: 'var(--text2)' }}>£</span> },
-  XAU: { label: 'XAU/USD', symbol: (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="2" y="7" width="16" height="9" rx="2" fill="none" stroke="var(--text2)" strokeWidth="1.5"/>
-      <rect x="5" y="4" width="10" height="4" rx="1.5" fill="none" stroke="var(--text2)" strokeWidth="1.3"/>
-      <line x1="6" y1="11" x2="14" y2="11" stroke="var(--text2)" strokeWidth="1" strokeLinecap="round"/>
-    </svg>
-  )},
-  GER: { label: 'DAX',     symbol: <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text2)', fontFamily: 'monospace' }}>DAX</span> },
-};
 
 function WeeklyChanges() {
   const { data: prices, isLoading } = useQuery({
