@@ -808,63 +808,32 @@ const app = new Hono()
     return c.json({ ok: true, inserted: toInsert.length }, 200);
   });
 
-// ─── Economic Calendar (faireconomy.media / ForexFactory data) ───────────────
+// ─── ForexFactory news (red/orange, USD/EUR/GBP only) ───────────────────────
 let newsCache: { ts: number; data: any[] } = { ts: 0, data: [] };
 
-const WATCHED_CURRENCIES = new Set(['USD', 'EUR', 'GBP']);
-const WATCHED_IMPACTS = new Set(['High', 'Medium']);
+import { spawnSync } from 'child_process';
 
-async function fetchCalendar(url: string): Promise<any[]> {
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!res.ok) return [];
-  return res.json();
-}
-
-async function fetchNewsData(): Promise<any[]> {
-  const [thisWeek, nextWeek] = await Promise.allSettled([
-    fetchCalendar('https://nfs.faireconomy.media/ff_calendar_thisweek.json'),
-    fetchCalendar('https://nfs.faireconomy.media/ff_calendar_nextweek.json'),
-  ]);
-
-  const all: any[] = [
-    ...(thisWeek.status === 'fulfilled' ? thisWeek.value : []),
-    ...(nextWeek.status === 'fulfilled' ? nextWeek.value : []),
-  ];
-
-  // Filter: only watched currencies + medium/high impact
-  const filtered = all.filter(e => {
-    const currency = (e.currency ?? e.country ?? '').toUpperCase();
-    const impact = e.impact ?? e.impactTitle ?? '';
-    return WATCHED_CURRENCIES.has(currency) && WATCHED_IMPACTS.has(impact);
-  });
-
-  // Normalize to our format
-  return filtered.map(e => ({
-    date: e.date ?? e.dateline ?? '',
-    time: e.time ?? '',
-    currency: (e.currency ?? e.country ?? '').toUpperCase(),
-    impact: e.impact ?? e.impactTitle ?? '',
-    title: e.title ?? e.name ?? e.event ?? '',
-    forecast: e.forecast ?? null,
-    previous: e.previous ?? null,
-    actual: e.actual ?? null,
-  }));
+async function scrapeForexFactory(): Promise<any[]> {
+  const scriptPath = '/home/user/tsct-app/scripts/scrape_news.py';
+  const result = spawnSync('python3', [scriptPath], { timeout: 40000, encoding: 'utf8' });
+  if (result.error) throw result.error;
+  const out = (result.stdout ?? '').trim();
+  if (!out) return [];
+  return JSON.parse(out);
 }
 
 app.get('/news', async (c) => {
   const now = Date.now();
-  if (now - newsCache.ts < 5 * 60 * 1000 && newsCache.data.length > 0) {
+  if (now - newsCache.ts < 5 * 60 * 1000) {
     return c.json(newsCache.data);
   }
   try {
-    const data = await fetchNewsData();
+    const data = await scrapeForexFactory();
     newsCache = { ts: now, data };
     return c.json(data);
   } catch (e) {
-    console.error('news fetch error', e);
+    console.error('news scrape error', e);
+    // return stale if available
     if (newsCache.data.length > 0) return c.json(newsCache.data);
     return c.json([]);
   }
