@@ -7,7 +7,6 @@ import BacktestTrades from "./pages/backtest-trades";
 import BacktestAnalysis from "./pages/backtest-analysis";
 import Charts from "./pages/charts";
 import Import from "./pages/import";
-import MCSim from "./pages/mc-simulation";
 import AdminUsers from "./pages/admin-users";
 import { setSession, clearSession, getSession, type Session } from "./lib/session";
 
@@ -20,7 +19,6 @@ function buildNav(role: string) {
     { path: "/backtest", label: "Backtest DB", icon: "▦" },
     { path: "/backtest-analysis", label: "BT Analysis", icon: "▲" },
     { path: "/charts", label: "Charts", icon: "↗" },
-    { path: "/mc", label: "Monte Carlo", icon: "⟳" },
     { path: "/import", label: "Import", icon: "↑" },
   ];
   if (role === 'admin') nav.push({ path: "/users", label: "Users", icon: "👥" });
