@@ -258,10 +258,10 @@ function MetricChart({
       ) : (
         <>
           <ResponsiveContainer width="100%" height={height}>
-            <LineChart data={chartData} margin={{ top: 4, right: isMobile ? 4 : 16, bottom: 4, left: isMobile ? 0 : 8 }}>
+            <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
-              <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickCount={isMobile ? 5 : undefined} interval={isMobile ? 'preserveStartEnd' : undefined} />
-              <YAxis stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} width={isMobile ? 30 : 45}
+              <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
+              <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }}
                 tickFormatter={(v) => unit ? `${v}${unit}` : v} />
               <Tooltip content={<DeviationTooltip />} />
               {refY !== undefined && <ReferenceLine y={refY} stroke="#374151" strokeDasharray="4 4" />}
@@ -357,7 +357,6 @@ export default function Charts() {
     step: number;
   }>(null);
   const [stressLoading, setStressLoading] = useState(false);
-  const [eqMode, setEqMode] = useState<'absolute' | 'normalized'>('absolute');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setSP = useCallback((key: keyof typeof defaultStress, val: number) => {
@@ -425,28 +424,6 @@ export default function Charts() {
     });
   }
 
-  // Normalized equity: avg cumulative R per trade (fair BT vs Live comparison)
-  const N_NORM = 100;
-  const normalizedEqData: any[] = Array.from({ length: N_NORM }, (_, i) => {
-    const t = i / (N_NORM - 1);
-    const btIdx = Math.min(Math.round(t * (btEq.length - 1)), btEq.length - 1);
-    const btVal = btEq.length > 0 ? (btEq[btIdx] / btEq.length) * (i + 1) : null;
-    const lvIdx = Math.min(Math.round(t * (lvEq.length - 1)), lvEq.length - 1);
-    const lvVal = lvEq.length > 0 ? (lvEq[lvIdx] / lvEq.length) * (i + 1) : null;
-    const mcIdx = Math.min(Math.round(t * (mcMed.length - 1)), mcMed.length - 1);
-    const mcVal = mcMed.length > 0 ? (mcMed[mcIdx] / (btEq.length || 1)) * (i + 1) : null;
-    const p5Val = mcp5.length > 0 ? (mcp5[mcIdx] / (btEq.length || 1)) * (i + 1) : null;
-    const p95Val = mcp95.length > 0 ? (mcp95[mcIdx] / (btEq.length || 1)) * (i + 1) : null;
-    return {
-      trade: i + 1,
-      BT:       btVal  != null ? Math.round(btVal  * 100) / 100 : null,
-      Live:     lvVal  != null ? Math.round(lvVal  * 100) / 100 : null,
-      'MC p50': mcVal  != null ? Math.round(mcVal  * 100) / 100 : null,
-      'MC p5':  p5Val  != null ? Math.round(p5Val  * 100) / 100 : null,
-      'MC p95': p95Val != null ? Math.round(p95Val * 100) / 100 : null,
-    };
-  });
-
   // MC bands mapped to BT rolling length (100 MC pts -> N bt trades, interpolate)
   const mapMCtoRolling = (
     btLen: number,
@@ -469,16 +446,15 @@ export default function Charts() {
   const ddMC = undefined;
   const sdMC = undefined;
 
-  // Last equity deviation — mode-aware
-  const _lastNorm = normalizedEqData.at(-1);
-  const lastBTEq  = eqMode === 'normalized' ? (_lastNorm?.BT        ?? null) : (btEq.at(-1) ?? null);
-  const lastLvEq  = eqMode === 'normalized' ? (_lastNorm?.Live       ?? null) : (lvEq.at(-1) ?? null);
-  const lastMedEq = eqMode === 'normalized' ? (_lastNorm?.['MC p50'] ?? null) : (mcMed.at(-1) ?? null);
-  const lastP5Eq  = eqMode === 'normalized' ? (_lastNorm?.['MC p5']  ?? null) : (mcp5.at(-1) ?? null);
-  const lastP95Eq = eqMode === 'normalized' ? (_lastNorm?.['MC p95'] ?? null) : (mcp95.at(-1) ?? null);
+  // Last equity deviation
+  const lastBTEq  = btEq.at(-1);
+  const lastLvEq  = lvEq.at(-1);
+  const lastMedEq = mcMed.at(-1);
+  const lastP5Eq  = mcp5.at(-1);
+  const lastP95Eq = mcp95.at(-1);
 
   return (
-    <div style={{ padding: isMobile ? '12px 6px' : '24px 28px', overflowX: 'hidden', boxSizing: 'border-box', width: '100%', maxWidth: '100vw' }}>
+    <div style={{ padding: isMobile ? '12px 10px' : '24px 28px', overflowX: 'hidden', boxSizing: 'border-box', width: '100%' }}>
       <div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 600, marginBottom: isMobile ? 12 : 20 }}>Charts</div>
 
       {/* LEGEND */}
@@ -491,29 +467,16 @@ export default function Charts() {
 
       {/* EQUITY CURVES */}
       <div style={chartStyle(isMobile)}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>
-            {eqMode === 'absolute' ? 'Equity Curves — Cumulative Net R' : 'Equity Curves — Avg Net R per Trade'}
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => setEqMode('absolute')} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)', background: eqMode === 'absolute' ? '#4b5263' : 'var(--surface2)', color: eqMode === 'absolute' ? '#fff' : 'var(--text2)', cursor: 'pointer' }}>Абсолютний</button>
-            <button onClick={() => setEqMode('normalized')} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)', background: eqMode === 'normalized' ? '#4b5263' : 'var(--surface2)', color: eqMode === 'normalized' ? '#fff' : 'var(--text2)', cursor: 'pointer' }}>На угоду</button>
-          </div>
-        </div>
-        {eqMode === 'normalized' && (
-          <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 10, padding: '6px 10px', background: 'var(--surface2)', borderRadius: 6 }}>
-            💡 BT ({btEq.length} угод) і Live ({lvEq.length} угод) порівнюються чесно — нормалізовано на кількість угод.
-          </div>
-        )}
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Equity Curves — Cumulative Net R</div>
         {btEq.length === 0 ? (
           <div style={{ color: 'var(--text2)', padding: 40, textAlign: 'center' }}>Немає даних бектесту.</div>
         ) : (
           <>
             <ResponsiveContainer width="100%" height={isMobile ? 220 : 340}>
-              <LineChart data={eqMode === 'normalized' ? normalizedEqData : eqData} margin={{ top: 4, right: isMobile ? 4 : 16, bottom: 4, left: isMobile ? 0 : 8 }}>
+              <LineChart data={eqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
-                <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickCount={isMobile ? 5 : undefined} interval={isMobile ? 'preserveStartEnd' : undefined} />
-                <YAxis stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickCount={isMobile ? 5 : undefined} interval={isMobile ? 'preserveStartEnd' : undefined} />
+                <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
+                <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
                 <Tooltip content={<DeviationTooltip />} />
                 <ReferenceLine y={0} stroke="#2a2d33" strokeDasharray="4 4" />
                 <Line type="monotone" dataKey="MC p5"  stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
@@ -585,7 +548,7 @@ export default function Charts() {
       <div style={chartStyle(isMobile)}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Порівняння метрик</div>
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-        <table style={{ minWidth: isMobile ? 280 : 400, fontSize: isMobile ? 11 : 13 }}>
+        <table style={{ minWidth: 400 }}>
           <thead>
             <tr>
               <th>Метрика</th>
@@ -692,10 +655,10 @@ export default function Charts() {
         ) : (
           <>
             <ResponsiveContainer width="100%" height={isMobile ? 160 : 200}>
-              <LineChart data={eqData} margin={{ top: 4, right: isMobile ? 4 : 16, bottom: 4, left: isMobile ? 0 : 8 }}>
+              <LineChart data={eqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
-                <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickCount={isMobile ? 5 : undefined} interval={isMobile ? 'preserveStartEnd' : undefined} />
-                <YAxis stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickCount={isMobile ? 5 : undefined} interval={isMobile ? 'preserveStartEnd' : undefined} />
+                <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
+                <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
                 <Tooltip content={<SimpleTooltip />} />
                 <ReferenceLine y={0} stroke="#555" />
                 <Line type="monotone" dataKey="MC p5"  stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
@@ -927,10 +890,10 @@ export default function Charts() {
                         <span><span style={{ color: LIVE_COLOR }}>━</span> Live</span>
                       </div>
                       <ResponsiveContainer width="100%" height={isMobile ? 200 : 260}>
-                        <LineChart data={stressEqData} margin={{ top: 4, right: isMobile ? 4 : 16, bottom: 4, left: isMobile ? 0 : 8 }}>
+                        <LineChart data={stressEqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
-                          <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickCount={isMobile ? 5 : undefined} interval={isMobile ? 'preserveStartEnd' : undefined} />
-                          <YAxis stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickCount={isMobile ? 5 : undefined} interval={isMobile ? 'preserveStartEnd' : undefined} />
+                          <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
+                          <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
                           <Tooltip content={<SimpleTooltip />} />
                           <ReferenceLine y={0} stroke="#555" strokeDasharray="4 4" />
                           {/* Normal MC */}
@@ -953,6 +916,109 @@ export default function Charts() {
           </div>
         )}
       </div>
+      {/* ── MONTE CARLO SIMULATION ─────────────────────────────────────────── */}
+      <div style={chartStyle(isMobile)}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Monte Carlo Simulation</div>
+        <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 16 }}>
+          1000 симуляцій · {(d.btStats?.n ?? 0)} угод · bootstrap
+        </div>
+
+        {/* MC Stats */}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
+          {[
+            { label: 'Медіана (p50)', value: `+${(mcMed.at(-1) ?? 0).toFixed(2)}R` },
+            { label: 'p5 (нижня)',    value: `${(mcp5.at(-1) ?? 0) >= 0 ? '+' : ''}${(mcp5.at(-1) ?? 0).toFixed(2)}R`, color: '#e8830a' },
+            { label: 'p95 (верхня)', value: `+${(mcp95.at(-1) ?? 0).toFixed(2)}R`, color: '#e8830a' },
+            ...((() => {
+              const nPaths = (d.mcPathsSample ?? []).length;
+              const ruinPaths = (d.mcPathsSample ?? []).filter((p: number[]) => (p[p.length - 1] ?? 0) < 0).length;
+              const profitPaths = (d.mcPathsSample ?? []).filter((p: number[]) => (p[p.length - 1] ?? 0) > 0).length;
+              return [
+                { label: 'Ймов. прибутку', value: nPaths > 0 ? `${((profitPaths / nPaths) * 100).toFixed(1)}%` : '—', color: 'var(--green)' },
+                { label: 'Ймов. руїни',    value: nPaths > 0 ? `${((ruinPaths  / nPaths) * 100).toFixed(1)}%` : '—', color: ruinPaths > 0 ? 'var(--red)' : 'var(--green)' },
+              ];
+            })()),
+            ...(lvEq.length > 0 ? (() => {
+              const finalLive = lvEq.at(-1)!;
+              const finalMed  = mcMed.at(-1) ?? 0;
+              const finalP5   = mcp5.at(-1)  ?? 0;
+              const finalP95  = mcp95.at(-1) ?? 0;
+              const liveVsMed = ((finalLive - finalMed) / Math.abs(finalMed || 1) * 100).toFixed(1) + '%';
+              const inBand    = finalLive >= finalP5 && finalLive <= finalP95;
+              return [
+                { label: 'Live vs медіана', value: liveVsMed, color: finalLive >= finalMed ? 'var(--green)' : 'var(--yellow)' },
+                { label: 'Live в p5–p95',   value: inBand ? 'Так ✓' : 'Ні ✗', color: inBand ? 'var(--green)' : 'var(--red)' },
+              ];
+            })() : []),
+          ].map((s, i) => (
+            <div key={i} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', flex: '1 1 120px', minWidth: 0 }}>
+              <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{s.label}</div>
+              <div className="mono" style={{ fontSize: 18, fontWeight: 500, color: (s as any).color ?? 'var(--text)' }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* MC Chart */}
+        {(() => {
+          const mcPathsSample: number[][] = d.mcPathsSample ?? [];
+          const nPts = mcMed.length;
+          const mcChartData = Array.from({ length: nPts }, (_, i) => {
+            const pt: Record<string, number | null> = {
+              trade: i + 1,
+              median: mcMed[i] ?? null,
+              p5: mcp5[i] ?? null,
+              p95: mcp95[i] ?? null,
+            };
+            mcPathsSample.forEach((path, pi) => { pt[`path_${pi}`] = path[i] ?? null; });
+            const lvIdx = Math.round((i / (nPts - 1)) * (lvEq.length - 1));
+            pt['live'] = lvEq.length > 0 ? (lvEq[lvIdx] ?? null) : null;
+            return pt;
+          });
+          return (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                Equity paths (100 з 1000)
+              </div>
+              <ResponsiveContainer width="100%" height={isMobile ? 240 : 380}>
+                <LineChart data={mcChartData} margin={{ top: 4, right: isMobile ? 4 : 24, left: 0, bottom: 4 }}>
+                  <CartesianGrid stroke="#1e2235" strokeDasharray="3 3" />
+                  <XAxis dataKey="trade" tick={{ fontSize: 9, fill: '#6b7280' }} tickLine={false} tickCount={isMobile ? 5 : undefined} interval={isMobile ? 'preserveStartEnd' : undefined} />
+                  <YAxis tick={{ fontSize: 9, fill: '#6b7280' }} tickLine={false} axisLine={false} tickFormatter={v => `${v}R`} width={isMobile ? 36 : 52} />
+                  <ReferenceLine y={0} stroke="#374151" strokeDasharray="4 2" />
+                  <Tooltip
+                    contentStyle={{ background: '#151a2b', border: '1px solid #1e2235', borderRadius: 8, fontSize: 11 }}
+                    formatter={(val: any, name: string) => {
+                      if (name.startsWith('path_')) return null;
+                      const labels: Record<string, string> = { median: 'Медіана', p5: 'p5', p95: 'p95', live: 'Live' };
+                      return [`${Number(val).toFixed(2)}R`, labels[name] ?? name];
+                    }}
+                    filterNull
+                  />
+                  {mcPathsSample.map((_: number[], pi: number) => (
+                    <Line key={`path_${pi}`} type="monotone" dataKey={`path_${pi}`} stroke="#2a3a5a" strokeWidth={0.8} dot={false} isAnimationActive={false} legendType="none" />
+                  ))}
+                  <Line type="monotone" dataKey="p5"     stroke="#e8830a" strokeWidth={1.5} dot={false} isAnimationActive={false} strokeDasharray="5 3" name="p5" />
+                  <Line type="monotone" dataKey="p95"    stroke="#e8830a" strokeWidth={1.5} dot={false} isAnimationActive={false} strokeDasharray="5 3" name="p95" />
+                  <Line type="monotone" dataKey="median" stroke="#e8eaed" strokeWidth={2}   dot={false} isAnimationActive={false} name="median" />
+                  {lvEq.length > 0 && <Line type="monotone" dataKey="live" stroke="#7eb8f7" strokeWidth={2.5} dot={false} isAnimationActive={false} name="live" />}
+                </LineChart>
+              </ResponsiveContainer>
+              <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 11, color: 'var(--text2)', flexWrap: 'wrap' }}>
+                <span><span style={{ color: '#e8eaed', marginRight: 4 }}>─</span> Медіана MC</span>
+                <span><span style={{ color: '#e8830a', marginRight: 4 }}>╌</span> p5 / p95</span>
+                <span><span style={{ color: '#7eb8f7', marginRight: 4 }}>─</span> Live</span>
+                <span><span style={{ color: '#2a3a5a', marginRight: 4 }}>─</span> Симуляції</span>
+              </div>
+            </div>
+          );
+        })()}
+
+        <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.8, borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
+          <b style={{ color: 'var(--text)' }}>Bootstrap MC</b> — кожна симуляція випадково тягне угоди з бектесту. 1000 кривих = реальний розподіл.
+          <span style={{ marginLeft: 8 }}><b style={{ color: '#e8830a' }}>p5/p95</b> — 90% симуляцій між цими лініями.</span>
+        </div>
+      </div>
+
     </div>
   );
 }
