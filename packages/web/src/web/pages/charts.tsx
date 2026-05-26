@@ -357,6 +357,7 @@ export default function Charts() {
     step: number;
   }>(null);
   const [stressLoading, setStressLoading] = useState(false);
+  const [eqMode, setEqMode] = useState<'absolute' | 'normalized'>('absolute');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setSP = useCallback((key: keyof typeof defaultStress, val: number) => {
@@ -424,6 +425,31 @@ export default function Charts() {
     });
   }
 
+  // Normalized equity: avg cumulative R per trade index (0..1 normalized X)
+  const N_NORM = 100; // normalized points
+  const normalizedEqData: any[] = Array.from({ length: N_NORM }, (_, i) => {
+    const t = i / (N_NORM - 1); // 0..1
+    // BT: pick value at t * length
+    const btIdx = Math.min(Math.round(t * (btEq.length - 1)), btEq.length - 1);
+    const btVal = btEq.length > 0 ? (btEq[btIdx] / btEq.length) * (i + 1) : null;
+    // Live: pick value at t * length
+    const lvIdx = Math.min(Math.round(t * (lvEq.length - 1)), lvEq.length - 1);
+    const lvVal = lvEq.length > 0 ? (lvEq[lvIdx] / lvEq.length) * (i + 1) : null;
+    // MC median normalized
+    const mcIdx = Math.min(Math.round(t * (mcMed.length - 1)), mcMed.length - 1);
+    const mcVal = mcMed.length > 0 ? (mcMed[mcIdx] / (btEq.length || 1)) * (i + 1) : null;
+    const p5Val = mcp5.length > 0 ? (mcp5[mcIdx] / (btEq.length || 1)) * (i + 1) : null;
+    const p95Val = mcp95.length > 0 ? (mcp95[mcIdx] / (btEq.length || 1)) * (i + 1) : null;
+    return {
+      trade: i + 1,
+      BT: btVal != null ? Math.round(btVal * 100) / 100 : null,
+      Live: lvVal != null ? Math.round(lvVal * 100) / 100 : null,
+      'MC p50': mcVal != null ? Math.round(mcVal * 100) / 100 : null,
+      'MC p5': p5Val != null ? Math.round(p5Val * 100) / 100 : null,
+      'MC p95': p95Val != null ? Math.round(p95Val * 100) / 100 : null,
+    };
+  });
+
   // MC bands mapped to BT rolling length (100 MC pts -> N bt trades, interpolate)
   const mapMCtoRolling = (
     btLen: number,
@@ -467,13 +493,40 @@ export default function Charts() {
 
       {/* EQUITY CURVES */}
       <div style={chartStyle(isMobile)}>
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Equity Curves — Cumulative Net R</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>
+            {eqMode === 'absolute' ? 'Equity Curves — Cumulative Net R' : 'Equity Curves — Avg Net R per Trade (нормалізовано)'}
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              onClick={() => setEqMode('absolute')}
+              style={{
+                fontSize: 11, padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)',
+                background: eqMode === 'absolute' ? '#4b5263' : 'var(--surface2)',
+                color: eqMode === 'absolute' ? '#fff' : 'var(--text2)', cursor: 'pointer',
+              }}
+            >Абсолютний</button>
+            <button
+              onClick={() => setEqMode('normalized')}
+              style={{
+                fontSize: 11, padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)',
+                background: eqMode === 'normalized' ? '#4b5263' : 'var(--surface2)',
+                color: eqMode === 'normalized' ? '#fff' : 'var(--text2)', cursor: 'pointer',
+              }}
+            >На угоду</button>
+          </div>
+        </div>
+        {eqMode === 'normalized' && (
+          <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 10, padding: '6px 10px', background: 'var(--surface2)', borderRadius: 6 }}>
+            💡 Нормалізовано: показує середній накопичений R на кожну угоду. BT ({btEq.length} угод) і Live ({lvEq.length} угод) порівнюються чесно незалежно від кількості.
+          </div>
+        )}
         {btEq.length === 0 ? (
           <div style={{ color: 'var(--text2)', padding: 40, textAlign: 'center' }}>Немає даних бектесту.</div>
         ) : (
           <>
             <ResponsiveContainer width="100%" height={isMobile ? 220 : 340}>
-              <LineChart data={eqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
+              <LineChart data={eqMode === 'normalized' ? normalizedEqData : eqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
                 <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
                 <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
