@@ -325,21 +325,14 @@ const app = new Hono()
   // ─── MC STRESS TEST ───────────────────────────────────────────────────────
   .post('/mc-stress',
     zValidator('json', z.object({
-      // 1. Loss Amplification: multiply losing trades by factor (1.0 = no change, 1.2 = losses 20% bigger)
       lossAmp: z.number().min(1).max(3).default(1),
-      // 2. Win Reduction: multiply winning trades by factor (1.0 = no change, 0.8 = wins 20% smaller)
       winReduction: z.number().min(0.3).max(1).default(1),
-      // 3. WR Degradation: % of TP trades randomly flipped to SL (0 = none, 0.15 = flip 15% of wins)
       wrDegradation: z.number().min(0).max(0.5).default(0),
-      // 4. Loss Clustering: probability of consecutive losses forming clusters (0 = none, 1 = max)
-      lossClustering: z.number().min(0).max(1).default(0),
-      clusterSize: z.number().min(2).max(10).default(3),
-      // 5. Regime Shift: reduce WR and avgRR simultaneously (0 = none, 1 = full shift)
-      regimeShiftWR: z.number().min(0).max(0.3).default(0),   // reduce WR by this fraction (e.g. 0.1 = -10pp)
-      regimeShiftRR: z.number().min(0).max(0.5).default(0),   // reduce avgRR by this fraction (e.g. 0.2 = avgRR * 0.8)
-      // 6. Execution Slippage: add fixed cost per trade in R (0 = none, 0.05 = -0.05R per trade)
       slippage: z.number().min(0).max(0.5).default(0),
-      // Survival threshold: what % drawdown is "blown" (default 20R)
+      // Psychological factors
+      humanError: z.number().min(0).max(0.2).default(0),   // prob of trade becoming -1R (tilt, forgot SL)
+      fatigue: z.number().min(0).max(0.5).default(0),       // reduce each win by this fraction (early exit)
+      missedWin: z.number().min(0).max(0.5).default(0),    // prob of win becoming 0R (missed entry)
       survivalThreshold: z.number().min(1).max(100).default(20),
     })),
     async (c) => {
@@ -385,68 +378,35 @@ const app = new Hono()
         let maxDD = 0;
         const netArr: number[] = [];
 
-        // Clustering state
-        let clusterRemaining = 0;
-
         for (let j = 0; j < N_TRADES_MC; j++) {
           let idx = indices[j];
           let netR = btNetRArr[idx];
           let isTP = btIsTP[idx];
 
-          // 4. Loss Clustering: if in a cluster, force pick a losing trade
-          if (params.lossClustering > 0 && clusterRemaining > 0) {
-            // find a losing trade index
-            const losingIndices = btNetRArr.map((r, i) => r < 0 ? i : -1).filter(i => i >= 0);
-            if (losingIndices.length > 0) {
-              idx = losingIndices[Math.floor(rand() * losingIndices.length)];
-              netR = btNetRArr[idx];
-              isTP = false;
-            }
-            clusterRemaining--;
-          }
-
-          // 3. WR Degradation: randomly flip a TP to SL
+          // WR Degradation: flip TP to SL
           if (isTP && params.wrDegradation > 0 && rand() < params.wrDegradation) {
-            // flip to a random loss
-            const losingIndices = btNetRArr.map((r, i) => r < 0 ? i : -1).filter(i => i >= 0);
-            if (losingIndices.length > 0) {
-              idx = losingIndices[Math.floor(rand() * losingIndices.length)];
-              netR = btNetRArr[idx];
-              isTP = false;
-            }
+            const losers = btNetRArr.map((r, i) => r < 0 ? i : -1).filter(i => i >= 0);
+            if (losers.length > 0) { idx = losers[Math.floor(rand() * losers.length)]; netR = btNetRArr[idx]; isTP = false; }
           }
 
-          // 5. Regime Shift: flip additional WR% of TPs to losses
-          if (isTP && params.regimeShiftWR > 0 && rand() < params.regimeShiftWR) {
-            const losingIndices = btNetRArr.map((r, i) => r < 0 ? i : -1).filter(i => i >= 0);
-            if (losingIndices.length > 0) {
-              idx = losingIndices[Math.floor(rand() * losingIndices.length)];
-              netR = btNetRArr[idx];
-              isTP = false;
-            }
+          // Human Error: trade becomes -1R (tilt, forgot SL, technical mistake)
+          if (params.humanError > 0 && rand() < params.humanError) {
+            netR = -1;
+            isTP = false;
           }
 
-          // Apply stress modifiers to net R
-          if (!isTP && netR < 0) {
-            // 1. Loss Amplification
-            netR = netR * params.lossAmp;
-          }
+          // Apply market modifiers
+          if (!isTP && netR < 0) netR = netR * params.lossAmp;
           if (isTP && netR > 0) {
-            // 2. Win Reduction
             netR = netR * params.winReduction;
-            // 5. Regime Shift RR reduction
-            if (params.regimeShiftRR > 0) {
-              netR = netR * (1 - params.regimeShiftRR);
-            }
+            // Fatigue Decay: reduce win by fatigue fraction (fear of reversal, early exit)
+            if (params.fatigue > 0) netR = netR * (1 - params.fatigue);
+            // Missed Win: win becomes 0R (missed entry, fear after loss)
+            if (params.missedWin > 0 && rand() < params.missedWin) netR = 0;
           }
 
-          // 6. Slippage: always subtract per trade
+          // Slippage: fixed cost per trade
           netR = netR - params.slippage;
-
-          // 4. Trigger new cluster if this trade is a loss
-          if (!isTP && params.lossClustering > 0 && clusterRemaining === 0 && rand() < params.lossClustering) {
-            clusterRemaining = Math.floor(rand() * (params.clusterSize - 1)) + 1;
-          }
 
           acc += netR;
           netArr.push(netR);
@@ -808,32 +768,47 @@ const app = new Hono()
     return c.json({ ok: true, inserted: toInsert.length }, 200);
   });
 
-// ─── ForexFactory news (red/orange, USD/EUR/GBP only) ───────────────────────
+// ─── Economic Calendar (faireconomy.media / ForexFactory data) ───────────────
 let newsCache: { ts: number; data: any[] } = { ts: 0, data: [] };
 
-import { spawnSync } from 'child_process';
-
-async function scrapeForexFactory(): Promise<any[]> {
-  const scriptPath = '/home/user/tsct-app/scripts/scrape_news.py';
-  const result = spawnSync('python3', [scriptPath], { timeout: 40000, encoding: 'utf8' });
-  if (result.error) throw result.error;
-  const out = (result.stdout ?? '').trim();
-  if (!out) return [];
-  return JSON.parse(out);
+async function fetchNewsData(): Promise<any[]> {
+  const urls = [
+    'https://nfs.faireconomy.media/ff_calendar_thisweek.json',
+    'https://nfs.faireconomy.media/ff_calendar_nextweek.json',
+  ];
+  const results = await Promise.all(urls.map(async url => {
+    try {
+      const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      if (!res.ok) return [];
+      return res.json();
+    } catch { return []; }
+  }));
+  const all = (results as any[][]).flat();
+  const watched = new Set(['USD', 'EUR', 'GBP']);
+  return all
+    .filter((e: any) => watched.has((e.currency ?? '').toUpperCase()) && (e.impact === 'High' || e.impact === 'Medium'))
+    .map((e: any) => ({
+      date: e.date ?? '',
+      currency: (e.currency ?? '').toUpperCase(),
+      impact: e.impact ?? '',
+      title: e.title ?? '',
+      forecast: e.forecast ?? null,
+      previous: e.previous ?? null,
+      actual: e.actual ?? null,
+    }));
 }
 
 app.get('/news', async (c) => {
   const now = Date.now();
-  if (now - newsCache.ts < 5 * 60 * 1000) {
+  if (now - newsCache.ts < 5 * 60 * 1000 && newsCache.data.length > 0) {
     return c.json(newsCache.data);
   }
   try {
-    const data = await scrapeForexFactory();
+    const data = await fetchNewsData();
     newsCache = { ts: now, data };
     return c.json(data);
   } catch (e) {
-    console.error('news scrape error', e);
-    // return stale if available
+    console.error('news error', e);
     if (newsCache.data.length > 0) return c.json(newsCache.data);
     return c.json([]);
   }
