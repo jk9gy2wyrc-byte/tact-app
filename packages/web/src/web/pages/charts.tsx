@@ -848,12 +848,6 @@ export default function Charts() {
             <div style={{ fontSize: 13, fontWeight: 600 }}>Stress Testing</div>
             <div style={{ fontSize: 10, color: 'var(--text2)' }}>Штучне погіршення результативності для перевірки стійкості стратегії</div>
           </div>
-          {isModified && (
-            <span style={{
-              background: '#f8717122', color: '#f87171',
-              fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, border: '1px solid #f8717144',
-            }}>ACTIVE</span>
-          )}
         </div>
 
           <div>
@@ -971,8 +965,8 @@ export default function Charts() {
 
             {/* Controls */}
             <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-              <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8, opacity: isModified ? 1 : 0.4 }} onClick={resetStress}>↺ Скинути</button>
-              <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8 }} onClick={() => { setSaveOpen(o => !o); setSaveComboName(''); }}>💾 Зберегти комбінацію</button>
+              <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8, opacity: isModified ? 1 : 0.4 }} onClick={resetStress}>Скинути</button>
+              <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8 }} onClick={() => { setSaveOpen(o => !o); setSaveComboName(''); }}>Зберегти комбінацію</button>
               {stressLoading && <span style={{ fontSize: 11, color: 'var(--text2)' }}>Симулюю 1000 сценаріїв...</span>}
               {!isModified && <span style={{ fontSize: 11, color: 'var(--text2)' }}>Рухай слайдери — графік оновиться автоматично</span>}
             </div>
@@ -1145,7 +1139,7 @@ export default function Charts() {
                   }
                   return (
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: STRESS_COLOR }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>
                         Stress MC vs Normal MC — Equity Range
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 10, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
