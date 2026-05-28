@@ -345,9 +345,6 @@ export default function Charts() {
   const isMobile = useMobile();
   const { data, isLoading, error } = useQuery({ queryKey: ['stats'], queryFn: fetchStats });
 
-  // ── Equity view mode ───────────────────────────────────────────────────────
-  const [equityViewMode, setEquityViewMode] = useState<'cumulative' | 'per-trade'>('cumulative');
-
   // ── Stress state ──────────────────────────────────────────────────────────
   const [stressOpen, setStressOpen] = useState(false);
   const [stressParams, setStressParams] = useState(defaultStress);
@@ -404,23 +401,16 @@ export default function Charts() {
   const lvRolling = d.lvRolling ?? { wr: [], avgRR: [], pf: [], maxDD: [], stdDev: [] };
   const btStats = d.btStats;
   const lvStats = d.lvStats;
-  const mcStats = d.mcStats;
   // True MC bands per metric (from 1000 simulations)
   const mcWR: { med: number[]; p5: number[]; p95: number[] } = d.mcWR ?? { med: [], p5: [], p95: [] };
   const mcRR: { med: number[]; p5: number[]; p95: number[] } = d.mcRR ?? { med: [], p5: [], p95: [] };
   const mcPF: { med: number[]; p5: number[]; p95: number[] } = d.mcPF ?? { med: [], p5: [], p95: [] };
 
-  // Compute per-trade data from cumulative equity
-  const btPerTrade: number[] = btEq.length > 0 ? [btEq[0], ...btEq.slice(1).map((v, i) => v - btEq[i])] : [];
-  const lvPerTrade: number[] = lvEq.length > 0 ? [lvEq[0], ...lvEq.slice(1).map((v, i) => v - lvEq[i])] : [];
-
   // Equity chart data — MC interpolated across full BT range
-  const N_PTS = 500;
-  const useBtData = equityViewMode === 'cumulative' ? btEq : btPerTrade;
-  const useLvData = equityViewMode === 'cumulative' ? lvEq : lvPerTrade;
-  const btStep = Math.max(1, Math.floor(useBtData.length / N_PTS));
+  const N_PTS = 120;
+  const btStep = Math.max(1, Math.floor(btEq.length / N_PTS));
   const eqData: any[] = [];
-  const nBtPts = Math.ceil(useBtData.length / btStep);
+  const nBtPts = Math.ceil(btEq.length / btStep);
   const interpMC = (arr: number[], i: number, total: number) => {
     if (arr.length === 0) return null;
     if (arr.length === 1) return arr[0];
@@ -430,14 +420,14 @@ export default function Charts() {
   };
   for (let i = 0; i < nBtPts; i++) {
     const btIdx = i * btStep;
-    const lvIdx = Math.min(Math.round(i * useLvData.length / Math.max(nBtPts, 1)), useLvData.length - 1);
+    const lvIdx = Math.min(Math.round(i * lvEq.length / Math.max(nBtPts, 1)), lvEq.length - 1);
     eqData.push({
       trade: (i + 1) * btStep,
-      BT:       btIdx < useBtData.length ? useBtData[btIdx] : null,
-      Live:     lvIdx >= 0 && lvIdx < useLvData.length ? useLvData[lvIdx] : null,
-      'MC p50': equityViewMode === 'cumulative' ? interpMC(mcMed, i, nBtPts) : null,
-      'MC p5':  equityViewMode === 'cumulative' ? interpMC(mcp5,  i, nBtPts) : null,
-      'MC p95': equityViewMode === 'cumulative' ? interpMC(mcp95, i, nBtPts) : null,
+      BT:       btIdx < btEq.length ? btEq[btIdx] : null,
+      Live:     lvIdx >= 0 && lvIdx < lvEq.length ? lvEq[lvIdx] : null,
+      'MC p50': interpMC(mcMed, i, nBtPts),
+      'MC p5':  interpMC(mcp5,  i, nBtPts),
+      'MC p95': interpMC(mcp95, i, nBtPts),
     });
   }
 
@@ -484,39 +474,7 @@ export default function Charts() {
 
       {/* EQUITY CURVES */}
       <div style={chartStyle(isMobile)}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>
-            Equity Curves — {equityViewMode === 'cumulative' ? 'Cumulative Net R' : 'Per-Trade Net R'}
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              className="btn-ghost"
-              style={{
-                fontSize: 11,
-                padding: '4px 12px',
-                borderRadius: 6,
-                background: equityViewMode === 'cumulative' ? 'var(--surface2)' : 'transparent',
-                border: equityViewMode === 'cumulative' ? '1px solid var(--border)' : '1px solid transparent',
-              }}
-              onClick={() => setEquityViewMode('cumulative')}
-            >
-              Кумулятивний
-            </button>
-            <button
-              className="btn-ghost"
-              style={{
-                fontSize: 11,
-                padding: '4px 12px',
-                borderRadius: 6,
-                background: equityViewMode === 'per-trade' ? 'var(--surface2)' : 'transparent',
-                border: equityViewMode === 'per-trade' ? '1px solid var(--border)' : '1px solid transparent',
-              }}
-              onClick={() => setEquityViewMode('per-trade')}
-            >
-              На угоду
-            </button>
-          </div>
-        </div>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Equity Curves — Cumulative Net R</div>
         {btEq.length === 0 ? (
           <div style={{ color: 'var(--text2)', padding: 40, textAlign: 'center' }}>Немає даних бектесту.</div>
         ) : (
@@ -609,13 +567,13 @@ export default function Charts() {
           </thead>
           <tbody>
             {[
-              { label: 'Total R',       btV: btStats.totalR,  lvV: lvStats.totalR,  mcV: mcStats?.totalR,  fmt: (v: number) => v.toFixed(2) },
-              { label: 'Win Rate',      btV: btStats.wr,      lvV: lvStats.wr,      mcV: mcStats?.wr,      fmt: (v: number) => (v * 100).toFixed(1) + '%' },
-              { label: 'Avg RR',        btV: btStats.avgRR,   lvV: lvStats.avgRR,   mcV: mcStats?.avgRR,   fmt: (v: number) => v.toFixed(3) },
-              { label: 'Profit Factor', btV: btStats.pf,      lvV: lvStats.pf,      mcV: mcStats?.pf,      fmt: (v: number) => v > 99 ? '∞' : v.toFixed(2) },
-              { label: 'Max DD',        btV: btStats.maxDD,   lvV: lvStats.maxDD,   mcV: mcStats?.maxDD,   fmt: (v: number) => v.toFixed(2) },
-              { label: 'Std Dev',       btV: btStats.stdDev,  lvV: lvStats.stdDev,  mcV: mcStats?.stdDev,  fmt: (v: number) => v.toFixed(3) },
-              { label: 'SQN',           btV: btStats.sqn,     lvV: lvStats.sqn,     mcV: mcStats?.sqn,     fmt: (v: number) => v.toFixed(2) },
+              { label: 'Total R',       btV: btStats.totalR,  lvV: lvStats.totalR,  fmt: (v: number) => v.toFixed(2) },
+              { label: 'Win Rate',      btV: btStats.wr,      lvV: lvStats.wr,      fmt: (v: number) => (v * 100).toFixed(1) + '%' },
+              { label: 'Avg RR',        btV: btStats.avgRR,   lvV: lvStats.avgRR,   fmt: (v: number) => v.toFixed(3) },
+              { label: 'Profit Factor', btV: btStats.pf,      lvV: lvStats.pf,      fmt: (v: number) => v > 99 ? '∞' : v.toFixed(2) },
+              { label: 'Max DD',        btV: btStats.maxDD,   lvV: lvStats.maxDD,   fmt: (v: number) => v.toFixed(2) },
+              { label: 'Std Dev',       btV: btStats.stdDev,  lvV: lvStats.stdDev,  fmt: (v: number) => v.toFixed(3) },
+              { label: 'SQN',           btV: btStats.sqn,     lvV: lvStats.sqn,     fmt: (v: number) => v.toFixed(2) },
             ].map(row => {
               const diff = lvStats.n > 0 && btStats.n > 0 ? row.lvV - row.btV : null;
               const isDD = row.label === 'Max DD' || row.label === 'Std Dev';
@@ -624,7 +582,7 @@ export default function Charts() {
                 <tr key={row.label}>
                   <td style={{ fontWeight: 600 }}>{row.label}</td>
                   <td className="mono" style={{ color: BT_COLOR }}>{row.fmt(row.btV)}</td>
-                  <td className="mono" style={{ color: MC_MED_COLOR }}>{row.mcV != null ? row.fmt(row.mcV) : '—'}</td>
+                  <td className="mono" style={{ color: MC_MED_COLOR }}>—</td>
                   <td className="mono" style={{ color: LIVE_COLOR }}>{lvStats.n > 0 ? row.fmt(row.lvV) : '—'}</td>
                   <td className="mono" style={{ color: diff === null ? 'var(--text2)' : goodDiff ? 'var(--green)' : 'var(--red)' }}>
                     {diff === null ? '—' : (diff >= 0 ? '+' : '') + row.fmt(diff)}
@@ -912,33 +870,6 @@ export default function Charts() {
                     </div>
                   ))}
                 </div>
-
-                {/* Live vs Backtest Deviation in Stress */}
-                {lastLvEq != null && lastBTEq != null && (
-                  <div style={{
-                    background: 'var(--surface2)', border: '1px solid var(--border)',
-                    borderRadius: 10, padding: '12px 16px', marginBottom: 20,
-                  }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 8, color: LIVE_COLOR }}>
-                      Live vs Бектест відхилення
-                    </div>
-                    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-                      <div>
-                        <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Live R</div>
-                        <div className="mono" style={{ color: LIVE_COLOR }}>{lastLvEq.toFixed(2)}</div>
-                      </div>
-                      {lastBTEq !== 0 && (
-                        <div>
-                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs Бектест</div>
-                          <div className="mono" style={{ color: lastLvEq >= lastBTEq ? '#4ade80' : '#f87171' }}>
-                            {((lastLvEq - lastBTEq) / Math.abs(lastBTEq) * 100 >= 0 ? '+' : '')}
-                            {((lastLvEq - lastBTEq) / Math.abs(lastBTEq) * 100).toFixed(1)}%
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
 
                 {/* Stress equity chart vs normal MC */}
                 {(() => {
