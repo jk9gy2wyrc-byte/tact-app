@@ -220,7 +220,8 @@ export default function BacktestAnalysis() {
     <div style={{
       display: "flex", gap: 3,
       background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8, padding: 3,
-      overflowX: "auto", flexShrink: 0,
+      overflowX: isMobile ? "auto" : "visible",
+      flexShrink: 0,
       WebkitOverflowScrolling: "touch" as any,
     }}>
       {children}
@@ -271,15 +272,18 @@ export default function BacktestAnalysis() {
           ))}
         </ScrollGroup>
 
-        {/* Row 3: Month selector — only in month mode, max 12 months of selected year */}
+        {/* Row 3: Month selector — wraps into multiple rows, never overflows */}
         {mode === "month" && (
-          <ScrollGroup>
+          <div style={{
+            display: "flex", flexWrap: "wrap", gap: 3,
+            background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8, padding: 3,
+          }}>
             {availableMonths.map(m => (
               <button key={m} style={btnStyle(selectedMonth === m)} onClick={() => setSelectedMonth(m)}>
                 {monthLabel(m)}
               </button>
             ))}
-          </ScrollGroup>
+          </div>
         )}
       </div>
 
@@ -305,7 +309,11 @@ export default function BacktestAnalysis() {
                     if (index !== equity.length - 1) return null;
                     const sign = value >= 0 ? "+" : "";
                     const col = value > 0 ? "#7eb8f7" : value < 0 ? "#f0a070" : "#a0a8b8";
-                    return <text x={x + 4} y={y + 4} fill={col} fontSize={isMobile ? 9 : 11} fontWeight={700} fontFamily="monospace">{sign}{value.toFixed(2)}R</text>;
+                    return (
+                      <text x={x + 4} y={y + 4} fill={col} fontSize={isMobile ? 9 : 11} fontWeight={700} fontFamily="monospace">
+                        {sign}{value.toFixed(2)}R
+                      </text>
+                    );
                   }} />
                 </Line>
               </LineChart>
@@ -322,7 +330,8 @@ export default function BacktestAnalysis() {
               <ResponsiveContainer width="100%" height={isMobile ? 130 : 170}>
                 <BarChart data={distrib} margin={{ top: 0, right: 4, bottom: isMobile ? 16 : 24, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" vertical={false} />
-                  <XAxis dataKey="i" tick={{ fontSize: 9, fill: "#8b9098" }} interval={Math.max(Math.floor(distrib.length / 4) - 1, 0)}
+                  <XAxis dataKey="i" tick={{ fontSize: 9, fill: "#8b9098" }}
+                    interval={Math.max(Math.floor(distrib.length / 4) - 1, 0)}
                     label={isMobile ? undefined : { value: "worst → best", position: "insideBottom", offset: -12, fontSize: 10, fill: "#8b9098" }} />
                   <YAxis tick={{ fontSize: 9, fill: "#8b9098" }} width={28} />
                   <Tooltip content={<ChartTooltip />} />
@@ -367,7 +376,10 @@ export default function BacktestAnalysis() {
                   <ReferenceLine y={0} stroke="#444" />
                   <Bar dataKey="val" name="Net R" radius={[3, 3, 0, 0]}>
                     {monthlyData.map((d, i) => (
-                      <Cell key={i} fill={i === monthlyData.length - 1 ? (d.val >= 0 ? "#e5e7eb" : "#f0a070") : (d.val >= 0 ? "#7eb8f7" : "#f0a070")} fillOpacity={i === monthlyData.length - 1 ? 0.9 : 0.7} />
+                      <Cell key={i}
+                        fill={i === monthlyData.length - 1 ? (d.val >= 0 ? "#e5e7eb" : "#f0a070") : (d.val >= 0 ? "#7eb8f7" : "#f0a070")}
+                        fillOpacity={i === monthlyData.length - 1 ? 0.9 : 0.7}
+                      />
                     ))}
                   </Bar>
                 </BarChart>
