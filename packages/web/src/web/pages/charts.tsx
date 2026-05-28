@@ -345,6 +345,9 @@ export default function Charts() {
   const isMobile = useMobile();
   const { data, isLoading, error } = useQuery({ queryKey: ['stats'], queryFn: fetchStats });
 
+  // ── Equity view mode ───────────────────────────────────────────────────────
+  const [equityViewMode, setEquityViewMode] = useState<'cumulative' | 'normalized'>('cumulative');
+
   // ── Stress state ──────────────────────────────────────────────────────────
   const [stressOpen, setStressOpen] = useState(false);
   const [stressParams, setStressParams] = useState(defaultStress);
@@ -401,16 +404,21 @@ export default function Charts() {
   const lvRolling = d.lvRolling ?? { wr: [], avgRR: [], pf: [], maxDD: [], stdDev: [] };
   const btStats = d.btStats;
   const lvStats = d.lvStats;
+  const mcStats = d.mcStats;
   // True MC bands per metric (from 1000 simulations)
   const mcWR: { med: number[]; p5: number[]; p95: number[] } = d.mcWR ?? { med: [], p5: [], p95: [] };
   const mcRR: { med: number[]; p5: number[]; p95: number[] } = d.mcRR ?? { med: [], p5: [], p95: [] };
   const mcPF: { med: number[]; p5: number[]; p95: number[] } = d.mcPF ?? { med: [], p5: [], p95: [] };
 
-  // Equity chart data — MC interpolated across full BT range
-  const N_PTS = 120;
-  const btStep = Math.max(1, Math.floor(btEq.length / N_PTS));
-  const eqData: any[] = [];
-  const nBtPts = Math.ceil(btEq.length / btStep);
+  // Equity chart data
+  const N_PTS = 500;
+  const interpArr = (arr: number[], t: number): number | null => {
+    if (arr.length === 0) return null;
+    if (arr.length === 1) return arr[0];
+    const fi = Math.max(0, Math.min(t * (arr.length - 1), arr.length - 1));
+    const lo = Math.floor(fi), hi = Math.min(Math.ceil(fi), arr.length - 1);
+    return arr[lo] + (arr[hi] - arr[lo]) * (fi - lo);
+  };
   const interpMC = (arr: number[], i: number, total: number) => {
     if (arr.length === 0) return null;
     if (arr.length === 1) return arr[0];
@@ -418,17 +426,34 @@ export default function Charts() {
     const lo = Math.floor(t), hi = Math.min(Math.ceil(t), arr.length - 1);
     return arr[lo] + (arr[hi] - arr[lo]) * (t - lo);
   };
-  for (let i = 0; i < nBtPts; i++) {
-    const btIdx = i * btStep;
-    const lvIdx = Math.min(Math.round(i * lvEq.length / Math.max(nBtPts, 1)), lvEq.length - 1);
-    eqData.push({
-      trade: (i + 1) * btStep,
-      BT:       btIdx < btEq.length ? btEq[btIdx] : null,
-      Live:     lvIdx >= 0 && lvIdx < lvEq.length ? lvEq[lvIdx] : null,
-      'MC p50': interpMC(mcMed, i, nBtPts),
-      'MC p5':  interpMC(mcp5,  i, nBtPts),
-      'MC p95': interpMC(mcp95, i, nBtPts),
-    });
+  const eqData: any[] = [];
+  if (equityViewMode === 'normalized') {
+    for (let p = 0; p <= 100; p++) {
+      const t = p / 100;
+      eqData.push({
+        trade: p,
+        BT:       interpArr(btEq, t),
+        Live:     lvEq.length > 0 ? interpArr(lvEq, t) : null,
+        'MC p50': interpArr(mcMed, t),
+        'MC p5':  interpArr(mcp5, t),
+        'MC p95': interpArr(mcp95, t),
+      });
+    }
+  } else {
+    const btStep = Math.max(1, Math.floor(btEq.length / N_PTS));
+    const nBtPts = Math.ceil(btEq.length / btStep);
+    for (let i = 0; i < nBtPts; i++) {
+      const btIdx = i * btStep;
+      const lvIdx = Math.min(Math.round(i * lvEq.length / Math.max(nBtPts, 1)), lvEq.length - 1);
+      eqData.push({
+        trade: (i + 1) * btStep,
+        BT:       btIdx < btEq.length ? btEq[btIdx] : null,
+        Live:     lvIdx >= 0 && lvIdx < lvEq.length ? lvEq[lvIdx] : null,
+        'MC p50': interpMC(mcMed, i, nBtPts),
+        'MC p5':  interpMC(mcp5, i, nBtPts),
+        'MC p95': interpMC(mcp95, i, nBtPts),
+      });
+    }
   }
 
   // MC bands mapped to BT rolling length (100 MC pts -> N bt trades, interpolate)
@@ -454,11 +479,21 @@ export default function Charts() {
   const sdMC = undefined;
 
   // Last equity deviation
-  const lastBTEq  = btEq.at(-1);
-  const lastLvEq  = lvEq.at(-1);
-  const lastMedEq = mcMed.at(-1);
-  const lastP5Eq  = mcp5.at(-1);
-  const lastP95Eq = mcp95.at(-1);
+  const lastLvEq  = lvEq.length > 0 ? lvEq[lvEq.length - 1] : undefined;
+  const lastBTEq  = btEq.length > 0 ? btEq[btEq.length - 1] : undefined;
+  const lastMedEq = mcMed.length > 0 ? mcMed[mcMed.length - 1] : undefined;
+  const lastP5Eq  = mcp5.length > 0 ? mcp5[mcp5.length - 1] : undefined;
+  const lastP95Eq = mcp95.length > 0 ? mcp95[mcp95.length - 1] : undefined;
+  // BT/MC interpolated at the same progress as live (for cumulative fair comparison)
+  const liveProgress = (btEq.length > 1 && lvEq.length > 0)
+    ? Math.min((lvEq.length - 1) / (btEq.length - 1), 1) : 1;
+  const btAtLivePos  = interpArr(btEq, liveProgress);
+  const medAtLivePos = interpArr(mcMed, liveProgress);
+  const p5AtLivePos  = interpArr(mcp5, liveProgress);
+  const p95AtLivePos = interpArr(mcp95, liveProgress);
+  // BT average R/trade × live count (linear expectation baseline)
+  const btAvgRPerTrade = (lastBTEq != null && btEq.length > 0) ? lastBTEq / btEq.length : null;
+  const btLinearExpected = btAvgRPerTrade != null ? btAvgRPerTrade * lvEq.length : null;
 
   return (
     <div style={{ padding: isMobile ? '12px 10px' : '24px 28px', overflowX: 'hidden', boxSizing: 'border-box', width: '100%' }}>
@@ -474,7 +509,29 @@ export default function Charts() {
 
       {/* EQUITY CURVES */}
       <div style={chartStyle(isMobile)}>
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Equity Curves — Cumulative Net R</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>
+              Equity Curves — {equityViewMode === 'cumulative' ? 'Cumulative Net R' : 'Normalized (% трейдів)'}
+            </div>
+            {equityViewMode === 'normalized' && (
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 3 }}>
+                X = % від кількості угод кожної кривої. Порівнює темп зростання незалежно від кількості трейдів.
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {(['cumulative', 'normalized'] as const).map(mode => (
+              <button key={mode} className="btn-ghost" style={{
+                fontSize: 11, padding: '4px 12px', borderRadius: 6,
+                background: equityViewMode === mode ? 'var(--surface2)' : 'transparent',
+                border: equityViewMode === mode ? '1px solid var(--border)' : '1px solid transparent',
+              }} onClick={() => setEquityViewMode(mode)}>
+                {mode === 'cumulative' ? 'Кумулятивний' : 'Нормалізований'}
+              </button>
+            ))}
+          </div>
+        </div>
         {btEq.length === 0 ? (
           <div style={{ color: 'var(--text2)', padding: 40, textAlign: 'center' }}>Немає даних бектесту.</div>
         ) : (
@@ -482,7 +539,7 @@ export default function Charts() {
             <ResponsiveContainer width="100%" height={isMobile ? 220 : 340}>
               <LineChart data={eqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
-                <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
+                <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} tickFormatter={equityViewMode === 'normalized' ? (v: number) => `${v}%` : undefined} />
                 <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
                 <Tooltip content={<DeviationTooltip />} />
                 <ReferenceLine y={0} stroke="#2a2d33" strokeDasharray="4 4" />
@@ -495,56 +552,77 @@ export default function Charts() {
             </ResponsiveContainer>
 
             {/* Equity deviation summary */}
-            {lastLvEq != null && lastBTEq != null && (
-              <div style={{ marginTop: 10 }}>
-                <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 12px', borderRadius: 8 }}
-                  onClick={(e) => {
-                    const el = (e.target as HTMLElement).nextElementSibling as HTMLElement;
-                    if (el) el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+            {lastLvEq != null && (() => {
+              const isCumul = equityViewMode === 'cumulative';
+              const refBT  = isCumul ? btAtLivePos  : lastBTEq;
+              const refMed = isCumul ? medAtLivePos : lastMedEq;
+              const refP5  = isCumul ? p5AtLivePos  : lastP5Eq;
+              const refP95 = isCumul ? p95AtLivePos : lastP95Eq;
+              return (
+                <div style={{ marginTop: 10 }}>
+                  <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 12px', borderRadius: 8 }}
+                    onClick={(e) => {
+                      const el = (e.target as HTMLElement).nextElementSibling as HTMLElement;
+                      if (el) el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+                    }}>
+                    ▼ Поточне відхилення
+                  </button>
+                  <div style={{
+                    display: 'none', marginTop: 8, padding: '12px 16px',
+                    background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border)',
+                    fontSize: 12, gap: 24, flexWrap: 'wrap',
                   }}>
-                  ▼ Поточне відхилення
-                </button>
-                <div style={{
-                  display: 'none', marginTop: 8, padding: '12px 16px',
-                  background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border)',
-                  fontSize: 12, gap: 24, flexWrap: 'wrap',
-                }}>
-                  <div>
-                    <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Live R</div>
-                    <div className="mono" style={{ color: LIVE_COLOR }}>{lastLvEq.toFixed(2)}</div>
+                    <div style={{ flexBasis: '100%', fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>
+                      {isCumul
+                        ? `Live після ${lvEq.length} угод vs Бектест після ${lvEq.length} угод`
+                        : 'Нормалізований: фінальний результат кожного за свій повний цикл'}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Live R</div>
+                      <div className="mono" style={{ color: LIVE_COLOR }}>{lastLvEq.toFixed(2)}</div>
+                    </div>
+                    {refBT != null && refBT !== 0 && (
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs BT ({isCumul ? `${btAtLivePos != null ? btAtLivePos.toFixed(1) : '?'}R` : `${lastBTEq != null ? lastBTEq.toFixed(1) : '?'}R`})</div>
+                        <div className="mono" style={{ color: lastLvEq >= refBT ? '#4ade80' : '#f87171' }}>
+                          {((lastLvEq - refBT) / Math.abs(refBT) * 100 >= 0 ? '+' : '')}
+                          {((lastLvEq - refBT) / Math.abs(refBT) * 100).toFixed(1)}%
+                        </div>
+                      </div>
+                    )}
+                    {isCumul && btLinearExpected != null && btLinearExpected !== 0 && (
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs сер. R/угода</div>
+                        <div style={{ fontSize: 9, color: '#6b7280', marginBottom: 2 }}>
+                          {btAvgRPerTrade != null ? btAvgRPerTrade.toFixed(3) : ''}R × {lvEq.length} = {btLinearExpected.toFixed(2)}R
+                        </div>
+                        <div className="mono" style={{ color: lastLvEq >= btLinearExpected ? '#4ade80' : '#f87171' }}>
+                          {((lastLvEq - btLinearExpected) / Math.abs(btLinearExpected) * 100 >= 0 ? '+' : '')}
+                          {((lastLvEq - btLinearExpected) / Math.abs(btLinearExpected) * 100).toFixed(1)}%
+                        </div>
+                      </div>
+                    )}
+                    {refMed != null && refMed !== 0 && (
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs MC Median</div>
+                        <div className="mono" style={{ color: lastLvEq >= refMed ? '#4ade80' : '#f87171' }}>
+                          {((lastLvEq - refMed) / Math.abs(refMed) * 100 >= 0 ? '+' : '')}
+                          {((lastLvEq - refMed) / Math.abs(refMed) * 100).toFixed(1)}%
+                        </div>
+                      </div>
+                    )}
+                    {refP5 != null && refP95 != null && (
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>MC p5–p95</div>
+                        <div style={{ color: lastLvEq >= refP5 && lastLvEq <= refP95 ? '#4ade80' : '#f87171', fontWeight: 600 }}>
+                          {lastLvEq >= refP5 && lastLvEq <= refP95 ? 'У межах норми' : lastLvEq < refP5 ? 'Нижче p5!' : 'Вище p95!'}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  {lastBTEq !== 0 && (
-                    <div>
-                      <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs Бектест</div>
-                      <div className="mono" style={{ color: lastLvEq >= lastBTEq ? '#4ade80' : '#f87171' }}>
-                        {((lastLvEq - lastBTEq) / Math.abs(lastBTEq) * 100 >= 0 ? '+' : '')}
-                        {((lastLvEq - lastBTEq) / Math.abs(lastBTEq) * 100).toFixed(1)}%
-                      </div>
-                    </div>
-                  )}
-                  {lastMedEq != null && lastMedEq !== 0 && (
-                    <div>
-                      <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs MC Median</div>
-                      <div className="mono" style={{ color: lastLvEq >= lastMedEq ? '#4ade80' : '#f87171' }}>
-                        {((lastLvEq - lastMedEq) / Math.abs(lastMedEq) * 100 >= 0 ? '+' : '')}
-                        {((lastLvEq - lastMedEq) / Math.abs(lastMedEq) * 100).toFixed(1)}%
-                      </div>
-                    </div>
-                  )}
-                  {lastP5Eq != null && lastP95Eq != null && (
-                    <div>
-                      <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>MC p5–p95</div>
-                      <div style={{
-                        color: lastLvEq >= lastP5Eq && lastLvEq <= lastP95Eq ? '#4ade80' : '#f87171',
-                        fontWeight: 600,
-                      }}>
-                        {lastLvEq >= lastP5Eq && lastLvEq <= lastP95Eq ? 'У межах норми' : lastLvEq < lastP5Eq ? 'Нижче p5!' : 'Вище p95!'}
-                      </div>
-                    </div>
-                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             <Explanation text="Equity Curve показує накопичений Net R по всіх трейдах. Сіра лінія — бектест, синя — реальна торгівля. Білі пунктири — медіана 500 симуляцій Монте Карло (очікуване), помаранчеві пунктири — 5-й та 95-й процентилі (діапазон норми). Якщо синя лінія виходить за помаранчеві межі — це сигнал відхилення від статистичної норми стратегії." />
           </>
@@ -567,13 +645,13 @@ export default function Charts() {
           </thead>
           <tbody>
             {[
-              { label: 'Total R',       btV: btStats.totalR,  lvV: lvStats.totalR,  fmt: (v: number) => v.toFixed(2) },
-              { label: 'Win Rate',      btV: btStats.wr,      lvV: lvStats.wr,      fmt: (v: number) => (v * 100).toFixed(1) + '%' },
-              { label: 'Avg RR',        btV: btStats.avgRR,   lvV: lvStats.avgRR,   fmt: (v: number) => v.toFixed(3) },
-              { label: 'Profit Factor', btV: btStats.pf,      lvV: lvStats.pf,      fmt: (v: number) => v > 99 ? '∞' : v.toFixed(2) },
-              { label: 'Max DD',        btV: btStats.maxDD,   lvV: lvStats.maxDD,   fmt: (v: number) => v.toFixed(2) },
-              { label: 'Std Dev',       btV: btStats.stdDev,  lvV: lvStats.stdDev,  fmt: (v: number) => v.toFixed(3) },
-              { label: 'SQN',           btV: btStats.sqn,     lvV: lvStats.sqn,     fmt: (v: number) => v.toFixed(2) },
+              { label: 'Total R',       btV: btStats.totalR,  lvV: lvStats.totalR,  mcV: mcStats?.totalR,  fmt: (v: number) => v.toFixed(2) },
+              { label: 'Win Rate',      btV: btStats.wr,      lvV: lvStats.wr,      mcV: mcStats?.wr,      fmt: (v: number) => (v * 100).toFixed(1) + '%' },
+              { label: 'Avg RR',        btV: btStats.avgRR,   lvV: lvStats.avgRR,   mcV: mcStats?.avgRR,   fmt: (v: number) => v.toFixed(3) },
+              { label: 'Profit Factor', btV: btStats.pf,      lvV: lvStats.pf,      mcV: mcStats?.pf,      fmt: (v: number) => v > 99 ? '∞' : v.toFixed(2) },
+              { label: 'Max DD',        btV: btStats.maxDD,   lvV: lvStats.maxDD,   mcV: mcStats?.maxDD,   fmt: (v: number) => v.toFixed(2) },
+              { label: 'Std Dev',       btV: btStats.stdDev,  lvV: lvStats.stdDev,  mcV: mcStats?.stdDev,  fmt: (v: number) => v.toFixed(3) },
+              { label: 'SQN',           btV: btStats.sqn,     lvV: lvStats.sqn,     mcV: mcStats?.sqn,     fmt: (v: number) => v.toFixed(2) },
             ].map(row => {
               const diff = lvStats.n > 0 && btStats.n > 0 ? row.lvV - row.btV : null;
               const isDD = row.label === 'Max DD' || row.label === 'Std Dev';
@@ -582,7 +660,7 @@ export default function Charts() {
                 <tr key={row.label}>
                   <td style={{ fontWeight: 600 }}>{row.label}</td>
                   <td className="mono" style={{ color: BT_COLOR }}>{row.fmt(row.btV)}</td>
-                  <td className="mono" style={{ color: MC_MED_COLOR }}>—</td>
+                  <td className="mono" style={{ color: MC_MED_COLOR }}>{row.mcV != null ? row.fmt(row.mcV) : '—'}</td>
                   <td className="mono" style={{ color: LIVE_COLOR }}>{lvStats.n > 0 ? row.fmt(row.lvV) : '—'}</td>
                   <td className="mono" style={{ color: diff === null ? 'var(--text2)' : goodDiff ? 'var(--green)' : 'var(--red)' }}>
                     {diff === null ? '—' : (diff >= 0 ? '+' : '') + row.fmt(diff)}
@@ -870,6 +948,33 @@ export default function Charts() {
                     </div>
                   ))}
                 </div>
+
+                {/* Live vs Backtest Deviation in Stress */}
+                {lastLvEq != null && lastBTEq != null && (
+                  <div style={{
+                    background: 'var(--surface2)', border: '1px solid var(--border)',
+                    borderRadius: 10, padding: '12px 16px', marginBottom: 20,
+                  }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 8, color: LIVE_COLOR }}>
+                      Live vs Бектест відхилення
+                    </div>
+                    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Live R</div>
+                        <div className="mono" style={{ color: LIVE_COLOR }}>{lastLvEq.toFixed(2)}</div>
+                      </div>
+                      {lastBTEq !== 0 && (
+                        <div>
+                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs Бектест</div>
+                          <div className="mono" style={{ color: lastLvEq >= lastBTEq ? '#4ade80' : '#f87171' }}>
+                            {((lastLvEq - lastBTEq) / Math.abs(lastBTEq) * 100 >= 0 ? '+' : '')}
+                            {((lastLvEq - lastBTEq) / Math.abs(lastBTEq) * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Stress equity chart vs normal MC */}
                 {(() => {
