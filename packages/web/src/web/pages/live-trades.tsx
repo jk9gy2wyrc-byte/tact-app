@@ -47,16 +47,6 @@ const capitalize = (s: string) => {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 };
 
-const sessionColor = (s: string) => {
-  const sl = s?.toLowerCase();
-  if (sl === 'london') return '#1d4e36';
-  if (sl === 'frankfurt') return '#4a1d6b';
-  if (sl === 'overlap') return '#7c4a1d';
-  if (sl === 'asia') return '#1d3a6b';
-  if (sl === 'new york') return '#8b1a1a';
-  return '#2a2d33';
-};
-
 const fmtDate = (d: string) => {
   if (!d) return '—';
   const parts = d.slice(0, 10).split('-');
@@ -189,14 +179,12 @@ function EditModal({ trade, onClose, onSave, isPending }: {
           <div style={{ fontWeight: 700, fontSize: 15 }}>Edit Trade #{trade.__monthSeq ?? trade.tradeNum}</div>
           <button className="btn-ghost" onClick={onClose} style={{ padding: '2px 10px', fontSize: 16, borderRadius: 8 }}>×</button>
         </div>
-
         <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 9, padding: 3 }}>
           <button style={tabStyle(tab === 'trade')} onClick={() => setTab('trade')}>Trade</button>
           <button style={tabStyle(tab === 'extra')} onClick={() => setTab('extra')}>
             Materials {(links.length > 0 || form.notes || form.profitDollars) ? '•' : ''}
           </button>
         </div>
-
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {tab === 'trade' ? (
             <>
@@ -302,11 +290,11 @@ function TradeCard({ t, onEdit, onDelete }: { t: any; onEdit: () => void; onDele
           <span style={{ fontSize: 12, fontWeight: 600 }}>{t.asset ?? '—'}</span>
           <span style={{ fontSize: 10, color: 'var(--text2)' }}>{fmtDate(t.month)}</span>
         </div>
-        <button className="btn-danger" style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6 }} onClick={e => { e.stopPropagation(); onDelete(); }}>×</button>
+        <button style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6, background: '#2a2d33', border: '1px solid var(--border)', color: 'var(--text2)', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); onDelete(); }}>×</button>
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 600, background: t.direction === 'long' ? '#1a3a2a' : '#3a1a1a', color: t.direction === 'long' ? '#4ade80' : '#f87171' }}>{capitalize(t.direction ?? '—')}</span>
-        {t.session && <span style={{ padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 600, background: sessionColor(t.session), color: '#fff' }}>{capitalize(t.session)}</span>}
+        {t.session && <span style={{ padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 500, background: '#2a2d33', color: 'var(--text2)' }}>{capitalize(t.session)}</span>}
         <span style={{ padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 700, background: t.result === 'tp' ? '#1a3228' : t.result === 'sl' ? '#2d1a1a' : '#2d2a1a', color: t.result === 'tp' ? '#26a69a' : t.result === 'sl' ? '#ef5350' : '#f59e0b' }}>{t.result?.toUpperCase()}</span>
       </div>
       <div style={{ display: 'flex', gap: 12, fontSize: 11, fontFamily: 'monospace', flexWrap: 'wrap' }}>
@@ -430,6 +418,14 @@ export default function LiveTrades() {
     sorted.forEach((t: any, i: number) => monthSeqMap.set(t.id, i + 1));
   }
 
+  const currentMonthKey = today().slice(0, 7);
+  const [expandedMonths, setExpandedMonths] = useState<Set<string>>(() => new Set([currentMonthKey]));
+  const toggleMonth = (key: string) => setExpandedMonths(prev => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+
   const p = isMobile ? '16px' : '24px 28px';
 
   return (
@@ -441,7 +437,7 @@ export default function LiveTrades() {
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div style={{ fontSize: 18, fontWeight: 600 }}>Live Trades</div>
+        <div style={{ fontSize: 18, fontWeight: 600 }}>Live Database</div>
         <span style={{ fontSize: 12, color: 'var(--text2)' }}>{allTrades.length} trades</span>
       </div>
 
@@ -510,13 +506,14 @@ export default function LiveTrades() {
             const wr = group.trades.length ? Math.round(tpCount / group.trades.length * 100) : 0;
             return (
               <div key={group.key}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 8, padding: '6px 4px', borderBottom: '1px solid var(--border)' }}>
+                <div onClick={() => toggleMonth(group.key)} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: expandedMonths.has(group.key) ? 8 : 0, padding: '6px 4px', borderBottom: '1px solid var(--border)', cursor: 'pointer', userSelect: 'none' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text2)' }}>{expandedMonths.has(group.key) ? '▾' : '▸'}</span>
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{group.label}</div>
                   <span style={{ fontSize: 11, color: 'var(--text2)' }}>{group.trades.length} trades · WR {wr}%</span>
                   <span style={{ fontSize: 11 }}>Gross: <span className={`mono ${groupGross >= 0 ? 'pos' : 'neg'}`}>{groupGross.toFixed(2)}R</span></span>
                   <span style={{ fontSize: 11 }}>Net: <span className={`mono ${groupNet > 0 ? 'pos' : groupNet < 0 ? 'neg' : 'be'}`}>{groupNet.toFixed(2)}R</span></span>
                 </div>
-                {isMobile ? (
+                {expandedMonths.has(group.key) && (isMobile ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {group.trades.map((t: any) => {
                       const tw = { ...t, __monthSeq: monthSeqMap.get(t.id) };
@@ -546,7 +543,7 @@ export default function LiveTrades() {
                               <td>{t.asset ? <span style={{ fontWeight: 600, fontSize: 12 }}>{t.asset}</span> : <span style={{ color: 'var(--text2)' }}>—</span>}</td>
                               <td><span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: t.direction === 'long' ? '#1a3a2a' : '#3a1a1a', color: t.direction === 'long' ? '#4ade80' : '#f87171' }}>{t.direction ? capitalize(t.direction) : '—'}</span></td>
                               <td className="mono">{fmt(t.rr)}</td>
-                              <td>{t.session ? <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: sessionColor(t.session), color: '#fff' }}>{capitalize(t.session)}</span> : '—'}</td>
+                              <td>{t.session ? <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 500, background: '#2a2d33', color: 'var(--text2)' }}>{capitalize(t.session)}</span> : '—'}</td>
                               <td><span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: t.result === 'tp' ? '#1a3228' : t.result === 'sl' ? '#2d1a1a' : '#2d2a1a', color: t.result === 'tp' ? '#26a69a' : t.result === 'sl' ? '#ef5350' : '#f59e0b' }}>{t.result?.toUpperCase()}</span></td>
                               <td className={`mono ${(t.grossR ?? 0) >= 0 ? 'pos' : 'neg'}`}>{fmt(t.grossR)}</td>
                               <td className="mono neg">{fmt(t.cost)}</td>
@@ -565,14 +562,14 @@ export default function LiveTrades() {
                                   </div>
                                 ) : <span style={{ color: 'var(--text2)' }}>—</span>}
                               </td>
-                              <td><button className="btn-danger" style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6 }} onClick={e => { e.stopPropagation(); if (confirm('Delete?')) deleteMutation.mutate(t.id); }}>×</button></td>
+                              <td><button style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6, background: '#2a2d33', border: '1px solid var(--border)', color: 'var(--text2)', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); if (confirm('Delete?')) deleteMutation.mutate(t.id); }}>×</button></td>
                             </tr>
                           );
                         })}
                       </tbody>
                     </table>
                   </div>
-                )}
+                ))}
               </div>
             );
           })}
