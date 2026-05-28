@@ -301,7 +301,7 @@ function StressSlider({
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{label}</div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: accent, fontVariantNumeric: 'tabular-nums', minWidth: 56, textAlign: 'right' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontVariantNumeric: 'tabular-nums', minWidth: 56, textAlign: 'right' }}>
           {fmt(value)}
         </div>
       </div>
@@ -310,13 +310,13 @@ function StressSlider({
         <div style={{
           position: 'absolute', top: '50%', left: 0,
           width: `${pct}%`, height: 4,
-          background: `linear-gradient(90deg, ${accent}88, ${accent})`,
+          background: 'linear-gradient(90deg, #37415188, #6b7280)',
           borderRadius: 2, transform: 'translateY(-50%)', pointerEvents: 'none', zIndex: 1,
         }} />
         <input
           type="range" min={min} max={max} step={step} value={value}
           onChange={e => onChange(Number(e.target.value))}
-          style={{ width: '100%', accentColor: accent, position: 'relative', zIndex: 2, cursor: 'pointer' }}
+          style={{ width: '100%', accentColor: '#9ca3af', position: 'relative', zIndex: 2, cursor: 'pointer' }}
         />
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#555', marginTop: 2 }}>
@@ -862,11 +862,11 @@ export default function Charts() {
 
               {/* LEFT COLUMN */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#f87171', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
                   Фактори збитків
                 </div>
                 <StressSlider
-                  label="1. Loss Amplification"
+                  label="Loss Amplification"
                   description="Збільшити розмір кожного збитку. 1.0 = без змін, 1.2 = збитки на 20% більші (−1R → −1.2R)"
                   value={stressParams.lossAmp}
                   min={1} max={2} step={0.05}
@@ -875,7 +875,7 @@ export default function Charts() {
                   accent="#f87171"
                 />
                 <StressSlider
-                  label="2. Win Reduction"
+                  label="Win Reduction"
                   description="Зменшити розмір кожного виграшу. 1.0 = без змін, 0.8 = виграші на 20% менші (+2.2R → +1.76R)"
                   value={stressParams.winReduction}
                   min={0.4} max={1} step={0.05}
@@ -884,7 +884,7 @@ export default function Charts() {
                   accent="#fb923c"
                 />
                 <StressSlider
-                  label="3. WR Degradation"
+                  label="WR Degradation"
                   description="Конвертувати % випадкових TP в SL. 0 = без змін, 0.1 = 10% виграшів стають програшами"
                   value={stressParams.wrDegradation}
                   min={0} max={0.4} step={0.01}
@@ -893,7 +893,7 @@ export default function Charts() {
                   accent="#facc15"
                 />
                 <StressSlider
-                  label="6. Execution Slippage"
+                  label="Execution Slippage"
                   description="Додатковий cost per trade в R (slippage, re-quotes). 0.05 = −0.05R з кожного трейду"
                   value={stressParams.slippage}
                   min={0} max={0.3} step={0.01}
@@ -905,11 +905,11 @@ export default function Charts() {
 
               {/* RIGHT COLUMN */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
                   Психологічні фактори
                 </div>
                 <StressSlider
-                  label="4. Human Error"
+                  label="Human Error"
                   description="Тильт, забув стоп, відкрив не той обсяг. З ймовірністю X% трейд стає −1R незалежно від результату"
                   value={stressParams.humanError}
                   min={0} max={0.2} step={0.005}
@@ -918,7 +918,7 @@ export default function Charts() {
                   accent="#f87171"
                 />
                 <StressSlider
-                  label="5. Fatigue Decay"
+                  label="Fatigue Decay"
                   description="Психологічна втома — злякався відкату, вийшов раніше. Кожен прибутковий трейд зменшується на X%"
                   value={stressParams.fatigue}
                   min={0} max={0.5} step={0.01}
@@ -927,7 +927,7 @@ export default function Charts() {
                   accent="#fb923c"
                 />
                 <StressSlider
-                  label="6. Bad Slip Prob"
+                  label="Bad Slip Prob"
                   description="Ймовірність що стоп спрацює по гіршій ціні (гепи, новини). 0.15 = 15% збиткових угод матимуть погане виконання"
                   value={stressParams.badSlipProb}
                   min={0} max={0.5} step={0.01}
@@ -936,7 +936,7 @@ export default function Charts() {
                   accent="#38bdf8"
                 />
                 <StressSlider
-                  label="   └ Bad Slip Mult"
+                  label="└ Bad Slip Mult"
                   description="Сила удару при поганому виконанні. 1.4× = збиток −1R стає −1.4R"
                   value={stressParams.badSlipMult}
                   min={1} max={3} step={0.1}
@@ -945,7 +945,7 @@ export default function Charts() {
                   accent="#38bdf899"
                 />
                 <StressSlider
-                  label="7. Missed Win"
+                  label="Missed Win"
                   description="Пропустив прибуткову угоду (спав, боявся натиснути після збитків). Прибуток стає 0R"
                   value={stressParams.missedWin}
                   min={0} max={0.5} step={0.01}
@@ -1168,8 +1168,33 @@ export default function Charts() {
                     </div>
                   );
                 })()}
-              </>
-            )}
+
+              {/* Param summary */}
+              <div style={{ marginTop: 20, padding: '14px 16px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Активні параметри симуляції</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {[
+                    { label: 'Loss Amplification', value: `×${stressParams.lossAmp.toFixed(2)}`, desc: stressParams.lossAmp === 1 ? 'без змін' : `кожен збиток збільшений на ${((stressParams.lossAmp - 1) * 100).toFixed(0)}%` },
+                    { label: 'Win Reduction', value: `×${stressParams.winReduction.toFixed(2)}`, desc: stressParams.winReduction === 1 ? 'без змін' : `виграші зменшені на ${((1 - stressParams.winReduction) * 100).toFixed(0)}%` },
+                    { label: 'WR Degradation', value: `${(stressParams.wrDegradation * 100).toFixed(0)}%`, desc: stressParams.wrDegradation === 0 ? 'без змін' : `${(stressParams.wrDegradation * 100).toFixed(0)}% виграшів конвертовано в збитки` },
+                    { label: 'Execution Slippage', value: `−${stressParams.slippage.toFixed(2)}R`, desc: stressParams.slippage === 0 ? 'без змін' : `−${stressParams.slippage.toFixed(2)}R з кожного трейду` },
+                    { label: 'Human Error', value: `${(stressParams.humanError * 100).toFixed(1)}%`, desc: stressParams.humanError === 0 ? 'без змін' : `${(stressParams.humanError * 100).toFixed(1)}% трейдів стають −1R через помилку` },
+                    { label: 'Fatigue Decay', value: `−${(stressParams.fatigue * 100).toFixed(0)}%`, desc: stressParams.fatigue === 0 ? 'без змін' : `кожен виграш зменшується на ${(stressParams.fatigue * 100).toFixed(0)}% через втому` },
+                    { label: 'Bad Slip Prob', value: `${(stressParams.badSlipProb * 100).toFixed(0)}%`, desc: stressParams.badSlipProb === 0 ? 'без змін' : `${(stressParams.badSlipProb * 100).toFixed(0)}% збиткових угод отримають погане виконання` },
+                    { label: 'Bad Slip Mult', value: `×${stressParams.badSlipMult.toFixed(1)}`, desc: stressParams.badSlipMult === 1 ? 'без змін' : `збиток при поганому виконанні збільшується в ${stressParams.badSlipMult.toFixed(1)}×` },
+                    { label: 'Missed Win', value: `${(stressParams.missedWin * 100).toFixed(0)}%`, desc: stressParams.missedWin === 0 ? 'без змін' : `${(stressParams.missedWin * 100).toFixed(0)}% виграшів пропускається (стає 0R)` },
+                    { label: 'Survival Threshold', value: `${stressParams.survivalThreshold}R`, desc: `рахунок вважається зламаним при просадці >${stressParams.survivalThreshold}R` },
+                  ].map(row => (
+                    <div key={row.label} style={{ display: 'flex', gap: 8, fontSize: 11, lineHeight: 1.5 }}>
+                      <span style={{ color: 'var(--text2)', minWidth: 160 }}>{row.label}:</span>
+                      <span style={{ color: 'var(--text)', fontWeight: 600, minWidth: 60, fontVariantNumeric: 'tabular-nums' }}>{row.value}</span>
+                      <span style={{ color: 'var(--text2)' }}>— {row.desc}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
           </div>
       </div>
     </div>
