@@ -333,10 +333,11 @@ const defaultStress = {
   lossAmp: 1,
   winReduction: 1,
   wrDegradation: 0,
+  lossClustering: 0,
+  clusterSize: 3,
+  regimeShiftWR: 0,
+  regimeShiftRR: 0,
   slippage: 0,
-  humanError: 0,
-  fatigue: 0,
-  missedWin: 0,
   survivalThreshold: 20,
 };
 
@@ -356,6 +357,7 @@ export default function Charts() {
     step: number;
   }>(null);
   const [stressLoading, setStressLoading] = useState(false);
+  const [eqMode, setEqMode] = useState<'absolute' | 'normalized'>('absolute');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setSP = useCallback((key: keyof typeof defaultStress, val: number) => {
@@ -405,30 +407,45 @@ export default function Charts() {
   const mcRR: { med: number[]; p5: number[]; p95: number[] } = d.mcRR ?? { med: [], p5: [], p95: [] };
   const mcPF: { med: number[]; p5: number[]; p95: number[] } = d.mcPF ?? { med: [], p5: [], p95: [] };
 
-  // Equity chart data — MC interpolated to cover full BT length
+  // Equity chart data
   const N_PTS = 120;
   const btStep = Math.max(1, Math.floor(btEq.length / N_PTS));
   const eqData: any[] = [];
-  const nBtPts = Math.ceil(btEq.length / btStep);
-  for (let i = 0; i < nBtPts; i++) {
+  const maxLenEq = Math.max(Math.ceil(btEq.length / btStep), mcMed.length);
+  for (let i = 0; i < maxLenEq; i++) {
     const btIdx = i * btStep;
-    const lvIdx = Math.min(Math.round(i * lvEq.length / Math.max(nBtPts, 1)), lvEq.length - 1);
-    // Interpolate MC to cover full BT range
-    const mcT = mcMed.length > 1 ? (i / (nBtPts - 1)) * (mcMed.length - 1) : 0;
-    const mcLo = Math.floor(mcT), mcHi = Math.min(Math.ceil(mcT), mcMed.length - 1);
-    const mcFrac = mcT - mcLo;
-    const interp = (arr: number[]) => arr.length > 0
-      ? arr[mcLo] + (arr[mcHi] - arr[mcLo]) * mcFrac
-      : null;
+    const lvIdx = Math.min(Math.round(i * lvEq.length / Math.max(btEq.length / btStep, 1)), lvEq.length - 1);
     eqData.push({
       trade: (i + 1) * btStep,
       BT:       btIdx < btEq.length ? btEq[btIdx] : null,
       Live:     lvIdx >= 0 && lvIdx < lvEq.length ? lvEq[lvIdx] : null,
-      'MC p50': interp(mcMed),
-      'MC p5':  interp(mcp5),
-      'MC p95': interp(mcp95),
+      'MC p50': i < mcMed.length ? mcMed[i] : null,
+      'MC p5':  i < mcp5.length  ? mcp5[i]  : null,
+      'MC p95': i < mcp95.length ? mcp95[i] : null,
     });
   }
+
+  // Normalized equity data
+  const N_NORM = 100;
+  const normalizedEqData: any[] = Array.from({ length: N_NORM }, (_, i) => {
+    const t = i / (N_NORM - 1);
+    const btIdx2 = Math.min(Math.round(t * (btEq.length - 1)), btEq.length - 1);
+    const btVal = btEq.length > 0 ? (btEq[btIdx2] / btEq.length) * (i + 1) : null;
+    const lvIdx2 = Math.min(Math.round(t * (lvEq.length - 1)), lvEq.length - 1);
+    const lvVal = lvEq.length > 0 ? (lvEq[lvIdx2] / lvEq.length) * (i + 1) : null;
+    const mcIdx2 = Math.min(Math.round(t * (mcMed.length - 1)), mcMed.length - 1);
+    const mcVal  = mcMed.length > 0 ? (mcMed[mcIdx2] / (btEq.length || 1)) * (i + 1) : null;
+    const p5Val  = mcp5.length  > 0 ? (mcp5[mcIdx2]  / (btEq.length || 1)) * (i + 1) : null;
+    const p95Val = mcp95.length > 0 ? (mcp95[mcIdx2] / (btEq.length || 1)) * (i + 1) : null;
+    return {
+      trade: i + 1,
+      BT:       btVal  != null ? Math.round(btVal  * 100) / 100 : null,
+      Live:     lvVal  != null ? Math.round(lvVal  * 100) / 100 : null,
+      'MC p50': mcVal  != null ? Math.round(mcVal  * 100) / 100 : null,
+      'MC p5':  p5Val  != null ? Math.round(p5Val  * 100) / 100 : null,
+      'MC p95': p95Val != null ? Math.round(p95Val * 100) / 100 : null,
+    };
+  });
 
   // MC bands mapped to BT rolling length (100 MC pts -> N bt trades, interpolate)
   const mapMCtoRolling = (
@@ -452,12 +469,13 @@ export default function Charts() {
   const ddMC = undefined;
   const sdMC = undefined;
 
-  // Last equity deviation
-  const lastBTEq  = btEq.at(-1);
-  const lastLvEq  = lvEq.at(-1);
-  const lastMedEq = mcMed.at(-1);
-  const lastP5Eq  = mcp5.at(-1);
-  const lastP95Eq = mcp95.at(-1);
+  // Mode-aware last equity values
+  const _lastNorm = normalizedEqData.at(-1);
+  const lastBTEq  = eqMode === 'normalized' ? (_lastNorm?.BT        ?? null) : (btEq.at(-1)  ?? null);
+  const lastLvEq  = eqMode === 'normalized' ? (_lastNorm?.Live       ?? null) : (lvEq.at(-1)  ?? null);
+  const lastMedEq = eqMode === 'normalized' ? (_lastNorm?.['MC p50'] ?? null) : (mcMed.at(-1) ?? null);
+  const lastP5Eq  = eqMode === 'normalized' ? (_lastNorm?.['MC p5']  ?? null) : (mcp5.at(-1)  ?? null);
+  const lastP95Eq = eqMode === 'normalized' ? (_lastNorm?.['MC p95'] ?? null) : (mcp95.at(-1) ?? null);
 
   return (
     <div style={{ padding: isMobile ? '12px 10px' : '24px 28px', overflowX: 'hidden', boxSizing: 'border-box', width: '100%' }}>
@@ -473,13 +491,26 @@ export default function Charts() {
 
       {/* EQUITY CURVES */}
       <div style={chartStyle(isMobile)}>
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Equity Curves — Cumulative Net R</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>
+            {eqMode === 'absolute' ? 'Equity Curves — Cumulative Net R' : 'Equity Curves — Avg Net R per Trade'}
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={() => setEqMode('absolute')} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)', background: eqMode === 'absolute' ? '#4b5263' : 'var(--surface2)', color: eqMode === 'absolute' ? '#fff' : 'var(--text2)', cursor: 'pointer' }}>Абсолютний</button>
+            <button onClick={() => setEqMode('normalized')} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)', background: eqMode === 'normalized' ? '#4b5263' : 'var(--surface2)', color: eqMode === 'normalized' ? '#fff' : 'var(--text2)', cursor: 'pointer' }}>На угоду</button>
+          </div>
+        </div>
+        {eqMode === 'normalized' && (
+          <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 10, padding: '6px 10px', background: 'var(--surface2)', borderRadius: 6 }}>
+            💡 BT ({btEq.length} угод) і Live ({lvEq.length} угод) порівнюються чесно — нормалізовано на кількість угод.
+          </div>
+        )}
         {btEq.length === 0 ? (
           <div style={{ color: 'var(--text2)', padding: 40, textAlign: 'center' }}>Немає даних бектесту.</div>
         ) : (
           <>
             <ResponsiveContainer width="100%" height={isMobile ? 220 : 340}>
-              <LineChart data={eqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
+              <LineChart data={eqMode === 'normalized' ? normalizedEqData : eqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
                 <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
                 <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
@@ -706,14 +737,14 @@ export default function Charts() {
             {/* Sliders grid */}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 0 : '0 32px' }}>
 
-              {/* LEFT — Ринкові фактори */}
+              {/* LEFT COLUMN */}
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#f87171', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
-                  Ринкові фактори
+                  Фактори збитків
                 </div>
                 <StressSlider
-                  label="Loss Amplification"
-                  description="Збільшити розмір кожного збитку. 1.2 = збитки на 20% більші (−1R → −1.2R). Моделює стоп-лос з проковзуванням, гепи на виході."
+                  label="1. Loss Amplification"
+                  description="Збільшити розмір кожного збитку. 1.0 = без змін, 1.2 = збитки на 20% більші (−1R → −1.2R)"
                   value={stressParams.lossAmp}
                   min={1} max={2} step={0.05}
                   format={v => `×${v.toFixed(2)}`}
@@ -721,8 +752,8 @@ export default function Charts() {
                   accent="#f87171"
                 />
                 <StressSlider
-                  label="Win Reduction"
-                  description="Зменшити розмір кожного виграшу. 0.8 = виграші на 20% менші. Моделює ранній вихід, часткове закриття."
+                  label="2. Win Reduction"
+                  description="Зменшити розмір кожного виграшу. 1.0 = без змін, 0.8 = виграші на 20% менші (+2.2R → +1.76R)"
                   value={stressParams.winReduction}
                   min={0.4} max={1} step={0.05}
                   format={v => `×${v.toFixed(2)}`}
@@ -730,8 +761,8 @@ export default function Charts() {
                   accent="#fb923c"
                 />
                 <StressSlider
-                  label="WR Degradation"
-                  description="% виграшів випадково стають програшами. Моделює погіршення якості входів або зміну ринку."
+                  label="3. WR Degradation"
+                  description="Конвертувати % випадкових TP в SL. 0 = без змін, 0.1 = 10% виграшів стають програшами"
                   value={stressParams.wrDegradation}
                   min={0} max={0.4} step={0.01}
                   format={v => `${(v * 100).toFixed(0)}%`}
@@ -739,8 +770,8 @@ export default function Charts() {
                   accent="#facc15"
                 />
                 <StressSlider
-                  label="Execution Slippage"
-                  description="Фіксований додатковий збиток з кожного трейду в R. Моделює реквоти, комісії, spread."
+                  label="6. Execution Slippage"
+                  description="Додатковий cost per trade в R (slippage, re-quotes). 0.05 = −0.05R з кожного трейду"
                   value={stressParams.slippage}
                   min={0} max={0.3} step={0.01}
                   format={v => `−${v.toFixed(2)}R`}
@@ -749,36 +780,45 @@ export default function Charts() {
                 />
               </div>
 
-              {/* RIGHT — Психологічні фактори */}
+              {/* RIGHT COLUMN */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
-                  Психологічні фактори
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#fb923c', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+                  Структурні фактори
                 </div>
                 <StressSlider
-                  label="Human Error %"
-                  description="Ймовірність критичної помилки на угоду: забув стоп, тілт, технічна помилка. Угода стає −1R незалежно від результату. 0.02 = 2% угод (≈1 помилка на 50 трейдів)."
-                  value={stressParams.humanError}
-                  min={0} max={0.1} step={0.005}
-                  format={v => `${(v * 100).toFixed(1)}%`}
-                  onChange={v => setSP('humanError', v)}
+                  label="4. Loss Clustering"
+                  description="Ймовірність що збиток породжує серію збитків (streak). 0 = випадково, 1 = максимальне кластеризування"
+                  value={stressParams.lossClustering}
+                  min={0} max={1} step={0.05}
+                  format={v => `${(v * 100).toFixed(0)}%`}
+                  onChange={v => setSP('lossClustering', v)}
                   accent="#f87171"
                 />
                 <StressSlider
-                  label="Fatigue Decay %"
-                  description="Кожен виграш зменшується на X% через страх відкату, ранній вихід. 0.1 = виграші на 10% менші (+2R → +1.8R). Збитки не змінюються."
-                  value={stressParams.fatigue}
-                  min={0} max={0.3} step={0.01}
-                  format={v => `−${(v * 100).toFixed(0)}% від виграшу`}
-                  onChange={v => setSP('fatigue', v)}
-                  accent="#fb923c"
+                  label="   └ Cluster Size"
+                  description="Скільки збитків поспіль при спрацьовуванні кластеру"
+                  value={stressParams.clusterSize}
+                  min={2} max={8} step={1}
+                  format={v => `${v} trades`}
+                  onChange={v => setSP('clusterSize', v)}
+                  accent="#f8717199"
                 />
                 <StressSlider
-                  label="Missed Win Prob"
-                  description="Ймовірність пропустити прибуткову угоду (0R замість +R). Моделює: страх після збитків, пропущений сигнал, сон. 0.15 = 15% виграшів = 0R."
-                  value={stressParams.missedWin}
-                  min={0} max={0.4} step={0.01}
-                  format={v => `${(v * 100).toFixed(0)}%`}
-                  onChange={v => setSP('missedWin', v)}
+                  label="5. Regime Shift — WR"
+                  description="Знизити WR через зміну умов ринку. 0.05 = WR −5pp (60% → 55%)"
+                  value={stressParams.regimeShiftWR}
+                  min={0} max={0.25} step={0.01}
+                  format={v => `−${(v * 100).toFixed(0)}pp WR`}
+                  onChange={v => setSP('regimeShiftWR', v)}
+                  accent="#38bdf8"
+                />
+                <StressSlider
+                  label="5. Regime Shift — AvgRR"
+                  description="Знизити середній виграш через зміну ринку. 0.25 = AvgRR ×0.75 (0.6R → 0.45R)"
+                  value={stressParams.regimeShiftRR}
+                  min={0} max={0.5} step={0.05}
+                  format={v => `×${(1 - v).toFixed(2)} RR`}
+                  onChange={v => setSP('regimeShiftRR', v)}
                   accent="#34d399"
                 />
               </div>
@@ -905,6 +945,78 @@ export default function Charts() {
                           <Line type="monotone" dataKey="Live" stroke={LIVE_COLOR} strokeWidth={2.5} dot={false} connectNulls />
                         </LineChart>
                       </ResponsiveContainer>
+                    </div>
+                  );
+                })()}
+
+                {/* Stress deviation summary */}
+                {stressData && (() => {
+                  const lastLv  = lvEq.at(-1) ?? null;
+                  const lastSMed = stressData.stressFinalEq.med;
+                  const lastSP5  = stressData.stressFinalEq.p5;
+                  const lastSP95 = stressData.stressFinalEq.p95;
+                  const devFromStress = lastLv != null && lastSMed !== 0
+                    ? ((lastLv - lastSMed) / Math.abs(lastSMed) * 100)
+                    : null;
+                  const inStressBand = lastLv != null
+                    ? lastLv >= lastSP5 && lastLv <= lastSP95
+                    : null;
+                  return (
+                    <div style={{
+                      marginTop: 16, padding: '12px 16px',
+                      background: 'var(--surface2)', borderRadius: 10,
+                      border: '1px solid var(--border)', fontSize: 12,
+                    }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: STRESS_COLOR, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                        Відхилення Live від стрес-сценарію
+                      </div>
+                      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                        {lastLv != null && (
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Live (фактичний)</div>
+                            <div className="mono" style={{ color: LIVE_COLOR, fontSize: 16, fontWeight: 700 }}>{lastLv.toFixed(2)}R</div>
+                          </div>
+                        )}
+                        <div>
+                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Stress медіана</div>
+                          <div className="mono" style={{ color: STRESS_MED_COLOR, fontSize: 16, fontWeight: 700 }}>{lastSMed.toFixed(2)}R</div>
+                        </div>
+                        {devFromStress != null && (
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Live vs Stress</div>
+                            <div className="mono" style={{ color: devFromStress >= 0 ? '#4ade80' : '#f87171', fontSize: 16, fontWeight: 700 }}>
+                              {devFromStress >= 0 ? '+' : ''}{devFromStress.toFixed(1)}%
+                            </div>
+                          </div>
+                        )}
+                        <div>
+                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Stress p5–p95</div>
+                          <div className="mono" style={{ color: MC_BAND_COLOR }}>
+                            [{lastSP5.toFixed(2)}R — {lastSP95.toFixed(2)}R]
+                          </div>
+                        </div>
+                        {inStressBand != null && (
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>В межах стресу</div>
+                            <div style={{ fontWeight: 700, color: inStressBand ? '#4ade80' : '#f87171', fontSize: 13 }}>
+                              {inStressBand ? 'Так ✓ — стратегія витримує' : 'Ні ✗ — краще за стрес-сценарій!'}
+                            </div>
+                          </div>
+                        )}
+                        <div>
+                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Survival Rate</div>
+                          <div style={{ fontWeight: 700, fontSize: 16, color: stressData.survivalRate >= 90 ? '#4ade80' : stressData.survivalRate >= 70 ? '#facc15' : '#f87171' }}>
+                            {stressData.survivalRate}%
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text2)', lineHeight: 1.6 }}>
+                        {devFromStress != null && devFromStress > 0
+                          ? '✅ Live результат кращий за стрес-медіану — стратегія поки витримує психологічний/ринковий тиск.'
+                          : devFromStress != null && devFromStress < -20
+                          ? '⚠️ Live результат значно нижче стрес-медіани — варто переглянути дисципліну і виконання.'
+                          : '📊 Live в зоні стрес-сценарію — стежте за динамікою.'}
+                      </div>
                     </div>
                   );
                 })()}
