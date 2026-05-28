@@ -6,7 +6,6 @@ import LiveAnalysis from "./pages/live-analysis";
 import BacktestTrades from "./pages/backtest-trades";
 import BacktestAnalysis from "./pages/backtest-analysis";
 import Charts from "./pages/charts";
-import Import from "./pages/import";
 import AdminUsers from "./pages/admin-users";
 import { setSession, clearSession, getSession, type Session } from "./lib/session";
 
@@ -19,7 +18,6 @@ function buildNav(role: string) {
     { path: "/backtest", label: "Backtest DB", icon: "▦" },
     { path: "/backtest-analysis", label: "BT Analysis", icon: "▲" },
     { path: "/charts", label: "Charts", icon: "↗" },
-    { path: "/import", label: "Import", icon: "↑" },
   ];
   if (role === 'admin') nav.push({ path: "/users", label: "Users", icon: "👥" });
   return nav;
@@ -91,21 +89,13 @@ function Login({ onAuth }: { onAuth: (s: Session) => void }) {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh', background: 'var(--bg)', display: 'flex',
-      alignItems: 'center', justifyContent: 'center',
-    }}>
-      <div style={{
-        background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: 16, padding: '40px 48px', width: 340,
-      }}>
-        {/* Logo */}
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '40px 48px', width: 340 }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '0.04em' }}>TSCT</div>
           <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>Trading Control Tool</div>
         </div>
 
-        {/* Tab */}
         <div style={{ display: 'flex', marginBottom: 24, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
           {(['login', 'register'] as const).map(m => (
             <button key={m} onClick={() => reset(m)} style={{
@@ -119,44 +109,31 @@ function Login({ onAuth }: { onAuth: (s: Session) => void }) {
           ))}
         </div>
 
-        {/* Fields */}
         <input
-          placeholder="Логін"
-          value={login}
+          placeholder="Логін" value={login}
           onChange={e => { setLogin(e.target.value); setErr(''); }}
           onKeyDown={e => e.key === 'Enter' && submit()}
-          style={inputStyle}
-          autoFocus
+          style={inputStyle} autoFocus
         />
         <input
-          type="password"
-          placeholder="Пароль"
-          value={pass}
+          type="password" placeholder="Пароль" value={pass}
           onChange={e => { setPass(e.target.value); setErr(''); }}
           onKeyDown={e => e.key === 'Enter' && submit()}
           style={inputStyle}
         />
         {mode === 'register' && (
           <input
-            type="password"
-            placeholder="Пароль ще раз"
-            value={pass2}
+            type="password" placeholder="Пароль ще раз" value={pass2}
             onChange={e => { setPass2(e.target.value); setErr(''); }}
             onKeyDown={e => e.key === 'Enter' && submit()}
             style={inputStyle}
           />
         )}
 
-        {err && (
-          <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10, textAlign: 'center' }}>{err}</div>
-        )}
+        {err && <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10, textAlign: 'center' }}>{err}</div>}
 
-        <button
-          className="btn-primary"
-          onClick={submit}
-          disabled={loading}
-          style={{ width: '100%', borderRadius: 10, padding: '10px 0', marginTop: 4, opacity: loading ? 0.7 : 1 }}
-        >
+        <button className="btn-primary" onClick={submit} disabled={loading}
+          style={{ width: '100%', borderRadius: 10, padding: '10px 0', marginTop: 4, opacity: loading ? 0.7 : 1 }}>
           {loading ? '...' : mode === 'login' ? 'Увійти' : 'Створити акаунт'}
         </button>
       </div>
@@ -181,21 +158,11 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const isMobile = useIsMobile();
 
-  // Seed admin on mount
   useEffect(() => { fetch('/api/auth/seed').catch(() => {}); }, []);
-
-  // Close drawer on nav (mobile)
   useEffect(() => { if (!isMobile) setDrawerOpen(false); }, [isMobile]);
 
-  const handleAuth = (s: Session) => {
-    setSession(s);
-    setSessionState(s);
-  };
-
-  const handleLogout = () => {
-    clearSession();
-    setSessionState(null);
-  };
+  const handleAuth = (s: Session) => { setSession(s); setSessionState(s); };
+  const handleLogout = () => { clearSession(); setSessionState(null); };
 
   if (!session) return <Login onAuth={handleAuth} />;
 
@@ -211,21 +178,13 @@ export default function App() {
             <div style={{ fontSize: 11, color: session.role === 'admin' ? '#facc15' : 'var(--text2)' }}>
               {session.login} {session.role === 'admin' && '★'}
             </div>
-            <button
-              onClick={handleLogout}
-              style={{ fontSize: 9, color: 'var(--text2)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-            >
+            <button onClick={handleLogout} style={{ fontSize: 9, color: 'var(--text2)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               вийти
             </button>
           </div>
         </div>
         {isMobile && (
-          <button
-            onClick={() => setDrawerOpen(false)}
-            style={{ background: 'none', border: 'none', color: 'var(--text2)', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}
-          >
-            ✕
-          </button>
+          <button onClick={() => setDrawerOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text2)', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}>✕</button>
         )}
       </div>
       <nav style={{ paddingTop: 10, flex: 1 }} onClick={() => isMobile && setDrawerOpen(false)}>
@@ -236,58 +195,25 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
-      {/* Desktop sidebar */}
       {!isMobile && (
-        <aside style={{
-          width: 186, background: 'var(--surface)', borderRight: '1px solid var(--border)',
-          display: 'flex', flexDirection: 'column', flexShrink: 0, position: 'fixed',
-          top: 0, left: 0, height: '100vh', zIndex: 100,
-        }}>
+        <aside style={{ width: 186, background: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0, position: 'fixed', top: 0, left: 0, height: '100vh', zIndex: 100 }}>
           <SidebarContent />
         </aside>
       )}
 
-      {/* Mobile drawer overlay */}
       {isMobile && drawerOpen && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 200,
-            background: 'rgba(0,0,0,0.55)',
-          }}
-          onClick={() => setDrawerOpen(false)}
-        />
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)' }} onClick={() => setDrawerOpen(false)} />
       )}
 
-      {/* Mobile drawer */}
       {isMobile && (
-        <aside style={{
-          position: 'fixed', top: 0, left: 0, height: '100vh', zIndex: 201,
-          width: 220, background: 'var(--surface)', borderRight: '1px solid var(--border)',
-          display: 'flex', flexDirection: 'column',
-          transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
-          transition: 'transform 0.22s cubic-bezier(.4,0,.2,1)',
-        }}>
+        <aside style={{ position: 'fixed', top: 0, left: 0, height: '100vh', zIndex: 201, width: 220, background: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)', transition: 'transform 0.22s cubic-bezier(.4,0,.2,1)' }}>
           <SidebarContent />
         </aside>
       )}
 
-      {/* Mobile top bar */}
       {isMobile && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 150,
-          height: 48, background: 'var(--surface)', borderBottom: '1px solid var(--border)',
-          display: 'flex', alignItems: 'center', padding: '0 16px', gap: 14,
-        }}>
-          <button
-            onClick={() => setDrawerOpen(o => !o)}
-            style={{
-              background: 'none', border: 'none', color: 'var(--text)',
-              fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0,
-              display: 'flex', alignItems: 'center',
-            }}
-          >
-            ☰
-          </button>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 150, height: 48, background: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 14 }}>
+          <button onClick={() => setDrawerOpen((o: boolean) => !o)} style={{ background: 'none', border: 'none', color: 'var(--text)', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0, display: 'flex', alignItems: 'center' }}>☰</button>
           <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: '0.06em' }}>TSCT</div>
           <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text2)' }}>
             {session.login.includes('@') ? session.login.split('@')[0] : session.login}
@@ -295,12 +221,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Main */}
-      <main style={{
-        marginLeft: isMobile ? 0 : 186,
-        marginTop: isMobile ? 48 : 0,
-        flex: 1, minHeight: '100vh', background: 'var(--bg)',
-      }}>
+      <main style={{ marginLeft: isMobile ? 0 : 186, marginTop: isMobile ? 48 : 0, flex: 1, minHeight: '100vh', background: 'var(--bg)' }}>
         <Switch>
           <Route path="/" component={Dashboard} />
           <Route path="/live" component={LiveTrades} />
@@ -308,7 +229,6 @@ export default function App() {
           <Route path="/backtest" component={BacktestTrades} />
           <Route path="/backtest-analysis" component={BacktestAnalysis} />
           <Route path="/charts" component={Charts} />
-          <Route path="/import" component={Import} />
           {session.role === 'admin' && (
             <Route path="/users">
               <AdminUsers currentLogin={session.login} />
