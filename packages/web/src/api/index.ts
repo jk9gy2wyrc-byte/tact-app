@@ -16,7 +16,6 @@ const app = new Hono()
 
   // ─── AUTH: SEED ADMIN + LOGIN + REGISTER ──────────────────────────────────
   .get('/auth/seed', async (c) => {
-    // Ensure admin user exists
     const existing = await db.select().from(users).where(eq(users.login, 'whatif')).get();
     if (!existing) {
       await db.insert(users).values({ login: 'whatif', password: '7777', role: 'admin' });
@@ -78,19 +77,15 @@ const app = new Hono()
       const totalR = Math.round(netrArr.reduce((a, b) => a + b, 0) * 100) / 100;
       const fakes = trades.filter(t => t.result === 'fake').length;
       const tps   = trades.filter(t => t.result === 'tp').length;
-      // BT WR = fake / total; LV WR = tp / total (live has no 'fake' result type)
       const wrRaw = fakes > 0 ? fakes / n : tps / n || 0;
       const wr = wrRaw;
-      // avgRR: only trades with actual RR set (TP trades typically)
       const rrs = trades.filter(t => t.rr != null && t.rr > 0).map(t => t.rr!);
       const avgRR = rrs.length ? rrs.reduce((a, b) => a + b, 0) / rrs.length : 0;
       const grossWins = netrArr.filter(r => r > 0).reduce((a, b) => a + b, 0);
       const grossLoss = Math.abs(netrArr.filter(r => r < 0).reduce((a, b) => a + b, 0));
       const pf = grossLoss > 0 ? grossWins / grossLoss : 999;
-      // max drawdown
       let peak = 0, cumul = 0, maxDD = 0;
       for (const r of netrArr) { cumul += r; if (cumul > peak) peak = cumul; if (peak - cumul > maxDD) maxDD = peak - cumul; }
-      // SQN + stddev
       const mean = totalR / n;
       const variance = netrArr.reduce((a, r) => a + (r - mean) ** 2, 0) / n;
       const std = Math.sqrt(variance);
@@ -106,28 +101,25 @@ const app = new Hono()
       };
     };
 
-    // Rolling series helper (window=20)
     const rollingMetrics = (trades: typeof bt, window = 20) => {
       const wr: number[] = [];
       const avgRR: number[] = [];
       const pf: number[] = [];
       const maxDD: number[] = [];
       const stdDev: number[] = [];
-
       for (let i = 0; i < trades.length; i++) {
         const start = Math.max(0, i - window + 1);
         const slice = trades.slice(start, i + 1);
         const s = calcStats(slice);
         wr.push(Math.round(s.wr * 1000) / 1000);
         avgRR.push(Math.round(s.avgRR * 1000) / 1000);
-        pf.push(Math.min(s.pf, 99)); // cap at 99 for charting
+        pf.push(Math.min(s.pf, 99));
         maxDD.push(Math.round(s.maxDD * 100) / 100);
         stdDev.push(Math.round(s.stdDev * 1000) / 1000);
       }
       return { wr, avgRR, pf, maxDD, stdDev };
     };
 
-    // equity curves
     const btEquity: number[] = [];
     let c2 = 0;
     for (const t of bt) { c2 += t.netR ?? 0; btEquity.push(Math.round(c2 * 100) / 100); }
@@ -135,17 +127,15 @@ const app = new Hono()
     let c3 = 0;
     for (const t of lv) { c3 += t.netR ?? 0; lvEquity.push(Math.round(c3 * 100) / 100); }
 
-    // Rolling metrics
     const btRolling = rollingMetrics(bt, 20);
     const lvRolling = rollingMetrics(lv as any, 10);
 
-    // ── MC simulation (1000 sims) ─────────────────────────────────────────────
     const btNetRArr  = bt.map(t => t.netR ?? 0);
     const btIsTP     = bt.map(t => t.result === 'tp');
     const btRR       = bt.map(t => (t.rr != null && t.rr > 0) ? t.rr : null);
     const N_SIM = 1000;
     const N_TRADES_MC = bt.length || 50;
-    const WIN_BT = 20; // rolling window same as btRolling
+    const WIN_BT = 20;
 
     const rng = (seed: number) => {
       let s = seed;
@@ -153,16 +143,7 @@ const app = new Hono()
     };
     const rand = rng(42);
 
-    // Per-simulation rolling series storage: [sim][trade] -> value
-    // We store equity + rolling WR + rolling avgRR + rolling PF per sim
-    // Then at each trade index compute p5/p50/p95 across sims
-
-    // To save memory: compute percentiles on-the-fly per trade index
-    // Store transposed: mcEquityByTrade[tradeIdx] = [sim0val, sim1val, ...]
-    // But 1000 sims x 273 trades = 273k numbers — fine
-
     type SimRow = { eq: number; wr: number; rr: number; pf: number };
-    // [tradeIdx][simIdx]
     const byTrade: SimRow[][] = Array.from({ length: N_TRADES_MC }, () => []);
 
     for (let si = 0; si < N_SIM; si++) {
@@ -170,7 +151,6 @@ const app = new Hono()
       let winCount = 0;
       let rrSum = 0; let rrCount = 0;
       let grossWin = 0; let grossLoss = 0;
-      // ring buffers for rolling window
       const winBuf: boolean[] = [];
       const rrBuf: (number | null)[] = [];
       const netBuf: number[] = [];
@@ -183,7 +163,6 @@ const app = new Hono()
 
         acc += netR;
 
-        // maintain rolling window
         winBuf.push(isTP);
         rrBuf.push(rr);
         netBuf.push(netR);
@@ -215,13 +194,11 @@ const app = new Hono()
       }
     }
 
-    // Percentile helper
     const pctOf = (arr: number[], p: number) => {
       const s = arr.slice().sort((a, b) => a - b);
       return s[Math.floor(s.length * p)] ?? 0;
     };
 
-    // Downsample to N_PTS points
     const N_PTS = 100;
     const step = Math.max(1, Math.floor(N_TRADES_MC / N_PTS));
     const sampleIndices: number[] = [];
@@ -259,15 +236,13 @@ const app = new Hono()
       mcPF.p95.push(Math.round(pctOf(pfArr, 0.95) * 100) / 100);
     }
 
-    // Sample 100 equity paths for MC page display (every 10th sim)
     const mcPathsSample = Array.from({ length: 100 }, (_, i) =>
       byTrade.map(tradeRows => tradeRows[i * 10]?.eq ?? 0)
     );
 
-    // Monthly breakdown for live
     const liveByMonth: Record<string, { n: number; totalR: number; wr: number; avgRR: number }> = {};
     for (const t of lv) {
-      const mk = (t.month ?? '').slice(0, 7); // always YYYY-MM
+      const mk = (t.month ?? '').slice(0, 7);
       if (!liveByMonth[mk]) liveByMonth[mk] = { n: 0, totalR: 0, wr: 0, avgRR: 0 };
       liveByMonth[mk].n++;
       liveByMonth[mk].totalR += t.netR ?? 0;
@@ -281,14 +256,12 @@ const app = new Hono()
       liveByMonth[m].avgRR = rrs.length ? Math.round(rrs.reduce((a, b) => a + b, 0) / rrs.length * 1000) / 1000 : 0;
     }
 
-    // BT by instrument
     const instruments = ['EUR', 'GER', 'XAU'];
     const btByInstrument: Record<string, ReturnType<typeof calcStats>> = {};
     for (const inst of instruments) {
       btByInstrument[inst] = calcStats(bt.filter(t => t.instrument === inst));
     }
 
-    // BT by instrument + year
     const btByInstrumentYear: Record<string, Record<string, ReturnType<typeof calcStats>>> = {};
     for (const inst of instruments) {
       const instTrades = bt.filter(t => t.instrument === inst);
@@ -298,8 +271,6 @@ const app = new Hono()
         btByInstrumentYear[inst][yr] = calcStats(instTrades.filter(t => String(t.year) === yr));
       }
     }
-
-
 
     return c.json({
       btStats: calcStats(bt),
@@ -329,10 +300,11 @@ const app = new Hono()
       winReduction: z.number().min(0.3).max(1).default(1),
       wrDegradation: z.number().min(0).max(0.5).default(0),
       slippage: z.number().min(0).max(0.5).default(0),
-      // Psychological factors
-      humanError: z.number().min(0).max(0.2).default(0),   // prob of trade becoming -1R (tilt, forgot SL)
-      fatigue: z.number().min(0).max(0.5).default(0),       // reduce each win by this fraction (early exit)
-      missedWin: z.number().min(0).max(0.5).default(0),    // prob of win becoming 0R (missed entry)
+      humanError: z.number().min(0).max(0.2).default(0),
+      fatigue: z.number().min(0).max(0.5).default(0),
+      badSlipProb: z.number().min(0).max(0.5).default(0),
+      badSlipMult: z.number().min(1).max(3).default(1),
+      missedWin: z.number().min(0).max(0.5).default(0),
       survivalThreshold: z.number().min(1).max(100).default(20),
     })),
     async (c) => {
@@ -352,14 +324,13 @@ const app = new Hono()
         let s = seed;
         return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
       };
-      const rand = rng(99); // different seed from base MC
+      const rand = rng(99);
 
       const pctOf = (arr: number[], p: number) => {
         const s = arr.slice().sort((a, b) => a - b);
         return s[Math.floor(s.length * p)] ?? 0;
       };
 
-      // Per-tradeIdx accumulators
       const byTrade: { eq: number }[][] = Array.from({ length: N_TRADES_MC }, () => []);
       let survivedCount = 0;
       const finalEqs: number[] = [];
@@ -367,8 +338,6 @@ const app = new Hono()
       const sqns: number[] = [];
 
       for (let si = 0; si < N_SIM; si++) {
-        // Build stressed trade sequence using clustering if needed
-        // Step 1: pick random indices (same sampling as base MC)
         const indices: number[] = Array.from({ length: N_TRADES_MC }, () =>
           Math.floor(rand() * btNetRArr.length)
         );
@@ -396,7 +365,13 @@ const app = new Hono()
           }
 
           // Apply market modifiers
-          if (!isTP && netR < 0) netR = netR * params.lossAmp;
+          if (!isTP && netR < 0) {
+            netR = netR * params.lossAmp;
+            // Bad Slip: gap/news spike worsens the loss
+            if (params.badSlipProb > 0 && rand() < params.badSlipProb) {
+              netR = netR * params.badSlipMult;
+            }
+          }
           if (isTP && netR > 0) {
             netR = netR * params.winReduction;
             // Fatigue Decay: reduce win by fatigue fraction (fear of reversal, early exit)
@@ -411,7 +386,6 @@ const app = new Hono()
           acc += netR;
           netArr.push(netR);
 
-          // track drawdown
           if (acc > peak) peak = acc;
           const dd = peak - acc;
           if (dd > maxDD) maxDD = dd;
@@ -419,20 +393,17 @@ const app = new Hono()
           byTrade[j].push({ eq: Math.round(acc * 100) / 100 });
         }
 
-        // Survival check
         const survived = maxDD < params.survivalThreshold;
         if (survived) survivedCount++;
         finalEqs.push(acc);
         maxDDs.push(maxDD);
 
-        // SQN for this sim
         const mean = netArr.reduce((a, b) => a + b, 0) / netArr.length;
         const variance = netArr.reduce((a, r) => a + (r - mean) ** 2, 0) / netArr.length;
         const std = Math.sqrt(variance);
         sqns.push(std > 0 ? Math.sqrt(netArr.length) * mean / std : 0);
       }
 
-      // Downsample to 100 pts
       const N_PTS = 100;
       const step = Math.max(1, Math.floor(N_TRADES_MC / N_PTS));
       const sampleIndices: number[] = [];
@@ -453,7 +424,7 @@ const app = new Hono()
         stressMed,
         stressP5,
         stressP95,
-        survivalRate: Math.round(survivedCount / N_SIM * 1000) / 10, // %
+        survivalRate: Math.round(survivedCount / N_SIM * 1000) / 10,
         stressMaxDD: {
           med: Math.round(pctOf(maxDDs, 0.50) * 100) / 100,
           p95: Math.round(pctOf(maxDDs, 0.95) * 100) / 100,
@@ -481,7 +452,7 @@ const app = new Hono()
 
   .post('/live-trades',
     zValidator('json', z.object({
-      date: z.string(), // YYYY-MM-DD
+      date: z.string(),
       asset: z.string().optional(),
       direction: z.string().optional(),
       rr: z.number().optional(),
@@ -492,12 +463,11 @@ const app = new Hono()
       netR: z.number().optional(),
       profitDollars: z.number().optional(),
       notes: z.string().optional(),
-      attachments: z.string().optional(), // JSON string
+      attachments: z.string().optional(),
     })),
     async (c) => {
       const body = c.req.valid('json');
       const uid = Number(c.req.query('userId') ?? 0);
-      // auto tradeNum = max existing + 1
       const existing = await db.select({ n: liveTrades.tradeNum }).from(liveTrades).where(eq(liveTrades.userId, uid)).all();
       const maxNum = existing.length > 0 ? Math.max(...existing.map(r => r.n ?? 0)) : 0;
       const tradeNum = maxNum + 1;
@@ -505,7 +475,7 @@ const app = new Hono()
       const netR = body.netR ?? Math.round((body.grossR + cost) * 100) / 100;
       const [trade] = await db.insert(liveTrades).values({
         userId: uid,
-        month: body.date.slice(0, 7), // store as YYYY-MM always
+        month: body.date.slice(0, 7),
         tradeNum,
         asset: body.asset,
         direction: body.direction,
@@ -536,7 +506,7 @@ const app = new Hono()
       netR: z.number().optional(),
       profitDollars: z.number().nullable().optional(),
       notes: z.string().nullable().optional(),
-      attachments: z.string().nullable().optional(), // JSON string
+      attachments: z.string().nullable().optional(),
     })),
     async (c) => {
       const id = Number(c.req.param('id'));
@@ -589,12 +559,10 @@ const app = new Hono()
       let totalInserted = 0;
 
       for (const sheetName of wb.SheetNames) {
-        // detect instrument from sheet name
         let instrument = 'EUR';
         if (sheetName.toUpperCase().includes('GER')) instrument = 'GER';
         else if (sheetName.toUpperCase().includes('XAU') || sheetName.toUpperCase().includes('GOLD')) instrument = 'XAU';
 
-        // Skip non-raw sheets and live sheet
         if (!sheetName.toLowerCase().includes('raw')) continue;
         if (sheetName.toLowerCase().includes('live')) continue;
 
@@ -623,7 +591,6 @@ const app = new Hono()
           if (!['tp', 'sl', 'be'].includes(result)) continue;
           if (!Number.isFinite(grossR)) continue;
 
-          // Normalize month: "2021 - 01" → "2021-01"
           const month = dateRaw.replace(/\s*-\s*/g, '-').trim();
           const year = parseInt(month.slice(0, 4)) || 2025;
           const validCost = Number.isFinite(cost) ? cost : -0.1;
@@ -665,7 +632,6 @@ const app = new Hono()
     return c.json({ ok: true }, 200);
   })
 
-  // ── Manual backtest entry ──────────────────────────────────────────────────
   .post('/backtest-manual', async (c) => {
     const uid = Number(c.req.query('userId') ?? 0);
     const body = await c.req.json();
@@ -676,7 +642,6 @@ const app = new Hono()
     const costVal = cost != null ? Number(cost) : -0.1;
     const grossVal = grossR != null ? Number(grossR) : (result === 'tp' ? Number(rr ?? 1) : result === 'sl' ? -1 : 0);
     const netVal = Math.round((grossVal + costVal) * 100) / 100;
-    // auto tradeNum
     const existing = await db.select({ n: backtestTrades.tradeNum })
       .from(backtestTrades)
       .where(eq(backtestTrades.userId, uid))
@@ -729,7 +694,6 @@ const app = new Hono()
     return c.json({ ok: true }, 200);
   })
 
-  // ── Bulk backtest entry (from manual database builder) ────────────────────
   .post('/backtest-bulk', async (c) => {
     const uid = Number(c.req.query('userId') ?? 0);
     const body = await c.req.json();
@@ -768,7 +732,7 @@ const app = new Hono()
     return c.json({ ok: true, inserted: toInsert.length }, 200);
   });
 
-// ─── Economic Calendar (faireconomy.media / ForexFactory data) ───────────────
+// ─── Economic Calendar ───────────────────────────────────────────────────────
 let newsCache: { ts: number; data: any[] } = { ts: 0, data: [] };
 
 async function fetchNewsData(): Promise<any[]> {
@@ -838,17 +802,14 @@ async function fetchWeeklyChanges() {
         const closes: number[] = result.indicators?.quote?.[0]?.close ?? [];
         const timestamps: number[] = result.timestamps ?? result.timestamp ?? [];
 
-        // Filter out null/undefined closes
         const valid = closes.map((c, i) => ({ c, t: timestamps[i] })).filter(x => x.c != null);
         if (valid.length < 2) { results[key] = null; return; }
 
-        // Find Monday of current week (UTC)
         const now = new Date();
-        const dayOfWeek = now.getUTCDay(); // 0=Sun,1=Mon,...6=Sat
+        const dayOfWeek = now.getUTCDay();
         const daysFromMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
         const monStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysFromMon);
 
-        // Filter candles from Monday onwards
         const weekCandles = valid.filter(x => x.t * 1000 >= monStart);
         if (weekCandles.length === 0) { results[key] = null; return; }
 
