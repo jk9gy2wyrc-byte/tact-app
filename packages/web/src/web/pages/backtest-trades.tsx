@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { uidParam } from "../lib/session";
 import { useMobile } from "../hooks/useMobile";
@@ -13,6 +13,28 @@ const DIRECTIONS = ['long', 'short'];
 const RESULTS = ['tp', 'sl', 'be'];
 const INSTRUMENTS = ['EUR', 'GER', 'XAU'];
 const FILTER_INSTRUMENTS = ['ALL', 'EUR', 'GER', 'XAU'];
+const PRESET_INSTRUMENTS = ['EUR', 'GBP', 'GER', 'XAU'];
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase',
+  letterSpacing: '0.06em', display: 'block', marginBottom: 4,
+};
+const cellInput: React.CSSProperties = {
+  width: '100%', padding: '4px 6px', fontSize: 12,
+  background: 'var(--surface2)', border: '1px solid var(--border)',
+  borderRadius: 6, color: 'var(--text)', fontFamily: 'monospace',
+};
+const cellSelect: React.CSSProperties = { ...cellInput };
+
+interface TradeRow {
+  id: string; instrument: string; date: string;
+  direction: 'long' | 'short' | ''; rr: string; session: string;
+  result: 'tp' | 'sl' | 'be'; grossR: string; cost: string;
+}
+const newRow = (instrument = 'EUR', date = new Date().toISOString().slice(0, 10)): TradeRow => ({
+  id: Math.random().toString(36).slice(2), instrument, date,
+  direction: 'long', rr: '', session: '', result: 'tp', grossR: '', cost: '-0.1',
+});
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -66,34 +88,164 @@ const fmtDate = (d: string) => {
   return d;
 };
 
+// ─── Database Builder Modal ───────────────────────────────────────────────────
+function DatabaseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [dbName, setDbName] = useState('');
+  const [rows, setRows] = useState<TradeRow[]>([newRow()]);
+  const [defaultInst, setDefaultInst] = useState('EUR');
+  const [customInst, setCustomInst] = useState('');
+  const [useCustom, setUseCustom] = useState(false);
+  const [error, setError] = useState('');
+  const isMobile = useMobile();
+  const qc = useQueryClient();
+
+  const saveMutation = useMutation({
+    mutationFn: async (trades: any[]) => {
+      const r = await fetch(`/api/backtest-bulk${uidParam()}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trades }),
+      });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error ?? 'Failed');
+      return json;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['backtest-trades'] }); qc.invalidateQueries({ queryKey: ['stats'] }); onSaved(); },
+    onError: (e: any) => setError(e.message),
+  });
+
+  const addRow = () => {
+    const lastRow = rows[rows.length - 1];
+    setRows(prev => [...prev, newRow(useCustom ? (customInst || defaultInst) : defaultInst, lastRow?.date ?? new Date().toISOString().slice(0, 10))]);
+  };
+  const updateRow = (id: string, field: keyof TradeRow, value: string) =>
+    setRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
+  const removeRow = (id: string) => { if (rows.length === 1) return; setRows(prev => prev.filter(r => r.id !== id)); };
+  const duplicateRow = (id: string) => {
+    const idx = rows.findIndex(r => r.id === id);
+    const copy = { ...rows[idx], id: Math.random().toString(36).slice(2) };
+    const next = [...rows]; next.splice(idx + 1, 0, copy); setRows(next);
+  };
+  const handleSave = () => {
+    setError('');
+    if (!dbName.trim()) { setError('Please enter a name for this database'); return; }
+    const invalid = rows.filter(r => !r.date || !r.result || !r.instrument);
+    if (invalid.length) { setError(`${invalid.length} row(s) missing required fields`); return; }
+    saveMutation.mutate(rows.map(r => ({
+      instrument: r.instrument.toUpperCase(), date: r.date, direction: r.direction || null,
+      rr: r.rr !== '' ? Number(r.rr) : null, session: r.session || null, result: r.result,
+      grossR: r.grossR !== '' ? Number(r.grossR) : null, cost: r.cost !== '' ? Number(r.cost) : -0.1,
+    })));
+  };
+  const total = rows.length;
+  const wins = rows.filter(r => r.result === 'tp').length;
+  const wr = total > 0 ? ((wins / total) * 100).toFixed(0) : '0';
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: isMobile ? 0 : '24px 16px', overflowY: 'auto' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: isMobile ? 0 : 16, width: '100%', maxWidth: 900, minHeight: isMobile ? '100dvh' : undefined, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ fontWeight: 700, fontSize: 15, flex: 1 }}>New Backtest Database</div>
+          <div style={{ fontSize: 12, color: 'var(--text2)' }}>{total} trades · {wins}W / {total - wins}L · WR {wr}%</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text2)', fontSize: 20, padding: '0 4px', lineHeight: 1, cursor: 'pointer' }}>✕</button>
+        </div>
+        <div style={{ padding: '16px 20px', flex: 1, overflow: 'auto' }}>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ flex: '2 1 200px' }}>
+              <label style={labelStyle}>Database Name</label>
+              <input placeholder="e.g. EUR 2024 Backtest" value={dbName} onChange={e => setDbName(e.target.value)} style={{ width: '100%', fontSize: 13 }} />
+            </div>
+            <div style={{ flex: '1 1 140px' }}>
+              <label style={labelStyle}>Default Instrument</label>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                {PRESET_INSTRUMENTS.map(inst => (
+                  <button key={inst} type="button" onClick={() => { setUseCustom(false); setDefaultInst(inst); }}
+                    style={{ padding: '4px 10px', fontSize: 11, borderRadius: 6, background: (!useCustom && defaultInst === inst) ? '#4b5263' : 'var(--surface2)', color: (!useCustom && defaultInst === inst) ? '#fff' : 'var(--text)', border: '1px solid var(--border)', fontFamily: 'monospace', fontWeight: 600, cursor: 'pointer' }}>{inst}</button>
+                ))}
+                <button type="button" onClick={() => setUseCustom(true)}
+                  style={{ padding: '4px 10px', fontSize: 11, borderRadius: 6, background: useCustom ? '#4b5263' : 'var(--surface2)', color: useCustom ? '#fff' : 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }}>+</button>
+                {useCustom && <input value={customInst} onChange={e => setCustomInst(e.target.value.toUpperCase())} placeholder="BTC…" style={{ width: 70, fontSize: 12, padding: '4px 8px' }} />}
+              </div>
+            </div>
+          </div>
+          <div style={{ overflowX: 'auto', marginBottom: 14 }}>
+            <table style={{ minWidth: 640, borderCollapse: 'collapse', width: '100%' }}>
+              <thead>
+                <tr style={{ background: 'var(--surface2)' }}>
+                  {['#','Instrument','Date','Result','Dir','RR','GrossR','Cost','Session',''].map(h => (
+                    <th key={h} style={{ padding: '6px 8px', fontSize: 10, color: 'var(--text2)', textAlign: 'left', fontWeight: 500 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, idx) => (
+                  <tr key={row.id} style={{ borderBottom: '1px solid var(--border)', background: idx % 2 === 0 ? 'var(--surface)' : 'var(--bg)' }}>
+                    <td style={{ padding: '5px 8px', fontSize: 11, color: 'var(--text2)', fontFamily: 'monospace' }}>{idx + 1}</td>
+                    <td style={{ padding: '4px 6px', minWidth: 80 }}>
+                      <input list={`inst-${row.id}`} value={row.instrument} onChange={e => updateRow(row.id, 'instrument', e.target.value.toUpperCase())} style={{ ...cellInput, width: 70 }} />
+                      <datalist id={`inst-${row.id}`}>{PRESET_INSTRUMENTS.map(i => <option key={i} value={i} />)}</datalist>
+                    </td>
+                    <td style={{ padding: '4px 6px', minWidth: 120 }}><input type="date" value={row.date} onChange={e => updateRow(row.id, 'date', e.target.value)} style={cellInput} /></td>
+                    <td style={{ padding: '4px 6px' }}>
+                      <select value={row.result} onChange={e => updateRow(row.id, 'result', e.target.value)} style={{ ...cellSelect, width: 58, color: row.result === 'tp' ? 'var(--green)' : row.result === 'sl' ? 'var(--red)' : 'var(--yellow)', fontWeight: 600 }}>
+                        {RESULTS.map(r => <option key={r} value={r}>{r.toUpperCase()}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: '4px 6px' }}>
+                      <select value={row.direction} onChange={e => updateRow(row.id, 'direction', e.target.value as any)} style={{ ...cellSelect, width: 64 }}>
+                        <option value="">—</option>
+                        {DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: '4px 6px' }}><input type="number" step="0.01" min="0" value={row.rr} onChange={e => updateRow(row.id, 'rr', e.target.value)} placeholder="2.5" style={{ ...cellInput, width: 60 }} /></td>
+                    <td style={{ padding: '4px 6px' }}><input type="number" step="0.01" value={row.grossR} onChange={e => updateRow(row.id, 'grossR', e.target.value)} placeholder="auto" style={{ ...cellInput, width: 60 }} /></td>
+                    <td style={{ padding: '4px 6px' }}><input type="number" step="0.01" value={row.cost} onChange={e => updateRow(row.id, 'cost', e.target.value)} style={{ ...cellInput, width: 56 }} /></td>
+                    <td style={{ padding: '4px 6px' }}>
+                      <select value={row.session} onChange={e => updateRow(row.id, 'session', e.target.value)} style={{ ...cellSelect, width: 80 }}>
+                        <option value="">—</option>
+                        {SESSIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: '4px 6px' }}>
+                      <div style={{ display: 'flex', gap: 2 }}>
+                        <button type="button" onClick={() => duplicateRow(row.id)} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)', borderRadius: 5, padding: '3px 6px', fontSize: 11, cursor: 'pointer' }}>⧉</button>
+                        <button type="button" onClick={() => removeRow(row.id)} disabled={rows.length === 1} style={{ background: 'transparent', border: '1px solid transparent', color: 'var(--red)', borderRadius: 5, padding: '3px 6px', fontSize: 13, cursor: 'pointer', opacity: rows.length === 1 ? 0.3 : 1 }}>✕</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button type="button" className="btn-ghost" onClick={addRow} style={{ fontSize: 12, padding: '6px 16px' }}>+ Add Row</button>
+        </div>
+        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          {error && <div style={{ flex: '1 1 100%', color: 'var(--red)', fontSize: 12, marginBottom: 4 }}>{error}</div>}
+          <button type="button" className="btn-primary" onClick={handleSave} disabled={saveMutation.isPending} style={{ padding: '8px 24px', fontSize: 13 }}>
+            {saveMutation.isPending ? 'Saving…' : `Save "${dbName || 'Unnamed'}" — ${total} trades`}
+          </button>
+          <button type="button" className="btn-ghost" onClick={onClose} style={{ padding: '8px 16px', fontSize: 13 }}>Cancel</button>
+          <div style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text2)' }}>Gross R auto-calculated from RR if left blank</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ToggleGroup({ value, options, onChange, small }: {
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
-  small?: boolean;
+  value: string; options: string[]; onChange: (v: string) => void; small?: boolean;
 }) {
   return (
-    <div style={{
-      display: 'flex', flexWrap: 'wrap', gap: 3,
-      background: 'var(--surface2)',
-      border: '1px solid var(--border)',
-      borderRadius: 8, padding: 3,
-    }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: 3 }}>
       {options.map(o => {
         const active = value === o;
         return (
           <button key={o} type="button" onClick={() => onChange(o)} style={{
-            padding: small ? '2px 8px' : '3px 10px',
-            borderRadius: 6,
-            fontSize: small ? 10 : 11,
-            fontWeight: active ? 600 : 400,
-            cursor: 'pointer', border: 'none',
-            transition: 'background 0.15s, color 0.15s',
-            background: active ? '#4b5263' : 'transparent',
-            color: active ? '#fff' : 'var(--text2)',
-          }}>
-            {o}
-          </button>
+            padding: small ? '2px 8px' : '3px 10px', borderRadius: 6,
+            fontSize: small ? 10 : 11, fontWeight: active ? 600 : 400,
+            cursor: 'pointer', border: 'none', transition: 'background 0.15s, color 0.15s',
+            background: active ? '#4b5263' : 'transparent', color: active ? '#fff' : 'var(--text2)',
+          }}>{o}</button>
         );
       })}
     </div>
@@ -121,13 +273,9 @@ function EditModal({ trade, onClose, onSave, isPending }: {
     const { grossR } = preview;
     if (form.result === 'tp' && grossR == null) { setError('RR required for TP'); return; }
     const body: any = {
-      date: form.date,
-      instrument: form.instrument,
-      direction: form.direction,
-      rr: form.rr ? parseFloat(form.rr) : undefined,
-      session: form.session.toLowerCase(),
-      result: form.result,
-      cost: parseFloat(form.cost) || -0.1,
+      date: form.date, instrument: form.instrument, direction: form.direction,
+      rr: form.rr ? parseFloat(form.rr) : undefined, session: form.session.toLowerCase(),
+      result: form.result, cost: parseFloat(form.cost) || -0.1,
     };
     onSave(body);
   };
@@ -140,28 +288,16 @@ function EditModal({ trade, onClose, onSave, isPending }: {
   );
 
   return (
-    <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, zIndex: 1000,
-      background: 'rgba(0,0,0,0.6)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-    }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: 16, padding: 24, width: '100%', maxWidth: 480,
-        maxHeight: '92vh', overflowY: 'auto',
-      }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 480, maxHeight: '92vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ fontWeight: 700, fontSize: 15 }}>Edit Backtest Trade #{trade.tradeNum}</div>
           <button className="btn-ghost" onClick={onClose} style={{ padding: '2px 10px', fontSize: 16, borderRadius: 8 }}>×</button>
         </div>
-
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Date</div>{inp('date', 'date')}</div>
-            <div>
-              <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Instrument</div>
-              <ToggleGroup value={form.instrument} options={INSTRUMENTS} onChange={v => setField('instrument', v)} small />
-            </div>
+            <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Instrument</div><ToggleGroup value={form.instrument} options={INSTRUMENTS} onChange={v => setField('instrument', v)} small /></div>
           </div>
           <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Direction</div><ToggleGroup value={form.direction} options={DIRECTIONS} onChange={v => setField('direction', v)} /></div>
           <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Session</div><ToggleGroup value={form.session} options={SESSIONS} onChange={v => setField('session', v)} small /></div>
@@ -170,23 +306,16 @@ function EditModal({ trade, onClose, onSave, isPending }: {
             <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>RR</div>{inp('rr', 'number', { placeholder: '3.5' })}</div>
             <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Cost</div>{inp('cost', 'number', { placeholder: '-0.10' })}</div>
           </div>
-          <div style={{
-            display: 'flex', gap: 16, alignItems: 'center',
-            background: 'var(--surface2)', borderRadius: 8, padding: '8px 14px',
-            border: '1px solid var(--border)', fontSize: 13, flexWrap: 'wrap',
-          }}>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', background: 'var(--surface2)', borderRadius: 8, padding: '8px 14px', border: '1px solid var(--border)', fontSize: 13, flexWrap: 'wrap' }}>
             <span style={{ color: 'var(--text2)' }}>Gross:</span>
             <span className={`mono ${(preview.grossR ?? 0) >= 0 ? 'pos' : 'neg'}`}>{preview.grossR != null ? preview.grossR.toFixed(2) : '—'}</span>
             <span style={{ color: 'var(--text2)' }}>Net:</span>
             <span className={`mono ${(preview.netR ?? 0) > 0 ? 'pos' : (preview.netR ?? 0) < 0 ? 'neg' : 'be'}`}>{preview.netR != null ? preview.netR.toFixed(2) : '—'}</span>
           </div>
-
           {error && <div style={{ color: 'var(--red)', fontSize: 12 }}>{error}</div>}
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
             <button className="btn-ghost" onClick={onClose} style={{ borderRadius: 10 }}>Cancel</button>
-            <button className="btn-primary" onClick={handleSave} disabled={isPending} style={{ borderRadius: 10 }}>
-              {isPending ? 'Saving...' : 'Save'}
-            </button>
+            <button className="btn-primary" onClick={handleSave} disabled={isPending} style={{ borderRadius: 10 }}>{isPending ? 'Saving...' : 'Save'}</button>
           </div>
         </div>
       </div>
@@ -194,40 +323,23 @@ function EditModal({ trade, onClose, onSave, isPending }: {
   );
 }
 
-// Mobile trade card
 function TradeCard({ t, onEdit, onDelete }: { t: any; onEdit: () => void; onDelete: () => void }) {
   return (
-    <div onClick={onEdit} style={{
-      background: 'var(--surface)', border: '1px solid var(--border)',
-      borderRadius: 10, padding: '10px 12px',
-      display: 'flex', flexDirection: 'column', gap: 6,
-      cursor: 'pointer', transition: 'border-color 0.15s',
-    }}
+    <div onClick={onEdit} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer', transition: 'border-color 0.15s' }}
       onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent, #4b5263)')}
-      onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
-    >
+      onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <span style={{ fontSize: 10, color: 'var(--text2)', fontFamily: 'monospace' }}>#{t.tradeNum}</span>
           <span style={{ fontSize: 12, fontWeight: 600 }}>{t.instrument ?? '—'}</span>
           <span style={{ fontSize: 10, color: 'var(--text2)' }}>{fmtDate(t.month)}</span>
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button className="btn-danger" style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6 }} onClick={e => { e.stopPropagation(); onDelete(); }}>×</button>
-        </div>
+        <button className="btn-danger" style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6 }} onClick={e => { e.stopPropagation(); onDelete(); }}>×</button>
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{
-          padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 600,
-          background: t.direction === 'long' ? '#1a3a2a' : '#3a1a1a',
-          color: t.direction === 'long' ? '#4ade80' : '#f87171',
-        }}>{capitalize(t.direction ?? '—')}</span>
+        <span style={{ padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 600, background: t.direction === 'long' ? '#1a3a2a' : '#3a1a1a', color: t.direction === 'long' ? '#4ade80' : '#f87171' }}>{capitalize(t.direction ?? '—')}</span>
         {t.session && <span style={{ padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 600, background: sessionColor(t.session), color: '#fff' }}>{capitalize(t.session)}</span>}
-        <span style={{
-          padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 700,
-          background: t.result === 'tp' ? '#1a3228' : t.result === 'sl' ? '#2d1a1a' : '#2d2a1a',
-          color: t.result === 'tp' ? '#26a69a' : t.result === 'sl' ? '#ef5350' : '#f59e0b',
-        }}>{t.result?.toUpperCase()}</span>
+        <span style={{ padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 700, background: t.result === 'tp' ? '#1a3228' : t.result === 'sl' ? '#2d1a1a' : '#2d2a1a', color: t.result === 'tp' ? '#26a69a' : t.result === 'sl' ? '#ef5350' : '#f59e0b' }}>{t.result?.toUpperCase()}</span>
       </div>
       <div style={{ display: 'flex', gap: 12, fontSize: 11, fontFamily: 'monospace', flexWrap: 'wrap' }}>
         <span style={{ color: 'var(--text2)' }}>RR: <span style={{ color: 'var(--text)' }}>{fmt(t.rr)}</span></span>
@@ -248,6 +360,11 @@ export default function BacktestTrades() {
   const [form, setForm] = useState({ ...emptyForm });
   const [editTrade, setEditTrade] = useState<any | null>(null);
   const [error, setError] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [fileResult, setFileResult] = useState<{ ok?: boolean; inserted?: number; error?: string } | null>(null);
 
   const addMutation = useMutation({
     mutationFn: async (body: any) => {
@@ -306,17 +423,31 @@ export default function BacktestTrades() {
     },
   });
 
+  const importMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const fd = new FormData();
+      fd.append('file', file);
+      const r = await fetch(`/api/import-backtest${uidParam()}`, { method: 'POST', body: fd });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error ?? 'Import failed');
+      return json;
+    },
+    onSuccess: (data) => {
+      setFileResult(data);
+      qc.invalidateQueries({ queryKey: ['backtest-trades'] });
+      qc.invalidateQueries({ queryKey: ['stats'] });
+    },
+    onError: (e: any) => setFileResult({ error: e.message }),
+  });
+  const handleFile = (file: File) => { setFileResult(null); importMutation.mutate(file); };
+
   const handleAddSubmit = () => {
     const { grossR } = calcRValues(form.result, form.rr, form.cost);
     if (form.result === 'tp' && grossR == null) { setError('RR required for TP'); return; }
     const body: any = {
-      date: form.date,
-      instrument: form.instrument,
-      direction: form.direction,
-      rr: form.rr ? parseFloat(form.rr) : undefined,
-      session: form.session.toLowerCase(),
-      result: form.result,
-      cost: parseFloat(form.cost) || -0.1,
+      date: form.date, instrument: form.instrument, direction: form.direction,
+      rr: form.rr ? parseFloat(form.rr) : undefined, session: form.session.toLowerCase(),
+      result: form.result, cost: parseFloat(form.cost) || -0.1,
     };
     addMutation.mutate(body);
   };
@@ -330,7 +461,6 @@ export default function BacktestTrades() {
     return true;
   });
 
-  // Group by instrument → year → month
   const byInst: Record<string, Record<string, Record<string, any[]>>> = {};
   for (const t of filtered) {
     const inst = t.instrument;
@@ -362,12 +492,9 @@ export default function BacktestTrades() {
   return (
     <div style={{ padding: p }}>
       {editTrade && (
-        <EditModal
-          trade={editTrade}
-          onClose={() => setEditTrade(null)}
+        <EditModal trade={editTrade} onClose={() => setEditTrade(null)}
           onSave={body => editMutation.mutate({ id: editTrade.id, body })}
-          isPending={editMutation.isPending}
-        />
+          isPending={editMutation.isPending} />
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
@@ -376,23 +503,58 @@ export default function BacktestTrades() {
           <span style={{ fontSize: 12, color: 'var(--text2)' }}>{all.length} trades</span>
           <button className="btn-danger" style={{ fontSize: 11 }}
             onClick={() => { if (confirm('Clear ALL backtest data?')) clearMutation.mutate(); }}
-            disabled={clearMutation.isPending}>
-            Clear All
-          </button>
+            disabled={clearMutation.isPending}>Clear All</button>
         </div>
       </div>
+
+      {/* IMPORT ACTIONS */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button type="button" className="btn-primary"
+          onClick={() => setShowModal(true)}
+          style={{ padding: '8px 18px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 15 }}>＋</span> New Database
+        </button>
+        <button type="button" className={showUpload ? 'btn-primary' : 'btn-ghost'}
+          onClick={() => { setShowUpload((o: boolean) => !o); setFileResult(null); }}
+          style={{ padding: '8px 18px', fontSize: 13 }}>
+          ↑ Upload File (.xlsx)
+        </button>
+      </div>
+
+      {showUpload && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          <div
+            onDragOver={e => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
+            onClick={() => fileRef.current?.click()}
+            style={{ border: `2px dashed ${dragging ? '#4b5263' : 'var(--border)'}`, borderRadius: 12, padding: isMobile ? '28px 16px' : '40px 24px', textAlign: 'center', cursor: 'pointer', background: dragging ? '#1a1d2a' : 'var(--bg)', transition: 'all 0.15s', marginBottom: 12 }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>📂</div>
+            <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{isMobile ? 'Tap to browse' : 'Drop xlsx here or click to browse'}</div>
+            <div style={{ fontSize: 12, color: 'var(--text2)' }}>Supports: Raw Backtest Database (.xlsx)</div>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }} />
+          </div>
+          {importMutation.isPending && (
+            <div style={{ color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}><span>⏳</span> Parsing and importing trades...</div>
+          )}
+          {fileResult && (
+            <div style={{ background: fileResult.error ? '#1a0808' : '#081a0f', border: `1px solid ${fileResult.error ? 'var(--red)' : 'var(--green)'}`, borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
+              {fileResult.error ? <div style={{ color: 'var(--red)' }}>❌ {fileResult.error}</div> : <div style={{ color: 'var(--green)' }}>✅ Imported {fileResult.inserted} trades.</div>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {showModal && <DatabaseModal onClose={() => setShowModal(false)} onSaved={() => setShowModal(false)} />}
 
       {/* ADD FORM */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 24 }}>
         <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 12, fontWeight: 600 }}>Add New Trade</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {/* Row 1: Date, Instrument, RR, Cost */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, auto)', gap: 10, alignItems: 'end' }}>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Date</div>
-              <input type="date" value={form.date}
-                onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                style={{ width: '100%', borderRadius: 8 }} />
+              <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} style={{ width: '100%', borderRadius: 8 }} />
             </div>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Instrument</div>
@@ -400,19 +562,13 @@ export default function BacktestTrades() {
             </div>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>RR</div>
-              <input type="number" value={form.rr} placeholder="3.5"
-                onChange={e => setForm(f => ({ ...f, rr: e.target.value }))}
-                style={{ width: '100%', borderRadius: 8 }} />
+              <input type="number" value={form.rr} placeholder="3.5" onChange={e => setForm(f => ({ ...f, rr: e.target.value }))} style={{ width: '100%', borderRadius: 8 }} />
             </div>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Cost</div>
-              <input type="number" value={form.cost} placeholder="-0.10"
-                onChange={e => setForm(f => ({ ...f, cost: e.target.value }))}
-                style={{ width: '100%', borderRadius: 8 }} />
+              <input type="number" value={form.cost} placeholder="-0.10" onChange={e => setForm(f => ({ ...f, cost: e.target.value }))} style={{ width: '100%', borderRadius: 8 }} />
             </div>
           </div>
-
-          {/* Row 2: toggles */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Direction</div>
@@ -427,14 +583,8 @@ export default function BacktestTrades() {
               <ToggleGroup value={form.session} options={SESSIONS} onChange={v => setForm(f => ({ ...f, session: v }))} small />
             </div>
           </div>
-
-          {/* Row 3: Preview + Submit */}
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{
-              display: 'flex', gap: 10, alignItems: 'center',
-              background: 'var(--surface2)', borderRadius: 8, padding: '6px 12px',
-              border: '1px solid var(--border)', fontSize: 12, flexWrap: 'wrap',
-            }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', background: 'var(--surface2)', borderRadius: 8, padding: '6px 12px', border: '1px solid var(--border)', fontSize: 12, flexWrap: 'wrap' }}>
               <span style={{ color: 'var(--text2)' }}>Gross:</span>
               <span className={`mono ${(preview.grossR ?? 0) >= 0 ? 'pos' : 'neg'}`}>{preview.grossR != null ? preview.grossR.toFixed(2) : '—'}</span>
               <span style={{ color: 'var(--text2)' }}>Net:</span>
@@ -452,96 +602,60 @@ export default function BacktestTrades() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {FILTER_INSTRUMENTS.map(inst => (
-            <button key={inst}
-              className={filterInst === inst ? 'btn-primary' : 'btn-ghost'}
-              style={{ padding: '4px 12px', fontSize: 12 }}
-              onClick={() => setFilterInst(inst)}>
-              {inst}
-            </button>
+            <button key={inst} className={filterInst === inst ? 'btn-primary' : 'btn-ghost'}
+              style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => setFilterInst(inst)}>{inst}</button>
           ))}
         </div>
-        <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
-          style={{ width: isMobile ? '100%' : 180 }} />
+        <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: isMobile ? '100%' : 180 }} />
       </div>
 
       {/* TRADES LIST */}
       {isLoading ? (
         <div style={{ color: 'var(--text2)' }}>Loading...</div>
       ) : filtered.length === 0 ? (
-        <div style={{ color: 'var(--text2)', textAlign: 'center', padding: 40 }}>
-          No backtest data yet. Add a trade above or go to Import to upload xlsx files.
-        </div>
+        <div style={{ color: 'var(--text2)', textAlign: 'center', padding: 40 }}>No backtest data yet. Add a trade above or use New Database / Upload File.</div>
       ) : (
         Object.entries(byInst).sort(([a], [b]) => a.localeCompare(b)).map(([inst, byYear]) => {
           const instTrades = filtered.filter(t => t.instrument === inst);
           const instStats = calcGroup(instTrades);
           return (
             <div key={inst} style={{ marginBottom: 28 }}>
-              <div style={{
-                padding: '8px 12px', background: 'var(--surface2)',
-                border: '1px solid var(--border)', borderRadius: 4, marginBottom: 8,
-                display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-              }}>
+              <div style={{ padding: '8px 12px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--blue)' }}>{inst}</span>
                 <span style={{ fontSize: 11, color: 'var(--text2)' }}>{instStats.n} trades</span>
-                <span className={`mono ${instStats.totalR >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 13 }}>
-                  Net R: {instStats.totalR.toFixed(2)}
-                </span>
+                <span className={`mono ${instStats.totalR >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 13 }}>Net R: {instStats.totalR.toFixed(2)}</span>
                 <span className="mono" style={{ fontSize: 12, color: 'var(--text2)' }}>WR: {instStats.wr}</span>
               </div>
-
               {Object.entries(byYear).sort(([a], [b]) => b.localeCompare(a)).map(([yr, byMonth]) => {
                 const yrTrades = Object.values(byMonth).flat();
                 const yrStats = calcGroup(yrTrades);
                 return (
                   <div key={yr} style={{ marginBottom: 16, marginLeft: isMobile ? 8 : 12 }}>
-                    <div style={{
-                      padding: '5px 10px', background: '#161820',
-                      border: '1px solid #2a2d35', borderRadius: 4, marginBottom: 6,
-                      display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-                    }}>
+                    <div style={{ padding: '5px 10px', background: '#161820', border: '1px solid #2a2d35', borderRadius: 4, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 600, fontSize: 13 }}>{yr}</span>
                       <span style={{ fontSize: 11, color: 'var(--text2)' }}>{yrStats.n} trades</span>
-                      <span className={`mono ${yrStats.totalR >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 12 }}>
-                        Net R: {yrStats.totalR.toFixed(2)}
-                      </span>
+                      <span className={`mono ${yrStats.totalR >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 12 }}>Net R: {yrStats.totalR.toFixed(2)}</span>
                       <span className="mono" style={{ fontSize: 12, color: 'var(--text2)' }}>WR: {yrStats.wr}</span>
                     </div>
-
                     {Object.entries(byMonth).sort(([a], [b]) => b.localeCompare(a)).map(([month, mTrades]) => {
                       const mStats = calcGroup(mTrades);
                       const mKey = `${inst}__${yr}__${month}`;
                       const isOpen = expandedMonths.has(mKey);
                       return (
                         <div key={month} style={{ marginBottom: 8, marginLeft: isMobile ? 8 : 12 }}>
-                          <div
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-                              padding: '4px 8px', borderRadius: 4,
-                              border: '1px solid var(--border)',
-                              background: isOpen ? '#1c2030' : 'var(--surface)',
-                              cursor: 'pointer', marginBottom: isOpen ? 4 : 0,
-                            }}
-                            onClick={() => toggleMonth(mKey)}
-                          >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: isOpen ? '#1c2030' : 'var(--surface)', cursor: 'pointer', marginBottom: isOpen ? 4 : 0 }}
+                            onClick={() => toggleMonth(mKey)}>
                             <span style={{ fontSize: 11, color: 'var(--text2)', userSelect: 'none' }}>{isOpen ? '▾' : '▸'}</span>
                             <span style={{ fontWeight: 600, fontSize: 12 }}>{month}</span>
                             <span style={{ fontSize: 11, color: 'var(--text2)' }}>{mStats.n} trades</span>
-                            <span className={`mono ${mStats.totalR >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 11 }}>
-                              {mStats.totalR.toFixed(2)}R
-                            </span>
+                            <span className={`mono ${mStats.totalR >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 11 }}>{mStats.totalR.toFixed(2)}R</span>
                             <span className="mono" style={{ fontSize: 11, color: 'var(--text2)' }}>{mStats.wr}</span>
                           </div>
-
                           {isOpen && (
                             isMobile ? (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginLeft: 8, marginTop: 4 }}>
                                 {mTrades.map((t: any) => (
-                                  <TradeCard
-                                    key={t.id} t={t}
-                                    onEdit={() => setEditTrade(t)}
-                                    onDelete={() => { if (confirm('Delete?')) deleteMutation.mutate(t.id); }}
-                                  />
+                                  <TradeCard key={t.id} t={t} onEdit={() => setEditTrade(t)} onDelete={() => { if (confirm('Delete?')) deleteMutation.mutate(t.id); }} />
                                 ))}
                               </div>
                             ) : (
@@ -549,46 +663,21 @@ export default function BacktestTrades() {
                                 <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
                                   <table style={{ minWidth: 420 }}>
                                     <thead>
-                                      <tr>
-                                        <th>#</th><th>Date</th><th>Dir</th><th>RR</th>
-                                        <th>Session</th><th>Result</th><th>Gross R</th><th>Cost</th><th>Net R</th>
-                                        <th style={{ width: 40 }}></th>
-                                      </tr>
+                                      <tr><th>#</th><th>Date</th><th>Dir</th><th>RR</th><th>Session</th><th>Result</th><th>Gross R</th><th>Cost</th><th>Net R</th><th style={{ width: 40 }}></th></tr>
                                     </thead>
                                     <tbody>
                                       {mTrades.map((t: any) => (
                                         <tr key={t.id} onClick={() => setEditTrade(t)} style={{ cursor: 'pointer' }}>
                                           <td className="mono" style={{ color: 'var(--text2)', fontSize: 11 }}>{t.tradeNum}</td>
                                           <td className="mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmtDate(t.month)}</td>
-                                          <td>
-                                            <span style={{
-                                              padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                                              background: t.direction === 'long' ? '#1a3a2a' : '#3a1a1a',
-                                              color: t.direction === 'long' ? '#4ade80' : '#f87171',
-                                            }}>{t.direction ? capitalize(t.direction) : '—'}</span>
-                                          </td>
+                                          <td><span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: t.direction === 'long' ? '#1a3a2a' : '#3a1a1a', color: t.direction === 'long' ? '#4ade80' : '#f87171' }}>{t.direction ? capitalize(t.direction) : '—'}</span></td>
                                           <td className="mono">{fmt(t.rr)}</td>
-                                          <td>
-                                            {t.session ? (
-                                              <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: sessionColor(t.session), color: '#fff' }}>
-                                                {capitalize(t.session)}
-                                              </span>
-                                            ) : '—'}
-                                          </td>
-                                          <td>
-                                            <span style={{
-                                              padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
-                                              background: t.result === 'tp' ? '#1a3228' : t.result === 'sl' ? '#2d1a1a' : '#2d2a1a',
-                                              color: t.result === 'tp' ? '#26a69a' : t.result === 'sl' ? '#ef5350' : '#f59e0b',
-                                            }}>{t.result?.toUpperCase()}</span>
-                                          </td>
+                                          <td>{t.session ? <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: sessionColor(t.session), color: '#fff' }}>{capitalize(t.session)}</span> : '—'}</td>
+                                          <td><span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: t.result === 'tp' ? '#1a3228' : t.result === 'sl' ? '#2d1a1a' : '#2d2a1a', color: t.result === 'tp' ? '#26a69a' : t.result === 'sl' ? '#ef5350' : '#f59e0b' }}>{t.result?.toUpperCase()}</span></td>
                                           <td className={`mono ${(t.grossR ?? 0) >= 0 ? 'pos' : 'neg'}`}>{fmt(t.grossR)}</td>
                                           <td className="mono neg">{fmt(t.cost)}</td>
                                           <td className={`mono ${(t.netR ?? 0) > 0 ? 'pos' : (t.netR ?? 0) < 0 ? 'neg' : 'be'}`}>{fmt(t.netR)}</td>
-                                          <td>
-                                            <button className="btn-danger" style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6 }}
-                                              onClick={e => { e.stopPropagation(); if (confirm('Delete?')) deleteMutation.mutate(t.id); }}>×</button>
-                                          </td>
+                                          <td><button className="btn-danger" style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6 }} onClick={e => { e.stopPropagation(); if (confirm('Delete?')) deleteMutation.mutate(t.id); }}>×</button></td>
                                         </tr>
                                       ))}
                                     </tbody>
