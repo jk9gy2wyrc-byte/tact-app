@@ -40,10 +40,7 @@ const colorNet = (v: number) => v > 0 ? "#7eb8f7" : v < 0 ? "#f0a070" : "#a0a8b8
 const ChartTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{
-      background: "#1c1f23", border: "1px solid var(--border)",
-      borderRadius: 8, padding: "8px 12px", fontSize: 12,
-    }}>
+    <div style={{ background: "#1c1f23", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12 }}>
       <div style={{ color: "#888", marginBottom: 4 }}>{label}</div>
       {payload.map((p: any) => (
         <div key={p.name} style={{ color: p.color ?? "#fff" }}>
@@ -56,10 +53,7 @@ const ChartTooltip = ({ active, payload, label }: any) => {
 
 function Stat({ label, value, color }: { label: string; value: string | number; color?: string }) {
   return (
-    <div style={{
-      display: "flex", flexDirection: "column", gap: 2, padding: "10px 14px",
-      background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10,
-    }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "10px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10 }}>
       <div style={{ fontSize: 10, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
       <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "monospace", color: color ?? "var(--text)" }}>{value}</div>
     </div>
@@ -68,11 +62,7 @@ function Stat({ label, value, color }: { label: string; value: string | number; 
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{
-      fontSize: 11, fontWeight: 700, letterSpacing: "0.1em",
-      color: "var(--text2)", textTransform: "uppercase",
-      marginBottom: 12, paddingBottom: 6, borderBottom: "1px solid var(--border)",
-    }}>{children}</div>
+    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "var(--text2)", textTransform: "uppercase", marginBottom: 12, paddingBottom: 6, borderBottom: "1px solid var(--border)" }}>{children}</div>
   );
 }
 
@@ -122,7 +112,6 @@ export default function BacktestAnalysis() {
     return `${inst} · All time`;
   }, [instrument, mode, selectedYear, selectedMonth]);
 
-  // ── compute everything from trades ──────────────────────────────────────────
   const sorted = useMemo(
     () => [...trades].sort((a: any, b: any) => (a.month ?? "").localeCompare(b.month ?? "")),
     [trades]
@@ -166,12 +155,7 @@ export default function BacktestAnalysis() {
       if (t.result === "tp") map[s].tp++;
     }
     return Object.entries(map)
-      .map(([k, v]) => ({
-        session: k,
-        net: Math.round(v.net * 100) / 100,
-        wr: Math.round((v.tp / v.total) * 100),
-        total: v.total,
-      }))
+      .map(([k, v]) => ({ session: k, net: Math.round(v.net * 100) / 100, wr: Math.round((v.tp / v.total) * 100), total: v.total }))
       .sort((a, b) => b.net - a.net);
   }, [sorted]);
 
@@ -185,7 +169,6 @@ export default function BacktestAnalysis() {
     const wr = Math.round((tpCount / total) * 100);
     const totalNet = Math.round(trades.reduce((s: number, t: any) => s + (t.netR ?? 0), 0) * 100) / 100;
     const avgNet = Math.round((totalNet / total) * 1000) / 1000;
-
     const wins = trades.filter((t: any) => (t.netR ?? 0) > 0).map((t: any) => t.netR ?? 0);
     const losses = trades.filter((t: any) => (t.netR ?? 0) < 0).map((t: any) => t.netR ?? 0);
     const winsSum = wins.reduce((a: number, b: number) => a + b, 0);
@@ -193,9 +176,7 @@ export default function BacktestAnalysis() {
     const avgWin = wins.length ? Math.round((winsSum / wins.length) * 100) / 100 : 0;
     const avgLoss = losses.length ? Math.round((lossesSum / losses.length) * 100) / 100 : 0;
     const profitFactor: number | "∞" = losses.length && lossesSum !== 0
-      ? Math.round(Math.abs(winsSum / lossesSum) * 100) / 100
-      : "∞";
-
+      ? Math.round(Math.abs(winsSum / lossesSum) * 100) / 100 : "∞";
     let peak = 0, maxDd = 0, runCum = 0;
     for (const t of sorted) {
       runCum += t.netR ?? 0;
@@ -203,31 +184,22 @@ export default function BacktestAnalysis() {
       const dd = peak - runCum;
       if (dd > maxDd) maxDd = dd;
     }
-
     const allNets = trades.map((t: any) => t.netR ?? 0);
     const best = safeMax(allNets);
     const worst = safeMin(allNets);
-
     let maxWinStreak = 0, maxLossStreak = 0, curWin = 0, curLoss = 0;
     for (const t of sorted) {
       const w = (t.netR ?? 0) > 0;
       if (w) { curWin++; curLoss = 0; if (curWin > maxWinStreak) maxWinStreak = curWin; }
       else { curLoss++; curWin = 0; if (curLoss > maxLossStreak) maxLossStreak = curLoss; }
     }
-
     const longs = trades.filter((t: any) => t.direction === "long");
     const shorts = trades.filter((t: any) => t.direction === "short");
     const longsWR = longs.length ? Math.round(longs.filter((t: any) => t.result === "tp").length / longs.length * 100) : 0;
     const shortsWR = shorts.length ? Math.round(shorts.filter((t: any) => t.result === "tp").length / shorts.length * 100) : 0;
     const longsNet = Math.round(longs.reduce((s: number, t: any) => s + (t.netR ?? 0), 0) * 100) / 100;
     const shortsNet = Math.round(shorts.reduce((s: number, t: any) => s + (t.netR ?? 0), 0) * 100) / 100;
-
-    return {
-      total, tpCount, slCount, beCount, fakeCount, wr, totalNet, avgNet,
-      avgWin, avgLoss, profitFactor, maxDd, best, worst,
-      maxWinStreak, maxLossStreak,
-      longs: longs.length, shorts: shorts.length, longsWR, shortsWR, longsNet, shortsNet,
-    };
+    return { total, tpCount, slCount, beCount, fakeCount, wr, totalNet, avgNet, avgWin, avgLoss, profitFactor, maxDd, best, worst, maxWinStreak, maxLossStreak, longs: longs.length, shorts: shorts.length, longsWR, shortsWR, longsNet, shortsNet };
   }, [trades, sorted]);
 
   const btnStyle = (active: boolean): React.CSSProperties => ({
@@ -240,17 +212,15 @@ export default function BacktestAnalysis() {
   if (isLoading) return <div style={{ padding: 32, color: "var(--text2)" }}>Loading...</div>;
   if (!all.length) return (
     <div style={{ padding: 32, color: "var(--text2)", textAlign: "center" }}>
-      No backtest data. Go to Import to upload xlsx files.
+      No backtest data. Go to Backtest DB to upload xlsx files.
     </div>
   );
 
-  // scrollable pill group for mobile
   const ScrollGroup = ({ children }: { children: React.ReactNode }) => (
     <div style={{
       display: "flex", gap: 3,
       background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8, padding: 3,
-      overflowX: isMobile ? "auto" : "visible",
-      flexShrink: 0,
+      overflowX: "auto", flexShrink: 0,
       WebkitOverflowScrolling: "touch" as any,
     }}>
       {children}
@@ -266,12 +236,8 @@ export default function BacktestAnalysis() {
       </div>
 
       {/* Filters */}
-      <div style={{
-        display: "flex", flexDirection: "column", gap: 8,
-        background: "var(--surface)", border: "1px solid var(--border)",
-        borderRadius: 12, padding: isMobile ? "10px 12px" : "14px 16px",
-      }}>
-        {/* Row 1: Instrument + View */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? "10px 12px" : "14px 16px" }}>
+        {/* Row 1: Instrument + View mode */}
         <div style={{ display: "flex", gap: isMobile ? 6 : 12, alignItems: "center", flexWrap: "wrap" }}>
           <ScrollGroup>
             {INSTRUMENTS.map(i => (
@@ -283,13 +249,20 @@ export default function BacktestAnalysis() {
           </ScrollGroup>
           <ScrollGroup>
             <button style={btnStyle(mode === "year")} onClick={() => { setMode("year"); setSelectedMonth("ALL"); }}>Year</button>
-            <button style={btnStyle(mode === "month")} onClick={() => setMode("month")}>Month</button>
+            <button style={btnStyle(mode === "month")} onClick={() => {
+              setMode("month");
+              const latestYear = years[years.length - 1];
+              if (latestYear) setSelectedYear(latestYear);
+              setSelectedMonth("ALL");
+            }}>Month</button>
           </ScrollGroup>
         </div>
 
-        {/* Row 2: Year selector */}
+        {/* Row 2: Year selector — in year mode shows ALL, in month mode no ALL */}
         <ScrollGroup>
-          <button style={btnStyle(selectedYear === "ALL")} onClick={() => { setSelectedYear("ALL"); setSelectedMonth("ALL"); }}>ALL</button>
+          {mode === "year" && (
+            <button style={btnStyle(selectedYear === "ALL")} onClick={() => { setSelectedYear("ALL"); setSelectedMonth("ALL"); }}>ALL</button>
+          )}
           {years.map(y => (
             <button key={y} style={btnStyle(selectedYear === y)}
               onClick={() => { setSelectedYear(y); setSelectedMonth("ALL"); }}>
@@ -298,10 +271,9 @@ export default function BacktestAnalysis() {
           ))}
         </ScrollGroup>
 
-        {/* Row 3: Month selector (only in month mode) */}
+        {/* Row 3: Month selector — only in month mode, max 12 months of selected year */}
         {mode === "month" && (
           <ScrollGroup>
-            <button style={btnStyle(selectedMonth === "ALL")} onClick={() => setSelectedMonth("ALL")}>ALL</button>
             {availableMonths.map(m => (
               <button key={m} style={btnStyle(selectedMonth === m)} onClick={() => setSelectedMonth(m)}>
                 {monthLabel(m)}
@@ -328,21 +300,13 @@ export default function BacktestAnalysis() {
                 <Tooltip content={<ChartTooltip />} />
                 <ReferenceLine y={0} stroke="#444" strokeDasharray="3 3" />
                 <Line type="monotone" dataKey="net" name="Cum Net R" stroke="#7eb8f7" strokeWidth={1.5} dot={false} isAnimationActive={false}>
-                  <LabelList
-                    dataKey="net"
-                    position="right"
-                    content={(props: any) => {
-                      const { index, x, y, value } = props;
-                      if (index !== equity.length - 1) return null;
-                      const sign = value >= 0 ? "+" : "";
-                      const col = value > 0 ? "#7eb8f7" : value < 0 ? "#f0a070" : "#a0a8b8";
-                      return (
-                        <text x={x + 4} y={y + 4} fill={col} fontSize={isMobile ? 9 : 11} fontWeight={700} fontFamily="monospace">
-                          {sign}{value.toFixed(2)}R
-                        </text>
-                      );
-                    }}
-                  />
+                  <LabelList dataKey="net" position="right" content={(props: any) => {
+                    const { index, x, y, value } = props;
+                    if (index !== equity.length - 1) return null;
+                    const sign = value >= 0 ? "+" : "";
+                    const col = value > 0 ? "#7eb8f7" : value < 0 ? "#f0a070" : "#a0a8b8";
+                    return <text x={x + 4} y={y + 4} fill={col} fontSize={isMobile ? 9 : 11} fontWeight={700} fontFamily="monospace">{sign}{value.toFixed(2)}R</text>;
+                  }} />
                 </Line>
               </LineChart>
             </ResponsiveContainer>
@@ -358,8 +322,7 @@ export default function BacktestAnalysis() {
               <ResponsiveContainer width="100%" height={isMobile ? 130 : 170}>
                 <BarChart data={distrib} margin={{ top: 0, right: 4, bottom: isMobile ? 16 : 24, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" vertical={false} />
-                  <XAxis dataKey="i" tick={{ fontSize: 9, fill: "#8b9098" }}
-                    interval={Math.max(Math.floor(distrib.length / 4) - 1, 0)}
+                  <XAxis dataKey="i" tick={{ fontSize: 9, fill: "#8b9098" }} interval={Math.max(Math.floor(distrib.length / 4) - 1, 0)}
                     label={isMobile ? undefined : { value: "worst → best", position: "insideBottom", offset: -12, fontSize: 10, fill: "#8b9098" }} />
                   <YAxis tick={{ fontSize: 9, fill: "#8b9098" }} width={28} />
                   <Tooltip content={<ChartTooltip />} />
@@ -370,7 +333,6 @@ export default function BacktestAnalysis() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
               <SectionTitle>P&L by Session (Net R)</SectionTitle>
               <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: isMobile ? 160 : 220, overflowY: "auto" }}>
@@ -381,16 +343,9 @@ export default function BacktestAnalysis() {
                     <div key={m.session} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
                       <div style={{ width: 56, textAlign: "right", color: "var(--text2)", fontFamily: "monospace", fontSize: 9 }}>{m.session}</div>
                       <div style={{ flex: 1, background: "#1c1f23", borderRadius: 4, height: 14, position: "relative", overflow: "hidden" }}>
-                        <div style={{
-                          position: "absolute", top: 0, bottom: 0,
-                          left: m.net >= 0 ? "50%" : `${50 - pct / 2}%`,
-                          width: `${pct / 2}%`,
-                          background: m.net >= 0 ? "#7eb8f766" : "#f0a07066",
-                        }} />
+                        <div style={{ position: "absolute", top: 0, bottom: 0, left: m.net >= 0 ? "50%" : `${50 - pct / 2}%`, width: `${pct / 2}%`, background: m.net >= 0 ? "#7eb8f766" : "#f0a07066" }} />
                       </div>
-                      <div style={{ width: 40, fontFamily: "monospace", color: colorNet(m.net), fontSize: 9 }}>
-                        {m.net >= 0 ? "+" : ""}{m.net.toFixed(2)}
-                      </div>
+                      <div style={{ width: 40, fontFamily: "monospace", color: colorNet(m.net), fontSize: 9 }}>{m.net >= 0 ? "+" : ""}{m.net.toFixed(2)}</div>
                       <div style={{ width: 42, color: "#666", fontSize: 9 }}>WR {m.wr}%</div>
                     </div>
                   );
@@ -412,10 +367,7 @@ export default function BacktestAnalysis() {
                   <ReferenceLine y={0} stroke="#444" />
                   <Bar dataKey="val" name="Net R" radius={[3, 3, 0, 0]}>
                     {monthlyData.map((d, i) => (
-                      <Cell key={i}
-                        fill={i === monthlyData.length - 1 ? (d.val >= 0 ? "#e5e7eb" : "#f0a070") : (d.val >= 0 ? "#7eb8f7" : "#f0a070")}
-                        fillOpacity={i === monthlyData.length - 1 ? 0.9 : 0.7}
-                      />
+                      <Cell key={i} fill={i === monthlyData.length - 1 ? (d.val >= 0 ? "#e5e7eb" : "#f0a070") : (d.val >= 0 ? "#7eb8f7" : "#f0a070")} fillOpacity={i === monthlyData.length - 1 ? 0.9 : 0.7} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -453,33 +405,19 @@ export default function BacktestAnalysis() {
                 {stats.fakeCount > 0 && <Stat label="Fakes" value={stats.fakeCount} color="#a0a8b8" />}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: isMobile ? 8 : 10, marginTop: isMobile ? 8 : 10 }}>
-                <div style={{
-                  background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10,
-                  padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center",
-                }}>
+                <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
                     <div style={{ fontSize: 9, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Longs</div>
-                    <div style={{ fontSize: isMobile ? 12 : 15, fontWeight: 700, color: "#7eb8f7", fontFamily: "monospace" }}>
-                      {stats.longs} · {stats.longsWR}%
-                    </div>
+                    <div style={{ fontSize: isMobile ? 12 : 15, fontWeight: 700, color: "#7eb8f7", fontFamily: "monospace" }}>{stats.longs} · {stats.longsWR}%</div>
                   </div>
-                  <div style={{ fontSize: isMobile ? 11 : 14, fontFamily: "monospace", color: colorNet(stats.longsNet) }}>
-                    {stats.longsNet >= 0 ? "+" : ""}{stats.longsNet.toFixed(2)}R
-                  </div>
+                  <div style={{ fontSize: isMobile ? 11 : 14, fontFamily: "monospace", color: colorNet(stats.longsNet) }}>{stats.longsNet >= 0 ? "+" : ""}{stats.longsNet.toFixed(2)}R</div>
                 </div>
-                <div style={{
-                  background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10,
-                  padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center",
-                }}>
+                <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
                     <div style={{ fontSize: 9, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Shorts</div>
-                    <div style={{ fontSize: isMobile ? 12 : 15, fontWeight: 700, color: "#f0a070", fontFamily: "monospace" }}>
-                      {stats.shorts} · {stats.shortsWR}%
-                    </div>
+                    <div style={{ fontSize: isMobile ? 12 : 15, fontWeight: 700, color: "#f0a070", fontFamily: "monospace" }}>{stats.shorts} · {stats.shortsWR}%</div>
                   </div>
-                  <div style={{ fontSize: isMobile ? 11 : 14, fontFamily: "monospace", color: colorNet(stats.shortsNet) }}>
-                    {stats.shortsNet >= 0 ? "+" : ""}{stats.shortsNet.toFixed(2)}R
-                  </div>
+                  <div style={{ fontSize: isMobile ? 11 : 14, fontFamily: "monospace", color: colorNet(stats.shortsNet) }}>{stats.shortsNet >= 0 ? "+" : ""}{stats.shortsNet.toFixed(2)}R</div>
                 </div>
               </div>
             </div>
