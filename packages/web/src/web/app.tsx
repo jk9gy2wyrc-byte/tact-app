@@ -9,15 +9,14 @@ import Charts from "./pages/charts";
 import AdminUsers from "./pages/admin-users";
 import { setSession, clearSession, getSession, type Session } from "./lib/session";
 
-// ─── NAV (admin gets extra tab) ──────────────────────────────────────────────
 function buildNav(role: string) {
   const nav = [
     { path: "/", label: "Dashboard", icon: "◻" },
-    { path: "/live", label: "Live Trades", icon: "●" },
+    { path: "/live", label: "Live Database", icon: "●" },
     { path: "/live-analysis", label: "Live Analysis", icon: "▲" },
     { path: "/backtest", label: "Backtest DB", icon: "▦" },
     { path: "/backtest-analysis", label: "BT Analysis", icon: "▲" },
-    { path: "/charts", label: "Charts", icon: "↗" },
+    { path: "/charts", label: "Analysis & MC", icon: "↗" },
   ];
   if (role === 'admin') nav.push({ path: "/users", label: "Users", icon: "👥" });
   return nav;
@@ -41,7 +40,6 @@ function NavItem({ path, label }: { path: string; label: string; icon?: string }
   );
 }
 
-// ─── LOGIN PAGE ───────────────────────────────────────────────────────────────
 function Login({ onAuth }: { onAuth: (s: Session) => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [login, setLogin] = useState('');
@@ -56,13 +54,11 @@ function Login({ onAuth }: { onAuth: (s: Session) => void }) {
     setErr('');
     if (!login.trim()) return setErr('Введи логін');
     if (!pass) return setErr('Введи пароль');
-
     if (mode === 'register') {
       if (pass !== pass2) return setErr('Паролі не співпадають');
       if (pass.length < 4) return setErr('Пароль мінімум 4 символи');
       if (login.length < 3) return setErr('Логін мінімум 3 символи');
     }
-
     setLoading(true);
     try {
       const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
@@ -95,7 +91,6 @@ function Login({ onAuth }: { onAuth: (s: Session) => void }) {
           <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '0.04em' }}>TSCT</div>
           <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>Trading Control Tool</div>
         </div>
-
         <div style={{ display: 'flex', marginBottom: 24, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
           {(['login', 'register'] as const).map(m => (
             <button key={m} onClick={() => reset(m)} style={{
@@ -108,30 +103,21 @@ function Login({ onAuth }: { onAuth: (s: Session) => void }) {
             </button>
           ))}
         </div>
-
-        <input
-          placeholder="Логін" value={login}
+        <input placeholder="Логін" value={login}
           onChange={e => { setLogin(e.target.value); setErr(''); }}
           onKeyDown={e => e.key === 'Enter' && submit()}
-          style={inputStyle} autoFocus
-        />
-        <input
-          type="password" placeholder="Пароль" value={pass}
+          style={inputStyle} autoFocus />
+        <input type="password" placeholder="Пароль" value={pass}
           onChange={e => { setPass(e.target.value); setErr(''); }}
           onKeyDown={e => e.key === 'Enter' && submit()}
-          style={inputStyle}
-        />
+          style={inputStyle} />
         {mode === 'register' && (
-          <input
-            type="password" placeholder="Пароль ще раз" value={pass2}
+          <input type="password" placeholder="Пароль ще раз" value={pass2}
             onChange={e => { setPass2(e.target.value); setErr(''); }}
             onKeyDown={e => e.key === 'Enter' && submit()}
-            style={inputStyle}
-          />
+            style={inputStyle} />
         )}
-
         {err && <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10, textAlign: 'center' }}>{err}</div>}
-
         <button className="btn-primary" onClick={submit} disabled={loading}
           style={{ width: '100%', borderRadius: 10, padding: '10px 0', marginTop: 4, opacity: loading ? 0.7 : 1 }}>
           {loading ? '...' : mode === 'login' ? 'Увійти' : 'Створити акаунт'}
@@ -141,7 +127,6 @@ function Login({ onAuth }: { onAuth: (s: Session) => void }) {
   );
 }
 
-// ─── MOBILE HOOK ──────────────────────────────────────────────────────────────
 function useIsMobile() {
   const [mobile, setMobile] = useState(() => window.innerWidth < 768);
   useEffect(() => {
@@ -152,7 +137,6 @@ function useIsMobile() {
   return mobile;
 }
 
-// ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [session, setSessionState] = useState<Session | null>(() => getSession());
   const [drawerOpen, setDrawerOpen] = useState(false);
