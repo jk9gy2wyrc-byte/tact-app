@@ -1180,30 +1180,153 @@ export default function Charts() {
                   );
                 })()}
 
-              {/* Param summary */}
-              <div style={{ marginTop: 20, padding: '14px 16px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Активні параметри симуляції</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {[
-                    { label: 'Loss Amplification', value: `×${stressParams.lossAmp.toFixed(2)}`, desc: stressParams.lossAmp === 1 ? 'без змін' : `кожен збиток збільшений на ${((stressParams.lossAmp - 1) * 100).toFixed(0)}%` },
-                    { label: 'Win Reduction', value: `×${stressParams.winReduction.toFixed(2)}`, desc: stressParams.winReduction === 1 ? 'без змін' : `виграші зменшені на ${((1 - stressParams.winReduction) * 100).toFixed(0)}%` },
-                    { label: 'WR Degradation', value: `${(stressParams.wrDegradation * 100).toFixed(0)}%`, desc: stressParams.wrDegradation === 0 ? 'без змін' : `${(stressParams.wrDegradation * 100).toFixed(0)}% виграшів конвертовано в збитки` },
-                    { label: 'Execution Slippage', value: `−${stressParams.slippage.toFixed(2)}R`, desc: stressParams.slippage === 0 ? 'без змін' : `−${stressParams.slippage.toFixed(2)}R з кожного трейду` },
-                    { label: 'Human Error', value: `${(stressParams.humanError * 100).toFixed(1)}%`, desc: stressParams.humanError === 0 ? 'без змін' : `${(stressParams.humanError * 100).toFixed(1)}% трейдів стають −1R через помилку` },
-                    { label: 'Fatigue Decay', value: `−${(stressParams.fatigue * 100).toFixed(0)}%`, desc: stressParams.fatigue === 0 ? 'без змін' : `кожен виграш зменшується на ${(stressParams.fatigue * 100).toFixed(0)}% через втому` },
-                    { label: 'Bad Slip Prob', value: `${(stressParams.badSlipProb * 100).toFixed(0)}%`, desc: stressParams.badSlipProb === 0 ? 'без змін' : `${(stressParams.badSlipProb * 100).toFixed(0)}% збиткових угод отримають погане виконання` },
-                    { label: 'Bad Slip Mult', value: `×${stressParams.badSlipMult.toFixed(1)}`, desc: stressParams.badSlipMult === 1 ? 'без змін' : `збиток при поганому виконанні збільшується в ${stressParams.badSlipMult.toFixed(1)}×` },
-                    { label: 'Missed Win', value: `${(stressParams.missedWin * 100).toFixed(0)}%`, desc: stressParams.missedWin === 0 ? 'без змін' : `${(stressParams.missedWin * 100).toFixed(0)}% виграшів пропускається (стає 0R)` },
-                    { label: 'Survival Threshold', value: `${stressParams.survivalThreshold}R`, desc: `рахунок вважається зламаним при просадці >${stressParams.survivalThreshold}R` },
-                  ].map(row => (
-                    <div key={row.label} style={{ display: 'flex', gap: 8, fontSize: 11, lineHeight: 1.5 }}>
-                      <span style={{ color: 'var(--text2)', minWidth: 160 }}>{row.label}:</span>
-                      <span style={{ color: 'var(--text)', fontWeight: 600, minWidth: 60, fontVariantNumeric: 'tabular-nums' }}>{row.value}</span>
-                      <span style={{ color: 'var(--text2)' }}>— {row.desc}</span>
+              {/* Param summary + Impact analysis */}
+              {(() => {
+                const n   = btStats?.n   || 0;
+                const wr  = btStats?.wr  || 0;
+                const rr  = btStats?.avgRR || 0;
+                const lossPerTrade = 1; // ~1R per losing trade
+
+                const impacts: { label: string; value: string; desc: string; impact: number }[] = [
+                  {
+                    label: 'Loss Amplification',
+                    value: `×${stressParams.lossAmp.toFixed(2)}`,
+                    desc: stressParams.lossAmp === 1 ? 'без змін' : `кожен збиток збільшений на ${((stressParams.lossAmp - 1) * 100).toFixed(0)}%`,
+                    impact: -n * (1 - wr) * lossPerTrade * (stressParams.lossAmp - 1),
+                  },
+                  {
+                    label: 'Win Reduction',
+                    value: `×${stressParams.winReduction.toFixed(2)}`,
+                    desc: stressParams.winReduction === 1 ? 'без змін' : `виграші зменшені на ${((1 - stressParams.winReduction) * 100).toFixed(0)}%`,
+                    impact: -n * wr * rr * (1 - stressParams.winReduction),
+                  },
+                  {
+                    label: 'WR Degradation',
+                    value: `${(stressParams.wrDegradation * 100).toFixed(0)}%`,
+                    desc: stressParams.wrDegradation === 0 ? 'без змін' : `${(stressParams.wrDegradation * 100).toFixed(0)}% виграшів конвертовано в збитки`,
+                    impact: -n * wr * stressParams.wrDegradation * (rr + lossPerTrade),
+                  },
+                  {
+                    label: 'Execution Slippage',
+                    value: `−${stressParams.slippage.toFixed(2)}R`,
+                    desc: stressParams.slippage === 0 ? 'без змін' : `−${stressParams.slippage.toFixed(2)}R з кожного трейду`,
+                    impact: -n * stressParams.slippage,
+                  },
+                  {
+                    label: 'Human Error',
+                    value: `${(stressParams.humanError * 100).toFixed(1)}%`,
+                    desc: stressParams.humanError === 0 ? 'без змін' : `${(stressParams.humanError * 100).toFixed(1)}% трейдів стають −1R через помилку`,
+                    impact: -n * stressParams.humanError * wr * (rr + lossPerTrade),
+                  },
+                  {
+                    label: 'Fatigue Decay',
+                    value: `−${(stressParams.fatigue * 100).toFixed(0)}%`,
+                    desc: stressParams.fatigue === 0 ? 'без змін' : `кожен виграш зменшується на ${(stressParams.fatigue * 100).toFixed(0)}% через втому`,
+                    impact: -n * wr * rr * stressParams.fatigue,
+                  },
+                  {
+                    label: 'Bad Slip',
+                    value: `${(stressParams.badSlipProb * 100).toFixed(0)}% × ${stressParams.badSlipMult.toFixed(1)}×`,
+                    desc: stressParams.badSlipProb === 0 || stressParams.badSlipMult === 1 ? 'без змін' : `${(stressParams.badSlipProb * 100).toFixed(0)}% збиткових угод збільшені в ${stressParams.badSlipMult.toFixed(1)}×`,
+                    impact: -n * (1 - wr) * lossPerTrade * stressParams.badSlipProb * (stressParams.badSlipMult - 1),
+                  },
+                  {
+                    label: 'Missed Win',
+                    value: `${(stressParams.missedWin * 100).toFixed(0)}%`,
+                    desc: stressParams.missedWin === 0 ? 'без змін' : `${(stressParams.missedWin * 100).toFixed(0)}% виграшів пропускається (стає 0R)`,
+                    impact: -n * wr * rr * stressParams.missedWin,
+                  },
+                ];
+
+                const sorted = [...impacts].sort((a, b) => a.impact - b.impact);
+                const totalImpact = impacts.reduce((s, x) => s + x.impact, 0);
+                const maxAbs = Math.max(...impacts.map(x => Math.abs(x.impact)), 1);
+                const activeCount = impacts.filter(x => x.impact !== 0).length;
+
+                return (
+                  <div style={{ marginTop: 20, padding: '14px 16px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                        Вплив факторів на результат
+                      </div>
+                      {totalImpact !== 0 && (
+                        <div style={{ fontSize: 11, color: '#f87171', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                          Загальний вплив: {totalImpact.toFixed(1)}R
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
-              </div>
+
+                    {activeCount === 0 ? (
+                      <div style={{ fontSize: 11, color: 'var(--text2)' }}>Всі параметри за замовчуванням — вплив відсутній</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {sorted.map(row => {
+                          const pct = totalImpact !== 0 ? Math.abs(row.impact / totalImpact * 100) : 0;
+                          const barW = Math.abs(row.impact / maxAbs * 100);
+                          const isActive = row.impact !== 0;
+                          return (
+                            <div key={row.label}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
+                                <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
+                                  <span style={{ fontSize: 11, color: isActive ? 'var(--text)' : 'var(--text2)', minWidth: 140 }}>{row.label}</span>
+                                  <span style={{ fontSize: 10, color: 'var(--text2)' }}>{row.value}</span>
+                                </div>
+                                <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
+                                  {isActive && (
+                                    <span style={{ fontSize: 10, color: '#6b7280' }}>{pct.toFixed(0)}%</span>
+                                  )}
+                                  <span style={{
+                                    fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', minWidth: 54, textAlign: 'right',
+                                    color: row.impact < 0 ? '#f87171' : row.impact > 0 ? '#4ade80' : 'var(--text2)',
+                                  }}>
+                                    {row.impact === 0 ? '—' : `${row.impact >= 0 ? '+' : ''}${row.impact.toFixed(1)}R`}
+                                  </span>
+                                </div>
+                              </div>
+                              {isActive && (
+                                <div style={{ height: 4, background: 'var(--surface)', borderRadius: 2, overflow: 'hidden' }}>
+                                  <div style={{
+                                    height: '100%', width: `${barW}%`,
+                                    background: row.impact < 0 ? '#f87171' : '#4ade80',
+                                    borderRadius: 2, transition: 'width 0.3s',
+                                  }} />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 4, display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                          <span style={{ color: 'var(--text2)' }}>Розрахункове відхилення від базової equity</span>
+                          <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: totalImpact < 0 ? '#f87171' : '#4ade80' }}>
+                            {totalImpact >= 0 ? '+' : ''}{totalImpact.toFixed(1)}R
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 9, color: '#4b5563', marginTop: 2 }}>
+                          * Аналітична оцінка ізольованого впливу кожного фактора. Сума може відрізнятись від MC через взаємодію факторів.
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 12 }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Параметри</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        {impacts.map(row => (
+                          <div key={row.label} style={{ display: 'flex', gap: 8, fontSize: 10, lineHeight: 1.5 }}>
+                            <span style={{ color: 'var(--text2)', minWidth: 150 }}>{row.label}:</span>
+                            <span style={{ color: 'var(--text)', fontWeight: 600, minWidth: 56, fontVariantNumeric: 'tabular-nums' }}>{row.value}</span>
+                            <span style={{ color: 'var(--text2)' }}>— {row.desc}</span>
+                          </div>
+                        ))}
+                        <div style={{ display: 'flex', gap: 8, fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)', minWidth: 150 }}>Survival Threshold:</span>
+                          <span style={{ color: 'var(--text)', fontWeight: 600 }}>{stressParams.survivalThreshold}R</span>
+                          <span style={{ color: 'var(--text2)' }}>— рахунок вважається зламаним при просадці &gt;{stressParams.survivalThreshold}R</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </>
           )}
           </div>
