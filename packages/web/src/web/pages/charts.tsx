@@ -236,13 +236,16 @@ const defaultStress = {
   regimeShiftRR: 0, slippage: 0, survivalThreshold: 20,
 };
 
+type StressParams = typeof defaultStress;
+type SavedCombo = { id: string; name: string; params: StressParams };
+
 export default function Charts() {
   const isMobile = useMobile();
   const { data, isLoading, error } = useQuery({ queryKey: ['stats'], queryFn: fetchStats });
 
   const [equityViewMode, setEquityViewMode] = useState<'cumulative' | 'normalized'>('cumulative');
   const [stressOpen, setStressOpen] = useState(false);
-  const [stressParams, setStressParams] = useState(defaultStress);
+  const [stressParams, setStressParams] = useState<StressParams>(defaultStress);
   const [stressData, setStressData] = useState<null | {
     stressMed: number[]; stressP5: number[]; stressP95: number[];
     survivalRate: number;
@@ -253,8 +256,14 @@ export default function Charts() {
   }>(null);
   const [stressLoading, setStressLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveComboName, setSaveComboName] = useState('');
+  const [savedCombosOpen, setSavedCombosOpen] = useState(false);
+  const [savedCombos, setSavedCombos] = useState<SavedCombo[]>(() => {
+    try { return JSON.parse(localStorage.getItem('stressCombos') || '[]'); } catch { return []; }
+  });
 
-  const setSP = useCallback((key: keyof typeof defaultStress, val: number) => {
+  const setSP = useCallback((key: keyof StressParams, val: number) => {
     setStressParams(p => {
       const next = { ...p, [key]: val };
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -271,6 +280,33 @@ export default function Charts() {
   }, []);
 
   const resetStress = () => { setStressParams(defaultStress); setStressData(null); };
+
+  const loadCombo = async (combo: SavedCombo) => {
+    setStressParams(combo.params);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setStressLoading(true);
+    try {
+      const res = await fetch(`/api/mc-stress${uidParam()}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(combo.params) });
+      setStressData(await res.json());
+    } catch (_) {}
+    setStressLoading(false);
+  };
+
+  const deleteCombo = (id: string) => {
+    const updated = savedCombos.filter((c: SavedCombo) => c.id !== id);
+    setSavedCombos(updated);
+    localStorage.setItem('stressCombos', JSON.stringify(updated));
+  };
+
+  const saveCombo = () => {
+    const combo: SavedCombo = { id: Date.now().toString(), name: saveComboName.trim() || 'Без назви', params: { ...stressParams } };
+    const updated = [...savedCombos, combo];
+    setSavedCombos(updated);
+    localStorage.setItem('stressCombos', JSON.stringify(updated));
+    setSaveOpen(false);
+    setSaveComboName('');
+  };
+
   const isModified = JSON.stringify(stressParams) !== JSON.stringify(defaultStress);
 
   if (isLoading) return <div style={{ padding: 32, color: 'var(--text2)' }}>Завантаження...</div>;
@@ -652,7 +688,7 @@ export default function Charts() {
 
       {/* STRESS TEST */}
       <div style={{ ...chartStyle(isMobile), border: stressOpen ? '1px solid #f8717155' : '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }} onClick={() => setStressOpen(o => !o)}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }} onClick={() => setStressOpen((o: boolean) => !o)}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 16 }}>⚠️</span>
             <div>
@@ -687,20 +723,73 @@ export default function Charts() {
               <StressSlider label="Survival Threshold (Max Drawdown limit)" description="Просадка понад цей поріг вважається 'blown account'. Впливає на Survival Rate." value={stressParams.survivalThreshold} min={5} max={60} step={1} format={v => `${v}R`} onChange={v => setSP('survivalThreshold', v)} accent="#6b7280" />
             </div>
 
-            <div style={{ display: 'flex', gap: 10, marginBottom: 20, alignItems: 'center' }}>
+            {/* Controls */}
+            <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
               <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8, opacity: isModified ? 1 : 0.4 }} onClick={resetStress}>↺ Скинути</button>
-              {stressLoading  && <span style={{ fontSize: 11, color: 'var(--text2)' }}>Симулюю 1000 сценаріїв...</span>}
-              {!isModified    && <span style={{ fontSize: 11, color: 'var(--text2)' }}>Рухай слайдери — графік оновиться автоматично</span>}
+              <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8 }} onClick={() => { setSaveOpen((o: boolean) => !o); setSaveComboName(''); }}>💾 Зберегти комбінацію</button>
+              {stressLoading && <span style={{ fontSize: 11, color: 'var(--text2)' }}>Симулюю 1000 сценаріїв...</span>}
+              {!isModified   && <span style={{ fontSize: 11, color: 'var(--text2)' }}>Рухай слайдери — графік оновиться автоматично</span>}
             </div>
 
+            {/* Save combo panel */}
+            {saveOpen && (
+              <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>Зберегти комбінацію факторів</div>
+                <input
+                  type="text" placeholder="Назва комбінації..."
+                  value={saveComboName} onChange={e => setSaveComboName(e.target.value)}
+                  onKeyDown={(e: any) => e.key === 'Enter' && saveCombo()}
+                  style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', fontSize: 12, color: 'var(--text)', marginBottom: 10, boxSizing: 'border-box' }}
+                />
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Поточні значення:</div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12, fontSize: 11 }}>
+                  {(Object.entries(stressParams) as [keyof StressParams, number][]).map(([k, v]) => (
+                    <span key={k} style={{ background: 'var(--surface)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)' }}>
+                      <span style={{ color: 'var(--text2)' }}>{k}:</span> <span style={{ color: (defaultStress as any)[k] !== v ? '#f87171' : 'var(--text)', fontWeight: 600 }}>{v}</span>
+                    </span>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8, background: '#1e3a5f', border: '1px solid #3b82f6' }} onClick={saveCombo}>✓ Зберегти</button>
+                  <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8 }} onClick={() => setSaveOpen(false)}>Скасувати</button>
+                </div>
+              </div>
+            )}
+
+            {/* Saved combos list */}
+            {savedCombos.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 12px', borderRadius: 8 }} onClick={() => setSavedCombosOpen((o: boolean) => !o)}>
+                  {savedCombosOpen ? '▲' : '▼'} Збережені комбінації ({savedCombos.length})
+                </button>
+                {savedCombosOpen && (
+                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {savedCombos.map((combo: SavedCombo) => (
+                      <div key={combo.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
+                        <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => loadCombo(combo)}>
+                          <div style={{ fontSize: 12, fontWeight: 600 }}>{combo.name}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>
+                            {(Object.entries(combo.params) as [string, number][]).filter(([k, v]) => v !== (defaultStress as any)[k]).map(([k, v]) => `${k}: ${v}`).join(' · ') || 'всі за замовчуванням'}
+                          </div>
+                        </div>
+                        <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, color: '#7eb8f7', border: '1px solid #1e3a5f' }} onClick={() => loadCombo(combo)}>▶ Застосувати</button>
+                        <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, color: '#f87171' }} onClick={() => deleteCombo(combo.id)}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Results */}
             {stressData && (
               <>
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
                   {[
-                    { label: 'Survival Rate',         value: `${stressData.survivalRate}%`,         sub: `< ${stressParams.survivalThreshold}R DD`, color: stressData.survivalRate >= 90 ? '#4ade80' : stressData.survivalRate >= 70 ? '#facc15' : '#f87171', desc: '% симуляцій що пережили без blown account' },
-                    { label: 'Stress Max DD (med)',    value: `${stressData.stressMaxDD.med}R`,      sub: `p95: ${stressData.stressMaxDD.p95}R`,     color: '#fb923c', desc: 'Медіанна просадка в стресових умовах' },
-                    { label: 'Stress SQN (med)',       value: stressData.stressSQN.med.toFixed(2),   sub: `p5: ${stressData.stressSQN.p5.toFixed(2)}`, color: stressData.stressSQN.med >= 2 ? '#4ade80' : stressData.stressSQN.med >= 1 ? '#facc15' : '#f87171', desc: 'SQN > 2 = стратегія виживає в стресі' },
-                    { label: 'Stress Final Eq (med)',  value: `${stressData.stressFinalEq.med}R`,    sub: `p5: ${stressData.stressFinalEq.p5}R`,     color: stressData.stressFinalEq.med > 0 ? '#4ade80' : '#f87171', desc: 'Фінальний результат при стресовому сценарії' },
+                    { label: 'Survival Rate',        value: `${stressData.survivalRate}%`,       sub: `< ${stressParams.survivalThreshold}R DD`, color: stressData.survivalRate >= 90 ? '#4ade80' : stressData.survivalRate >= 70 ? '#facc15' : '#f87171', desc: '% симуляцій що пережили без blown account' },
+                    { label: 'Stress Max DD (med)',   value: `${stressData.stressMaxDD.med}R`,    sub: `p95: ${stressData.stressMaxDD.p95}R`,     color: '#fb923c', desc: 'Медіанна просадка в стресових умовах' },
+                    { label: 'Stress SQN (med)',      value: stressData.stressSQN.med.toFixed(2), sub: `p5: ${stressData.stressSQN.p5.toFixed(2)}`, color: stressData.stressSQN.med >= 2 ? '#4ade80' : stressData.stressSQN.med >= 1 ? '#facc15' : '#f87171', desc: 'SQN > 2 = стратегія виживає в стресі' },
+                    { label: 'Stress Final Eq (med)', value: `${stressData.stressFinalEq.med}R`,  sub: `p5: ${stressData.stressFinalEq.p5}R`,     color: stressData.stressFinalEq.med > 0 ? '#4ade80' : '#f87171', desc: 'Фінальний результат при стресовому сценарії' },
                   ].map(card => (
                     <div key={card.label} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', minWidth: 140, flex: 1 }}>
                       <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{card.label}</div>
@@ -711,20 +800,46 @@ export default function Charts() {
                   ))}
                 </div>
 
+                {/* Live deviation in Stress */}
                 {lastLvEq != null && lastBTEq != null && (
                   <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', marginBottom: 20 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 8, color: LIVE_COLOR }}>Live vs Бектест відхилення</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 8, color: LIVE_COLOR }}>Live відхилення</div>
                     <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                       <div>
                         <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Live R</div>
-                        <div className="mono" style={{ color: LIVE_COLOR }}>{lastLvEq.toFixed(2)}</div>
+                        <div className="mono" style={{ color: LIVE_COLOR, fontSize: 16, fontWeight: 700 }}>{lastLvEq.toFixed(2)}</div>
+                        <div style={{ fontSize: 9, color: '#555', marginTop: 2 }}>{lvEq.length} угод</div>
                       </div>
-                      {lastBTEq !== 0 && (
+                      {lastBTEq !== 0 && (() => {
+                        const dv = lastLvEq - lastBTEq;
+                        const pv = dv / Math.abs(lastBTEq) * 100;
+                        const col = dv >= 0 ? '#4ade80' : '#f87171';
+                        return (
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs Бектест</div>
+                            <div className="mono" style={{ color: col }}>{pv >= 0 ? '+' : ''}{pv.toFixed(1)}%</div>
+                            <div style={{ fontSize: 10, color: col, marginTop: 2 }}>{dv >= 0 ? '+' : ''}{dv.toFixed(2)}R</div>
+                          </div>
+                        );
+                      })()}
+                      {medAtLivePos != null && medAtLivePos !== 0 && (() => {
+                        const dv = lastLvEq - medAtLivePos;
+                        const pv = dv / Math.abs(medAtLivePos) * 100;
+                        const col = dv >= 0 ? '#4ade80' : '#f87171';
+                        return (
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs MC Median</div>
+                            <div className="mono" style={{ color: col }}>{pv >= 0 ? '+' : ''}{pv.toFixed(1)}%</div>
+                            <div style={{ fontSize: 10, color: col, marginTop: 2 }}>{dv >= 0 ? '+' : ''}{dv.toFixed(2)}R</div>
+                          </div>
+                        );
+                      })()}
+                      {p5AtLivePos != null && p95AtLivePos != null && (
                         <div>
-                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs Бектест</div>
-                          <div className="mono" style={{ color: lastLvEq >= lastBTEq ? '#4ade80' : '#f87171' }}>
-                            {((lastLvEq - lastBTEq) / Math.abs(lastBTEq) * 100 >= 0 ? '+' : '')}
-                            {((lastLvEq - lastBTEq) / Math.abs(lastBTEq) * 100).toFixed(1)}%
+                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>MC p5–p95</div>
+                          <div style={{ fontSize: 11, color: MC_BAND_COLOR }}>[{p5AtLivePos.toFixed(2)} — {p95AtLivePos.toFixed(2)}]</div>
+                          <div style={{ fontSize: 11, fontWeight: 700, marginTop: 2, color: lastLvEq >= p5AtLivePos && lastLvEq <= p95AtLivePos ? '#4ade80' : '#f87171' }}>
+                            {lastLvEq >= p5AtLivePos && lastLvEq <= p95AtLivePos ? '✓ У нормі' : lastLvEq < p5AtLivePos ? '✗ Нижче p5' : '✗ Вище p95'}
                           </div>
                         </div>
                       )}
