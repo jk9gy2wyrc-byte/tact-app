@@ -54,7 +54,7 @@ const SimpleTooltip = ({ active, payload, label }: any) => {
   return (
     <div style={{ background: '#1c1f23', border: '1px solid var(--border)', padding: '8px 12px', fontSize: 11, borderRadius: 8 }}>
       <div style={{ color: 'var(--text2)', marginBottom: 4 }}>Trade #{label}</div>
-      {payload.map((p: any) => (
+      {payload.filter((p: any) => !String(p.name).startsWith('path_')).map((p: any) => (
         <div key={p.name} style={{ color: p.color, marginBottom: 2 }}>
           {p.name}: <span className="mono">{typeof p.value === 'number' ? p.value.toFixed(3) : p.value}</span>
         </div>
@@ -356,7 +356,6 @@ export default function Charts() {
     return { med: map(mc.med), p5: map(mc.p5), p95: map(mc.p95) };
   };
 
-  // MC paths chart data (separate from eqData to avoid bloating the main chart)
   const nMCPts = mcMed.length;
   const mcChartData: any[] = Array.from({ length: nMCPts }, (_, i) => {
     const t     = nMCPts > 1 ? i / (nMCPts - 1) : 0;
@@ -449,7 +448,6 @@ export default function Charts() {
               </LineChart>
             </ResponsiveContainer>
 
-            {/* Equity deviation summary */}
             {lastLvEq != null && (() => {
               const isCumul = equityViewMode === 'cumulative';
               const dp      = isCumul ? 2 : 4;
