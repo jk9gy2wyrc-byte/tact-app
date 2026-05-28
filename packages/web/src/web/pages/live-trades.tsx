@@ -65,33 +65,19 @@ const fmtDate = (d: string) => {
 };
 
 function ToggleGroup({ value, options, onChange, small }: {
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
-  small?: boolean;
+  value: string; options: string[]; onChange: (v: string) => void; small?: boolean;
 }) {
   return (
-    <div style={{
-      display: 'flex', flexWrap: 'wrap', gap: 3,
-      background: 'var(--surface2)',
-      border: '1px solid var(--border)',
-      borderRadius: 8, padding: 3,
-    }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: 3 }}>
       {options.map(o => {
         const active = value === o;
         return (
           <button key={o} type="button" onClick={() => onChange(o)} style={{
-            padding: small ? '2px 8px' : '3px 10px',
-            borderRadius: 6,
-            fontSize: small ? 10 : 11,
-            fontWeight: active ? 600 : 400,
-            cursor: 'pointer', border: 'none',
-            transition: 'background 0.15s, color 0.15s',
-            background: active ? '#4b5263' : 'transparent',
-            color: active ? '#fff' : 'var(--text2)',
-          }}>
-            {o}
-          </button>
+            padding: small ? '2px 8px' : '3px 10px', borderRadius: 6,
+            fontSize: small ? 10 : 11, fontWeight: active ? 600 : 400,
+            cursor: 'pointer', border: 'none', transition: 'background 0.15s, color 0.15s',
+            background: active ? '#4b5263' : 'transparent', color: active ? '#fff' : 'var(--text2)',
+          }}>{o}</button>
         );
       })}
     </div>
@@ -197,27 +183,14 @@ function EditModal({ trade, onClose, onSave, isPending }: {
   });
 
   return (
-    <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, zIndex: 1000,
-      background: 'rgba(0,0,0,0.6)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-    }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: 16, padding: 24, width: '100%', maxWidth: 480,
-        maxHeight: '92vh', overflowY: 'auto',
-      }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 480, maxHeight: '92vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ fontWeight: 700, fontSize: 15 }}>Edit Trade #{trade.__monthSeq ?? trade.tradeNum}</div>
           <button className="btn-ghost" onClick={onClose} style={{ padding: '2px 10px', fontSize: 16, borderRadius: 8 }}>×</button>
         </div>
 
-        {/* Tabs */}
-        <div style={{
-          display: 'flex', gap: 4, marginBottom: 16,
-          background: 'var(--surface2)', border: '1px solid var(--border)',
-          borderRadius: 9, padding: 3,
-        }}>
+        <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 9, padding: 3 }}>
           <button style={tabStyle(tab === 'trade')} onClick={() => setTab('trade')}>Trade</button>
           <button style={tabStyle(tab === 'extra')} onClick={() => setTab('extra')}>
             Materials {(links.length > 0 || form.notes || form.profitDollars) ? '•' : ''}
@@ -235,14 +208,10 @@ function EditModal({ trade, onClose, onSave, isPending }: {
               <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Session</div><ToggleGroup value={form.session} options={SESSIONS} onChange={v => setField('session', v)} small /></div>
               <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Result</div><ToggleGroup value={form.result} options={RESULTS} onChange={v => setField('result', v)} /></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>RR</div>{inp('rr', 'number', { placeholder: '3.5' })}</div>
-                <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Cost</div>{inp('cost', 'number', { placeholder: '-0.10' })}</div>
+                <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>RR</div>{inp('rr', 'text', { placeholder: '3.5' })}</div>
+                <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Cost</div>{inp('cost', 'text', { placeholder: '-0.10' })}</div>
               </div>
-              <div style={{
-                display: 'flex', gap: 16, alignItems: 'center',
-                background: 'var(--surface2)', borderRadius: 8, padding: '8px 14px',
-                border: '1px solid var(--border)', fontSize: 13, flexWrap: 'wrap',
-              }}>
+              <div style={{ display: 'flex', gap: 16, alignItems: 'center', background: 'var(--surface2)', borderRadius: 8, padding: '8px 14px', border: '1px solid var(--border)', fontSize: 13, flexWrap: 'wrap' }}>
                 <span style={{ color: 'var(--text2)' }}>Gross:</span>
                 <span className={`mono ${(preview.grossR ?? 0) >= 0 ? 'pos' : 'neg'}`}>{preview.grossR != null ? preview.grossR.toFixed(2) : '—'}</span>
                 <span style={{ color: 'var(--text2)' }}>Net:</span>
@@ -251,160 +220,69 @@ function EditModal({ trade, onClose, onSave, isPending }: {
             </>
           ) : (
             <>
-              {/* Profit $ */}
               <div>
                 <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Profit ($)</div>
-                <input
-                  type="number" value={form.profitDollars} placeholder="e.g. 142.50"
+                <input type="text" inputMode="decimal" value={form.profitDollars} placeholder="e.g. 142.50"
                   onChange={e => setField('profitDollars', e.target.value)}
-                  style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box' }}
-                />
+                  style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box' }} />
               </div>
-
-              {/* Notes */}
               <div>
                 <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Notes</div>
-                <textarea
-                  value={form.notes} placeholder="Setup description, mistakes, observations..."
-                  onChange={e => setField('notes', e.target.value)}
-                  rows={3}
-                  style={{
-                    width: '100%', borderRadius: 8, boxSizing: 'border-box',
-                    resize: 'vertical', fontFamily: 'inherit', fontSize: 13,
-                    background: 'var(--surface2)', border: '1px solid var(--border)',
-                    color: 'var(--text)', padding: '8px 10px',
-                  }}
-                />
+                <textarea value={form.notes} placeholder="Setup description, mistakes, observations..."
+                  onChange={e => setField('notes', e.target.value)} rows={3}
+                  style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit', fontSize: 13, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 10px' }} />
               </div>
-
-              {/* Photos */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <div style={{ fontSize: 11, color: 'var(--text2)' }}>Photos</div>
-                  <label style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                    fontSize: 11, cursor: 'pointer',
-                    background: '#4b5263', color: '#fff',
-                    borderRadius: 7, padding: '4px 10px', fontWeight: 500,
-                    opacity: uploadingPhoto ? 0.6 : 1,
-                    transition: 'opacity 0.15s',
-                  }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, cursor: 'pointer', background: '#4b5263', color: '#fff', borderRadius: 7, padding: '4px 10px', fontWeight: 500, opacity: uploadingPhoto ? 0.6 : 1, transition: 'opacity 0.15s' }}>
                     {uploadingPhoto ? 'Uploading...' : '+ Add photo'}
-                    <input
-                      type="file" accept="image/*" multiple
-                      style={{ display: 'none' }}
-                      onChange={e => addPhotos(e.target.files)}
-                      disabled={uploadingPhoto}
-                    />
+                    <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => addPhotos(e.target.files)} disabled={uploadingPhoto} />
                   </label>
                 </div>
-
-                {/* Photo grid */}
                 {links.filter(l => l.type === 'image').length > 0 && (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 8 }}>
                     {links.map((lk, i) => lk.type !== 'image' ? null : (
                       <div key={i} style={{ position: 'relative', aspectRatio: '1', overflow: 'hidden', borderRadius: 8, border: '1px solid var(--border)' }}>
-                        <img
-                          src={lk.url} alt={lk.label}
-                          onClick={() => setLightboxSrc(lk.url)}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', display: 'block' }}
-                        />
-                        <button onClick={() => removeLink(i)} style={{
-                          position: 'absolute', top: 3, right: 3,
-                          background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'pointer',
-                          color: '#fff', fontSize: 12, width: 20, height: 20,
-                          borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          lineHeight: 1, padding: 0,
-                        }}>×</button>
+                        <img src={lk.url} alt={lk.label} onClick={() => setLightboxSrc(lk.url)} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', display: 'block' }} />
+                        <button onClick={() => removeLink(i)} style={{ position: 'absolute', top: 3, right: 3, background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'pointer', color: '#fff', fontSize: 12, width: 20, height: 20, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: 0 }}>×</button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-
-              {/* Links */}
               <div>
                 <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 8 }}>Links</div>
-
-                {/* Existing links */}
                 {links.filter(l => !l.type || l.type === 'link').length > 0 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
                     {links.map((lk, i) => (lk.type === 'image') ? null : (
-                      <div key={i} style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        background: 'var(--surface2)', border: '1px solid var(--border)',
-                        borderRadius: 8, padding: '6px 10px',
-                      }}>
-                        <a href={lk.url} target="_blank" rel="noreferrer" style={{
-                          flex: 1, fontSize: 12, color: 'var(--text2)',
-                          textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>
-                          🔗 {lk.label}
-                        </a>
-                        <button onClick={() => removeLink(i)} style={{
-                          background: 'none', border: 'none', cursor: 'pointer',
-                          color: 'var(--text2)', fontSize: 14, padding: '0 4px', flexShrink: 0,
-                        }}>×</button>
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px' }}>
+                        <a href={lk.url} target="_blank" rel="noreferrer" style={{ flex: 1, fontSize: 12, color: 'var(--text2)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🔗 {lk.label}</a>
+                        <button onClick={() => removeLink(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 14, padding: '0 4px', flexShrink: 0 }}>×</button>
                       </div>
                     ))}
                   </div>
                 )}
-
-                {/* Add new link */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <input
-                    type="url" value={newUrl} placeholder="https://..."
-                    onChange={e => setNewUrl(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && addLink()}
-                    style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box', fontSize: 12 }}
-                  />
+                  <input type="url" value={newUrl} placeholder="https://..." onChange={e => setNewUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && addLink()} style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box', fontSize: 12 }} />
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <input
-                      type="text" value={newLabel} placeholder="Label (optional)"
-                      onChange={e => setNewLabel(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && addLink()}
-                      style={{ flex: 1, borderRadius: 8, boxSizing: 'border-box', fontSize: 12 }}
-                    />
-                    <button className="btn-primary" onClick={addLink} style={{ borderRadius: 8, fontSize: 12, padding: '0 14px' }}>
-                      Add
-                    </button>
+                    <input type="text" value={newLabel} placeholder="Label (optional)" onChange={e => setNewLabel(e.target.value)} onKeyDown={e => e.key === 'Enter' && addLink()} style={{ flex: 1, borderRadius: 8, boxSizing: 'border-box', fontSize: 12 }} />
+                    <button className="btn-primary" onClick={addLink} style={{ borderRadius: 8, fontSize: 12, padding: '0 14px' }}>Add</button>
                   </div>
                 </div>
               </div>
-
-              {/* Lightbox */}
               {lightboxSrc && (
-                <div
-                  onClick={() => setLightboxSrc(null)}
-                  style={{
-                    position: 'fixed', inset: 0, zIndex: 2000,
-                    background: 'rgba(0,0,0,0.85)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    padding: 16,
-                  }}
-                >
-                  <img
-                    src={lightboxSrc}
-                    style={{ maxWidth: '100%', maxHeight: '90vh', borderRadius: 10, objectFit: 'contain' }}
-                    onClick={e => e.stopPropagation()}
-                  />
-                  <button onClick={() => setLightboxSrc(null)} style={{
-                    position: 'fixed', top: 16, right: 16,
-                    background: 'rgba(255,255,255,0.15)', border: 'none',
-                    color: '#fff', fontSize: 22, width: 36, height: 36,
-                    borderRadius: 8, cursor: 'pointer',
-                  }}>×</button>
+                <div onClick={() => setLightboxSrc(null)} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+                  <img src={lightboxSrc} style={{ maxWidth: '100%', maxHeight: '90vh', borderRadius: 10, objectFit: 'contain' }} onClick={e => e.stopPropagation()} />
+                  <button onClick={() => setLightboxSrc(null)} style={{ position: 'fixed', top: 16, right: 16, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 22, width: 36, height: 36, borderRadius: 8, cursor: 'pointer' }}>×</button>
                 </div>
               )}
             </>
           )}
-
           {error && <div style={{ color: 'var(--red)', fontSize: 12 }}>{error}</div>}
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
             <button className="btn-ghost" onClick={onClose} style={{ borderRadius: 10 }}>Cancel</button>
-            <button className="btn-primary" onClick={handleSave} disabled={isPending} style={{ borderRadius: 10 }}>
-              {isPending ? 'Saving...' : 'Save'}
-            </button>
+            <button className="btn-primary" onClick={handleSave} disabled={isPending} style={{ borderRadius: 10 }}>{isPending ? 'Saving...' : 'Save'}</button>
           </div>
         </div>
       </div>
@@ -412,41 +290,24 @@ function EditModal({ trade, onClose, onSave, isPending }: {
   );
 }
 
-// Mobile trade card
 function TradeCard({ t, onEdit, onDelete }: { t: any; onEdit: () => void; onDelete: () => void }) {
   const links = parseAttachments(t.attachments);
   return (
-    <div onClick={onEdit} style={{
-      background: 'var(--surface)', border: '1px solid var(--border)',
-      borderRadius: 10, padding: '10px 12px',
-      display: 'flex', flexDirection: 'column', gap: 6,
-      cursor: 'pointer', transition: 'border-color 0.15s',
-    }}
+    <div onClick={onEdit} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer', transition: 'border-color 0.15s' }}
       onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent, #4b5263)')}
-      onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
-    >
+      onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <span style={{ fontSize: 10, color: 'var(--text2)', fontFamily: 'monospace' }}>#{t.__monthSeq ?? t.tradeNum}</span>
           <span style={{ fontSize: 12, fontWeight: 600 }}>{t.asset ?? '—'}</span>
           <span style={{ fontSize: 10, color: 'var(--text2)' }}>{fmtDate(t.month)}</span>
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button className="btn-danger" style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6 }} onClick={e => { e.stopPropagation(); onDelete(); }}>×</button>
-        </div>
+        <button className="btn-danger" style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6 }} onClick={e => { e.stopPropagation(); onDelete(); }}>×</button>
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{
-          padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 600,
-          background: t.direction === 'long' ? '#1a3a2a' : '#3a1a1a',
-          color: t.direction === 'long' ? '#4ade80' : '#f87171',
-        }}>{capitalize(t.direction ?? '—')}</span>
+        <span style={{ padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 600, background: t.direction === 'long' ? '#1a3a2a' : '#3a1a1a', color: t.direction === 'long' ? '#4ade80' : '#f87171' }}>{capitalize(t.direction ?? '—')}</span>
         {t.session && <span style={{ padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 600, background: sessionColor(t.session), color: '#fff' }}>{capitalize(t.session)}</span>}
-        <span style={{
-          padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 700,
-          background: t.result === 'tp' ? '#1a3228' : t.result === 'sl' ? '#2d1a1a' : '#2d2a1a',
-          color: t.result === 'tp' ? '#26a69a' : t.result === 'sl' ? '#ef5350' : '#f59e0b',
-        }}>{t.result?.toUpperCase()}</span>
+        <span style={{ padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 700, background: t.result === 'tp' ? '#1a3228' : t.result === 'sl' ? '#2d1a1a' : '#2d2a1a', color: t.result === 'tp' ? '#26a69a' : t.result === 'sl' ? '#ef5350' : '#f59e0b' }}>{t.result?.toUpperCase()}</span>
       </div>
       <div style={{ display: 'flex', gap: 12, fontSize: 11, fontFamily: 'monospace', flexWrap: 'wrap' }}>
         <span style={{ color: 'var(--text2)' }}>RR: <span style={{ color: 'var(--text)' }}>{fmt(t.rr)}</span></span>
@@ -462,9 +323,7 @@ function TradeCard({ t, onEdit, onDelete }: { t: any; onEdit: () => void; onDele
           {links.filter((lk: Attachment) => lk.type === 'image').length > 0 && (
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {links.filter((lk: Attachment) => lk.type === 'image').slice(0, 4).map((lk: Attachment, i: number) => (
-                <img key={i} src={lk.url} alt={lk.label}
-                  style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 5, border: '1px solid var(--border)' }}
-                />
+                <img key={i} src={lk.url} alt={lk.label} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 5, border: '1px solid var(--border)' }} />
               ))}
               {links.filter((lk: Attachment) => lk.type === 'image').length > 4 && (
                 <div style={{ width: 48, height: 48, borderRadius: 5, background: 'var(--surface2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--text2)' }}>
@@ -474,9 +333,7 @@ function TradeCard({ t, onEdit, onDelete }: { t: any; onEdit: () => void; onDele
             </div>
           )}
           {links.filter((lk: Attachment) => !lk.type || lk.type === 'link').map((lk: Attachment, i: number) => (
-            <a key={i} href={lk.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--text2)', textDecoration: 'none' }}>
-              🔗 {lk.label}
-            </a>
+            <a key={i} href={lk.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--text2)', textDecoration: 'none' }}>🔗 {lk.label}</a>
           ))}
         </div>
       )}
@@ -553,7 +410,6 @@ export default function LiveTrades() {
   const preview = calcRValues(form.result, form.rr as string, form.cost as string);
   const allTrades = trades as any[];
 
-  // Group by month
   const byMonth: { label: string; key: string; trades: any[] }[] = [];
   for (const t of allTrades) {
     const key = (t.month ?? '').slice(0, 7);
@@ -566,29 +422,22 @@ export default function LiveTrades() {
   }
 
   byMonth.sort((a, b) => b.key.localeCompare(a.key));
-  // sort trades within each month by id DESC (newest on top)
   for (const g of byMonth) g.trades.sort((a: any, b: any) => (b.id ?? 0) - (a.id ?? 0));
 
-  // per-month sequential number: oldest trade in month = #1
   const monthSeqMap = new Map<number, number>();
   for (const g of byMonth) {
     const sorted = [...g.trades].sort((a: any, b: any) => (a.id ?? 0) - (b.id ?? 0));
     sorted.forEach((t: any, i: number) => monthSeqMap.set(t.id, i + 1));
   }
 
-
-
   const p = isMobile ? '16px' : '24px 28px';
 
   return (
     <div style={{ padding: p }}>
       {editTrade && (
-        <EditModal
-          trade={editTrade}
-          onClose={() => setEditTrade(null)}
+        <EditModal trade={editTrade} onClose={() => setEditTrade(null)}
           onSave={body => editMutation.mutate({ id: editTrade.id, body })}
-          isPending={editMutation.isPending}
-        />
+          isPending={editMutation.isPending} />
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -600,35 +449,24 @@ export default function LiveTrades() {
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 24 }}>
         <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 12, fontWeight: 600 }}>Add New Trade</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {/* Row 1: Date, Pair, RR, Cost */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, auto)', gap: 10, alignItems: 'end' }}>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Date</div>
-              <input type="date" value={form.date}
-                onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                style={{ width: '100%', borderRadius: 8 }} />
+              <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} style={{ width: '100%', borderRadius: 8 }} />
             </div>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Pair</div>
-              <input type="text" value={form.asset} placeholder="EUR"
-                onChange={e => setForm(f => ({ ...f, asset: e.target.value }))}
-                style={{ width: '100%', borderRadius: 8 }} />
+              <input type="text" value={form.asset} placeholder="EUR" onChange={e => setForm(f => ({ ...f, asset: e.target.value }))} style={{ width: '100%', borderRadius: 8 }} />
             </div>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>RR</div>
-              <input type="number" value={form.rr} placeholder="3.5"
-                onChange={e => setForm(f => ({ ...f, rr: e.target.value }))}
-                style={{ width: '100%', borderRadius: 8 }} />
+              <input type="text" inputMode="decimal" value={form.rr} placeholder="3.5" onChange={e => setForm(f => ({ ...f, rr: e.target.value }))} style={{ width: '100%', borderRadius: 8 }} />
             </div>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Cost</div>
-              <input type="number" value={form.cost} placeholder="-0.10"
-                onChange={e => setForm(f => ({ ...f, cost: e.target.value }))}
-                style={{ width: '100%', borderRadius: 8 }} />
+              <input type="text" inputMode="decimal" value={form.cost} placeholder="-0.10" onChange={e => setForm(f => ({ ...f, cost: e.target.value }))} style={{ width: '100%', borderRadius: 8 }} />
             </div>
           </div>
-
-          {/* Row 2: toggles */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Direction</div>
@@ -643,14 +481,8 @@ export default function LiveTrades() {
               <ToggleGroup value={form.session} options={SESSIONS} onChange={v => setForm(f => ({ ...f, session: v }))} small />
             </div>
           </div>
-
-          {/* Row 3: Preview + Submit */}
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{
-              display: 'flex', gap: 10, alignItems: 'center',
-              background: 'var(--surface2)', borderRadius: 8, padding: '6px 12px',
-              border: '1px solid var(--border)', fontSize: 12, flexWrap: 'wrap',
-            }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', background: 'var(--surface2)', borderRadius: 8, padding: '6px 12px', border: '1px solid var(--border)', fontSize: 12, flexWrap: 'wrap' }}>
               <span style={{ color: 'var(--text2)' }}>Gross:</span>
               <span className={`mono ${(preview.grossR ?? 0) >= 0 ? 'pos' : 'neg'}`}>{preview.grossR != null ? preview.grossR.toFixed(2) : '—'}</span>
               <span style={{ color: 'var(--text2)' }}>Net:</span>
@@ -678,33 +510,18 @@ export default function LiveTrades() {
             const wr = group.trades.length ? Math.round(tpCount / group.trades.length * 100) : 0;
             return (
               <div key={group.key}>
-                {/* Month header */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-                  marginBottom: 8, padding: '6px 4px',
-                  borderBottom: '1px solid var(--border)',
-                }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 8, padding: '6px 4px', borderBottom: '1px solid var(--border)' }}>
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{group.label}</div>
                   <span style={{ fontSize: 11, color: 'var(--text2)' }}>{group.trades.length} trades · WR {wr}%</span>
-                  <span style={{ fontSize: 11 }}>
-                    Gross: <span className={`mono ${groupGross >= 0 ? 'pos' : 'neg'}`}>{groupGross.toFixed(2)}R</span>
-                  </span>
-                  <span style={{ fontSize: 11 }}>
-                    Net: <span className={`mono ${groupNet > 0 ? 'pos' : groupNet < 0 ? 'neg' : 'be'}`}>{groupNet.toFixed(2)}R</span>
-                  </span>
+                  <span style={{ fontSize: 11 }}>Gross: <span className={`mono ${groupGross >= 0 ? 'pos' : 'neg'}`}>{groupGross.toFixed(2)}R</span></span>
+                  <span style={{ fontSize: 11 }}>Net: <span className={`mono ${groupNet > 0 ? 'pos' : groupNet < 0 ? 'neg' : 'be'}`}>{groupNet.toFixed(2)}R</span></span>
                 </div>
-
-                {/* Mobile: cards, Desktop: table */}
                 {isMobile ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {group.trades.map((t: any) => {
                       const tw = { ...t, __monthSeq: monthSeqMap.get(t.id) };
                       return (
-                        <TradeCard
-                          key={t.id} t={tw}
-                          onEdit={() => setEditTrade(tw)}
-                          onDelete={() => { if (confirm('Delete?')) deleteMutation.mutate(t.id); }}
-                        />
+                        <TradeCard key={t.id} t={tw} onEdit={() => setEditTrade(tw)} onDelete={() => { if (confirm('Delete?')) deleteMutation.mutate(t.id); }} />
                       );
                     })}
                   </div>
@@ -715,8 +532,7 @@ export default function LiveTrades() {
                         <tr>
                           <th>#</th><th>Date</th><th>Pair</th><th>Dir</th><th>RR</th>
                           <th>Session</th><th>Result</th><th>Gross R</th><th>Cost</th><th>Net R</th>
-                          <th>$</th><th>Links</th>
-                          <th style={{ width: 40 }}></th>
+                          <th>$</th><th>Links</th><th style={{ width: 40 }}></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -724,54 +540,33 @@ export default function LiveTrades() {
                           const tw = { ...t, __monthSeq: monthSeqMap.get(t.id) };
                           const tLinks = parseAttachments(t.attachments);
                           return (
-                          <tr key={t.id} onClick={() => setEditTrade(tw)} style={{ cursor: 'pointer' }}>
-                            <td className="mono" style={{ color: 'var(--text2)', fontSize: 11 }}>{tw.__monthSeq ?? t.tradeNum}</td>
-                            <td className="mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmtDate(t.month)}</td>
-                            <td>{t.asset ? <span style={{ fontWeight: 600, fontSize: 12 }}>{t.asset}</span> : <span style={{ color: 'var(--text2)' }}>—</span>}</td>
-                            <td>
-                              <span style={{
-                                padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                                background: t.direction === 'long' ? '#1a3a2a' : '#3a1a1a',
-                                color: t.direction === 'long' ? '#4ade80' : '#f87171',
-                              }}>{t.direction ? capitalize(t.direction) : '—'}</span>
-                            </td>
-                            <td className="mono">{fmt(t.rr)}</td>
-                            <td>
-                              {t.session ? (
-                                <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: sessionColor(t.session), color: '#fff' }}>
-                                  {capitalize(t.session)}
-                                </span>
-                              ) : '—'}
-                            </td>
-                            <td>
-                              <span style={{
-                                padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
-                                background: t.result === 'tp' ? '#1a3228' : t.result === 'sl' ? '#2d1a1a' : '#2d2a1a',
-                                color: t.result === 'tp' ? '#26a69a' : t.result === 'sl' ? '#ef5350' : '#f59e0b',
-                              }}>{t.result?.toUpperCase()}</span>
-                            </td>
-                            <td className={`mono ${(t.grossR ?? 0) >= 0 ? 'pos' : 'neg'}`}>{fmt(t.grossR)}</td>
-                            <td className="mono neg">{fmt(t.cost)}</td>
-                            <td className={`mono ${(t.netR ?? 0) > 0 ? 'pos' : (t.netR ?? 0) < 0 ? 'neg' : 'be'}`}>{fmt(t.netR)}</td>
-                            <td className={`mono ${t.profitDollars != null ? (t.profitDollars >= 0 ? 'pos' : 'neg') : ''}`} style={{ fontWeight: t.profitDollars != null ? 600 : 400 }}>
-                              {t.profitDollars != null ? `${t.profitDollars >= 0 ? '+' : ''}${t.profitDollars.toFixed(2)}` : <span style={{ color: 'var(--text2)' }}>—</span>}
-                            </td>
-                            <td>
-                              {tLinks.length > 0 ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                  {tLinks.map((lk: Attachment, i: number) => (
-                                    <a key={i} href={lk.url} target="_blank" rel="noreferrer"
-                                      style={{ fontSize: 11, color: 'var(--text2)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                                      🔗 {lk.label.length > 20 ? lk.label.slice(0, 20) + '…' : lk.label}
-                                    </a>
-                                  ))}
-                                </div>
-                              ) : <span style={{ color: 'var(--text2)' }}>—</span>}
-                            </td>
-                            <td>
-                              <button className="btn-danger" style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6 }} onClick={e => { e.stopPropagation(); if (confirm('Delete?')) deleteMutation.mutate(t.id); }}>×</button>
-                            </td>
-                          </tr>
+                            <tr key={t.id} onClick={() => setEditTrade(tw)} style={{ cursor: 'pointer' }}>
+                              <td className="mono" style={{ color: 'var(--text2)', fontSize: 11 }}>{tw.__monthSeq ?? t.tradeNum}</td>
+                              <td className="mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmtDate(t.month)}</td>
+                              <td>{t.asset ? <span style={{ fontWeight: 600, fontSize: 12 }}>{t.asset}</span> : <span style={{ color: 'var(--text2)' }}>—</span>}</td>
+                              <td><span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: t.direction === 'long' ? '#1a3a2a' : '#3a1a1a', color: t.direction === 'long' ? '#4ade80' : '#f87171' }}>{t.direction ? capitalize(t.direction) : '—'}</span></td>
+                              <td className="mono">{fmt(t.rr)}</td>
+                              <td>{t.session ? <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: sessionColor(t.session), color: '#fff' }}>{capitalize(t.session)}</span> : '—'}</td>
+                              <td><span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: t.result === 'tp' ? '#1a3228' : t.result === 'sl' ? '#2d1a1a' : '#2d2a1a', color: t.result === 'tp' ? '#26a69a' : t.result === 'sl' ? '#ef5350' : '#f59e0b' }}>{t.result?.toUpperCase()}</span></td>
+                              <td className={`mono ${(t.grossR ?? 0) >= 0 ? 'pos' : 'neg'}`}>{fmt(t.grossR)}</td>
+                              <td className="mono neg">{fmt(t.cost)}</td>
+                              <td className={`mono ${(t.netR ?? 0) > 0 ? 'pos' : (t.netR ?? 0) < 0 ? 'neg' : 'be'}`}>{fmt(t.netR)}</td>
+                              <td className={`mono ${t.profitDollars != null ? (t.profitDollars >= 0 ? 'pos' : 'neg') : ''}`} style={{ fontWeight: t.profitDollars != null ? 600 : 400 }}>
+                                {t.profitDollars != null ? `${t.profitDollars >= 0 ? '+' : ''}${t.profitDollars.toFixed(2)}` : <span style={{ color: 'var(--text2)' }}>—</span>}
+                              </td>
+                              <td>
+                                {tLinks.length > 0 ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                    {tLinks.map((lk: Attachment, i: number) => (
+                                      <a key={i} href={lk.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--text2)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                                        🔗 {lk.label.length > 20 ? lk.label.slice(0, 20) + '…' : lk.label}
+                                      </a>
+                                    ))}
+                                  </div>
+                                ) : <span style={{ color: 'var(--text2)' }}>—</span>}
+                              </td>
+                              <td><button className="btn-danger" style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6 }} onClick={e => { e.stopPropagation(); if (confirm('Delete?')) deleteMutation.mutate(t.id); }}>×</button></td>
+                            </tr>
                           );
                         })}
                       </tbody>
