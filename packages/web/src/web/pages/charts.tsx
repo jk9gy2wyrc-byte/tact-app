@@ -1121,14 +1121,23 @@ export default function Charts() {
                   </div>
                 )}
 
-                {/* Stress equity chart vs normal MC */}
+                {/* Stress equity chart vs normal MC — always cumulative, independent of equityViewMode */}
                 {(() => {
-                  const N = Math.max(eqData.length, stressData.stressMed.length);
+                  const nPts = Math.max(btEq.length, 1);
+                  const btStep = Math.max(1, Math.floor(nPts / N_PTS));
+                  const nBtPts = Math.ceil(nPts / btStep);
                   const stressEqData: any[] = [];
-                  for (let i = 0; i < eqData.length; i++) {
-                    const si = Math.min(Math.round(i * stressData.stressMed.length / Math.max(eqData.length, 1)), stressData.stressMed.length - 1);
+                  for (let i = 0; i < nBtPts; i++) {
+                    const btIdx = i * btStep;
+                    const lvIdx = Math.min(Math.round(i * lvEq.length / Math.max(nBtPts, 1)), lvEq.length - 1);
+                    const si    = Math.min(Math.round(i * stressData.stressMed.length / Math.max(nBtPts, 1)), stressData.stressMed.length - 1);
                     stressEqData.push({
-                      ...eqData[i],
+                      trade: (i + 1) * btStep,
+                      'BT':      btIdx < btEq.length ? btEq[btIdx] : null,
+                      'Live':    lvIdx >= 0 && lvIdx < lvEq.length ? lvEq[lvIdx] : null,
+                      'MC p50':  interpMC(mcMed, i, nBtPts),
+                      'MC p5':   interpMC(mcp5,  i, nBtPts),
+                      'MC p95':  interpMC(mcp95, i, nBtPts),
                       'Stress p50': stressData.stressMed[si] ?? null,
                       'Stress p5':  stressData.stressP5[si]  ?? null,
                       'Stress p95': stressData.stressP95[si] ?? null,
@@ -1144,6 +1153,7 @@ export default function Charts() {
                         <span><span style={{ color: MC_MED_COLOR }}>- -</span> Normal MC median</span>
                         <span><span style={{ color: STRESS_COLOR }}>━</span> Stress p5/p95</span>
                         <span><span style={{ color: STRESS_MED_COLOR }}>- -</span> Stress median</span>
+                        <span><span style={{ color: BT_COLOR }}>━</span> Backtest</span>
                         <span><span style={{ color: LIVE_COLOR }}>━</span> Live</span>
                       </div>
                       <ResponsiveContainer width="100%" height={isMobile ? 200 : 260}>
@@ -1161,7 +1171,8 @@ export default function Charts() {
                           <Line type="monotone" dataKey="Stress p5"  stroke={STRESS_COLOR}     strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
                           <Line type="monotone" dataKey="Stress p95" stroke={STRESS_COLOR}     strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
                           <Line type="monotone" dataKey="Stress p50" stroke={STRESS_MED_COLOR} strokeWidth={2}   strokeDasharray="6 3" dot={false} connectNulls />
-                          {/* Live */}
+                          {/* BT + Live (always cumulative) */}
+                          <Line type="monotone" dataKey="BT"   stroke={BT_COLOR}   strokeWidth={2}   dot={false} connectNulls />
                           <Line type="monotone" dataKey="Live" stroke={LIVE_COLOR} strokeWidth={2.5} dot={false} connectNulls />
                         </LineChart>
                       </ResponsiveContainer>
