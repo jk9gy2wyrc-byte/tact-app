@@ -357,7 +357,6 @@ export default function Charts() {
     step: number;
   }>(null);
   const [stressLoading, setStressLoading] = useState(false);
-  const [eqMode, setEqMode] = useState<'absolute' | 'normalized'>('absolute');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setSP = useCallback((key: keyof typeof defaultStress, val: number) => {
@@ -407,45 +406,30 @@ export default function Charts() {
   const mcRR: { med: number[]; p5: number[]; p95: number[] } = d.mcRR ?? { med: [], p5: [], p95: [] };
   const mcPF: { med: number[]; p5: number[]; p95: number[] } = d.mcPF ?? { med: [], p5: [], p95: [] };
 
-  // Equity chart data
+  // Equity chart data — MC interpolated across full BT range
   const N_PTS = 120;
   const btStep = Math.max(1, Math.floor(btEq.length / N_PTS));
   const eqData: any[] = [];
-  const maxLenEq = Math.max(Math.ceil(btEq.length / btStep), mcMed.length);
-  for (let i = 0; i < maxLenEq; i++) {
+  const nBtPts = Math.ceil(btEq.length / btStep);
+  const interpMC = (arr: number[], i: number, total: number) => {
+    if (arr.length === 0) return null;
+    if (arr.length === 1) return arr[0];
+    const t = total > 1 ? (i / (total - 1)) * (arr.length - 1) : 0;
+    const lo = Math.floor(t), hi = Math.min(Math.ceil(t), arr.length - 1);
+    return arr[lo] + (arr[hi] - arr[lo]) * (t - lo);
+  };
+  for (let i = 0; i < nBtPts; i++) {
     const btIdx = i * btStep;
-    const lvIdx = Math.min(Math.round(i * lvEq.length / Math.max(btEq.length / btStep, 1)), lvEq.length - 1);
+    const lvIdx = Math.min(Math.round(i * lvEq.length / Math.max(nBtPts, 1)), lvEq.length - 1);
     eqData.push({
       trade: (i + 1) * btStep,
       BT:       btIdx < btEq.length ? btEq[btIdx] : null,
       Live:     lvIdx >= 0 && lvIdx < lvEq.length ? lvEq[lvIdx] : null,
-      'MC p50': i < mcMed.length ? mcMed[i] : null,
-      'MC p5':  i < mcp5.length  ? mcp5[i]  : null,
-      'MC p95': i < mcp95.length ? mcp95[i] : null,
+      'MC p50': interpMC(mcMed, i, nBtPts),
+      'MC p5':  interpMC(mcp5,  i, nBtPts),
+      'MC p95': interpMC(mcp95, i, nBtPts),
     });
   }
-
-  // Normalized equity data
-  const N_NORM = 100;
-  const normalizedEqData: any[] = Array.from({ length: N_NORM }, (_, i) => {
-    const t = i / (N_NORM - 1);
-    const btIdx2 = Math.min(Math.round(t * (btEq.length - 1)), btEq.length - 1);
-    const btVal = btEq.length > 0 ? (btEq[btIdx2] / btEq.length) * (i + 1) : null;
-    const lvIdx2 = Math.min(Math.round(t * (lvEq.length - 1)), lvEq.length - 1);
-    const lvVal = lvEq.length > 0 ? (lvEq[lvIdx2] / lvEq.length) * (i + 1) : null;
-    const mcIdx2 = Math.min(Math.round(t * (mcMed.length - 1)), mcMed.length - 1);
-    const mcVal  = mcMed.length > 0 ? (mcMed[mcIdx2] / (btEq.length || 1)) * (i + 1) : null;
-    const p5Val  = mcp5.length  > 0 ? (mcp5[mcIdx2]  / (btEq.length || 1)) * (i + 1) : null;
-    const p95Val = mcp95.length > 0 ? (mcp95[mcIdx2] / (btEq.length || 1)) * (i + 1) : null;
-    return {
-      trade: i + 1,
-      BT:       btVal  != null ? Math.round(btVal  * 100) / 100 : null,
-      Live:     lvVal  != null ? Math.round(lvVal  * 100) / 100 : null,
-      'MC p50': mcVal  != null ? Math.round(mcVal  * 100) / 100 : null,
-      'MC p5':  p5Val  != null ? Math.round(p5Val  * 100) / 100 : null,
-      'MC p95': p95Val != null ? Math.round(p95Val * 100) / 100 : null,
-    };
-  });
 
   // MC bands mapped to BT rolling length (100 MC pts -> N bt trades, interpolate)
   const mapMCtoRolling = (
@@ -469,13 +453,12 @@ export default function Charts() {
   const ddMC = undefined;
   const sdMC = undefined;
 
-  // Mode-aware last equity values
-  const _lastNorm = normalizedEqData.at(-1);
-  const lastBTEq  = eqMode === 'normalized' ? (_lastNorm?.BT        ?? null) : (btEq.at(-1)  ?? null);
-  const lastLvEq  = eqMode === 'normalized' ? (_lastNorm?.Live       ?? null) : (lvEq.at(-1)  ?? null);
-  const lastMedEq = eqMode === 'normalized' ? (_lastNorm?.['MC p50'] ?? null) : (mcMed.at(-1) ?? null);
-  const lastP5Eq  = eqMode === 'normalized' ? (_lastNorm?.['MC p5']  ?? null) : (mcp5.at(-1)  ?? null);
-  const lastP95Eq = eqMode === 'normalized' ? (_lastNorm?.['MC p95'] ?? null) : (mcp95.at(-1) ?? null);
+  // Last equity deviation
+  const lastBTEq  = btEq.at(-1);
+  const lastLvEq  = lvEq.at(-1);
+  const lastMedEq = mcMed.at(-1);
+  const lastP5Eq  = mcp5.at(-1);
+  const lastP95Eq = mcp95.at(-1);
 
   return (
     <div style={{ padding: isMobile ? '12px 10px' : '24px 28px', overflowX: 'hidden', boxSizing: 'border-box', width: '100%' }}>
@@ -491,26 +474,13 @@ export default function Charts() {
 
       {/* EQUITY CURVES */}
       <div style={chartStyle(isMobile)}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>
-            {eqMode === 'absolute' ? 'Equity Curves — Cumulative Net R' : 'Equity Curves — Avg Net R per Trade'}
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => setEqMode('absolute')} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)', background: eqMode === 'absolute' ? '#4b5263' : 'var(--surface2)', color: eqMode === 'absolute' ? '#fff' : 'var(--text2)', cursor: 'pointer' }}>Абсолютний</button>
-            <button onClick={() => setEqMode('normalized')} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)', background: eqMode === 'normalized' ? '#4b5263' : 'var(--surface2)', color: eqMode === 'normalized' ? '#fff' : 'var(--text2)', cursor: 'pointer' }}>На угоду</button>
-          </div>
-        </div>
-        {eqMode === 'normalized' && (
-          <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 10, padding: '6px 10px', background: 'var(--surface2)', borderRadius: 6 }}>
-            💡 BT ({btEq.length} угод) і Live ({lvEq.length} угод) порівнюються чесно — нормалізовано на кількість угод.
-          </div>
-        )}
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Equity Curves — Cumulative Net R</div>
         {btEq.length === 0 ? (
           <div style={{ color: 'var(--text2)', padding: 40, textAlign: 'center' }}>Немає даних бектесту.</div>
         ) : (
           <>
             <ResponsiveContainer width="100%" height={isMobile ? 220 : 340}>
-              <LineChart data={eqMode === 'normalized' ? normalizedEqData : eqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
+              <LineChart data={eqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
                 <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
                 <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
@@ -945,78 +915,6 @@ export default function Charts() {
                           <Line type="monotone" dataKey="Live" stroke={LIVE_COLOR} strokeWidth={2.5} dot={false} connectNulls />
                         </LineChart>
                       </ResponsiveContainer>
-                    </div>
-                  );
-                })()}
-
-                {/* Stress deviation summary */}
-                {stressData && (() => {
-                  const lastLv  = lvEq.at(-1) ?? null;
-                  const lastSMed = stressData.stressFinalEq.med;
-                  const lastSP5  = stressData.stressFinalEq.p5;
-                  const lastSP95 = stressData.stressFinalEq.p95;
-                  const devFromStress = lastLv != null && lastSMed !== 0
-                    ? ((lastLv - lastSMed) / Math.abs(lastSMed) * 100)
-                    : null;
-                  const inStressBand = lastLv != null
-                    ? lastLv >= lastSP5 && lastLv <= lastSP95
-                    : null;
-                  return (
-                    <div style={{
-                      marginTop: 16, padding: '12px 16px',
-                      background: 'var(--surface2)', borderRadius: 10,
-                      border: '1px solid var(--border)', fontSize: 12,
-                    }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: STRESS_COLOR, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-                        Відхилення Live від стрес-сценарію
-                      </div>
-                      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-                        {lastLv != null && (
-                          <div>
-                            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Live (фактичний)</div>
-                            <div className="mono" style={{ color: LIVE_COLOR, fontSize: 16, fontWeight: 700 }}>{lastLv.toFixed(2)}R</div>
-                          </div>
-                        )}
-                        <div>
-                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Stress медіана</div>
-                          <div className="mono" style={{ color: STRESS_MED_COLOR, fontSize: 16, fontWeight: 700 }}>{lastSMed.toFixed(2)}R</div>
-                        </div>
-                        {devFromStress != null && (
-                          <div>
-                            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Live vs Stress</div>
-                            <div className="mono" style={{ color: devFromStress >= 0 ? '#4ade80' : '#f87171', fontSize: 16, fontWeight: 700 }}>
-                              {devFromStress >= 0 ? '+' : ''}{devFromStress.toFixed(1)}%
-                            </div>
-                          </div>
-                        )}
-                        <div>
-                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Stress p5–p95</div>
-                          <div className="mono" style={{ color: MC_BAND_COLOR }}>
-                            [{lastSP5.toFixed(2)}R — {lastSP95.toFixed(2)}R]
-                          </div>
-                        </div>
-                        {inStressBand != null && (
-                          <div>
-                            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>В межах стресу</div>
-                            <div style={{ fontWeight: 700, color: inStressBand ? '#4ade80' : '#f87171', fontSize: 13 }}>
-                              {inStressBand ? 'Так ✓ — стратегія витримує' : 'Ні ✗ — краще за стрес-сценарій!'}
-                            </div>
-                          </div>
-                        )}
-                        <div>
-                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Survival Rate</div>
-                          <div style={{ fontWeight: 700, fontSize: 16, color: stressData.survivalRate >= 90 ? '#4ade80' : stressData.survivalRate >= 70 ? '#facc15' : '#f87171' }}>
-                            {stressData.survivalRate}%
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text2)', lineHeight: 1.6 }}>
-                        {devFromStress != null && devFromStress > 0
-                          ? '✅ Live результат кращий за стрес-медіану — стратегія поки витримує психологічний/ринковий тиск.'
-                          : devFromStress != null && devFromStress < -20
-                          ? '⚠️ Live результат значно нижче стрес-медіани — варто переглянути дисципліну і виконання.'
-                          : '📊 Live в зоні стрес-сценарію — стежте за динамікою.'}
-                      </div>
                     </div>
                   );
                 })()}
