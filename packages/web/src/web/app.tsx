@@ -89,7 +89,8 @@ function Login({ onAuth }: { onAuth: (s: Session) => void }) {
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '40px 48px', width: 340 }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '0.04em' }}>TSCT</div>
-          <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>Trading Control Tool</div>
+          <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>Trading Analysis Tool</div>
+          <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2, opacity: 0.6 }}>(trading strategy crash test)</div>
         </div>
         <div style={{ display: 'flex', marginBottom: 24, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
           {(['login', 'register'] as const).map(m => (
@@ -157,7 +158,8 @@ export default function App() {
       <div style={{ padding: '18px 16px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: '0.06em' }}>TSCT</div>
-          <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 3 }}>Trading Control Tool</div>
+          <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 3 }}>Trading Analysis Tool</div>
+          <div style={{ fontSize: 9, color: 'var(--text2)', marginTop: 1, opacity: 0.6 }}>(trading strategy crash test)</div>
           <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ fontSize: 11, color: session.role === 'admin' ? '#facc15' : 'var(--text2)' }}>
               {session.login} {session.role === 'admin' && '★'}
