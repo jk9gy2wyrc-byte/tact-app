@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { db } from "./database";
-import { backtestTrades, liveTrades, users } from "./database/schema";
+import { backtestTrades, liveTrades, users, subscriptionSettings } from "./database/schema";
 import { eq, desc, asc, sql } from "drizzle-orm";
 import * as XLSX from "xlsx";
 
@@ -83,6 +83,42 @@ const app = new Hono()
     await db.delete(users).where(eq(users.id, id));
     return c.json({ ok: true }, 200);
   })
+
+  // ─── SUBSCRIPTION SETTINGS ───────────────────────────────────────────────────
+  .get('/subscription/settings', async (c) => {
+    const settings = await db.select().from(subscriptionSettings).limit(1).get();
+    if (!settings) {
+      // Create default settings if none exist
+      const [created] = await db.insert(subscriptionSettings).values({
+        buttonText: 'Contact Us',
+        buttonLink: 'mailto:',
+      }).returning();
+      return c.json(created, 200);
+    }
+    return c.json(settings, 200);
+  })
+
+  .post('/subscription/settings',
+    zValidator('json', z.object({ buttonText: z.string().min(1).max(100), buttonLink: z.string().min(1).max(500) })),
+    async (c) => {
+      const asLogin = c.req.query('asLogin');
+      const caller = await db.select().from(users).where(eq(users.login, asLogin ?? '')).get();
+      if (!caller || caller.role !== 'admin') return c.json({ error: 'Forbidden' }, 403);
+
+      const { buttonText, buttonLink } = c.req.valid('json');
+      const existing = await db.select().from(subscriptionSettings).limit(1).get();
+      if (existing) {
+        const [updated] = await db.update(subscriptionSettings)
+          .set({ buttonText, buttonLink })
+          .where(eq(subscriptionSettings.id, existing.id))
+          .returning();
+        return c.json(updated, 200);
+      } else {
+        const [created] = await db.insert(subscriptionSettings).values({ buttonText, buttonLink }).returning();
+        return c.json(created, 200);
+      }
+    }
+  )
 
   // ─── STATS ────────────────────────────────────────────────────────────────
   .get('/stats', async (c) => {
