@@ -38,7 +38,8 @@ export default function MCSim() {
   if (isLoading) return <div style={{ padding: 32, color: 'var(--text2)' }}>Завантаження...</div>;
   if (error || !data) return <div style={{ padding: 32, color: 'var(--red)' }}>Помилка</div>;
 
-  if (accessData && !accessData.hasAccess) {
+  // Check access - admin always has access
+  if (accessData && !accessData.hasAccess && accessData.reason !== 'admin') {
     return (
       <div style={{ padding: 48, textAlign: 'center' }}>
         <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
@@ -101,6 +102,7 @@ export default function MCSim() {
         </div>
       </div>
 
+      {/* Stats */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
         <StatBox label="Медіана (p50)" value={`+${fmt(finalMedian)}R`} />
         <StatBox label="p5 (нижня)" value={`${finalP5 >= 0 ? '+' : ''}${fmt(finalP5)}R`} color="#e8830a" />
@@ -111,6 +113,7 @@ export default function MCSim() {
         {finalLive !== null && <StatBox label="Live в p5–p95" value={liveInBand ? 'Так ✓' : 'Ні ✗'} color={liveInBand ? 'var(--green)' : 'var(--red)'} />}
       </div>
 
+      {/* Chart */}
       <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
         borderRadius: 16, padding: isMobile ? '16px 4px 12px 0' : '20px 8px 12px 0', marginBottom: 24,
@@ -151,6 +154,7 @@ export default function MCSim() {
         </div>
       </div>
 
+      {/* Info */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px', fontSize: 12, color: 'var(--text2)', lineHeight: 1.8 }}>
         <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 8, fontSize: 13 }}>Як читати</div>
         <div><b style={{ color: 'var(--text)' }}>Bootstrap MC</b> — кожна симуляція випадково тягне угоди з бектесту і будує equity curve. 1000 кривих = реальний розподіл.</div>
