@@ -7,18 +7,11 @@ interface UserRow {
   password: string;
   role: string;
   createdAt: string | null;
-  notes: string | null;
-  accessExpiryDate: string | null;
-  accessStatus: string;
 }
 
 export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
   const qc = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
-  const [editingUser, setEditingUser] = useState<number | null>(null);
-  const [editNotes, setEditNotes] = useState('');
-  const [editExpiry, setEditExpiry] = useState('');
-  const [editStatus, setEditStatus] = useState<'active' | 'suspended'>('active');
 
   const { data, isLoading, error } = useQuery<UserRow[]>({
     queryKey: ['admin-users'],
@@ -41,26 +34,12 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
     },
   });
 
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, notes, accessExpiryDate, accessStatus }: { id: number; notes?: string; accessExpiryDate?: string; accessStatus?: 'active' | 'suspended' }) => {
-      const res = await fetch(`/api/admin/users/${id}?asLogin=${encodeURIComponent(currentLogin)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes, accessExpiryDate, accessStatus }),
-      });
-      if (!res.ok) throw new Error('Update failed');
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-users'] });
-      setEditingUser(null);
-    },
-  });
 
   const fmt = (dt: string | null) => {
     if (!dt) return '—';
     try {
-      const d = new Date(dt + 'Z');
-      return d.toLocaleString('uk-UA', { timeZone: 'Europe/Kiev', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const d = new Date(dt);
+      return d.toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     } catch { return dt; }
   };
 
@@ -118,9 +97,6 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                   <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Логін</th>
                   <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Пароль</th>
                   <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Роль</th>
-                  <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Нотатки</th>
-                  <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Доступ до</th>
-                  <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Статус</th>
                   <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Дата реєстрації</th>
                   <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}></th>
                 </tr>
@@ -168,39 +144,12 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                         {u.role === 'admin' ? '★ admin' : 'user'}
                       </span>
                     </td>
-                    <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {u.notes || '—'}
-                    </td>
-                    <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)', fontFamily: 'monospace' }}>
-                      {fmt(u.accessExpiryDate)}
-                    </td>
-                    <td style={{ padding: '10px 16px' }}>
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, padding: '2px 10px', borderRadius: 20,
-                        background: u.accessStatus === 'active' ? '#4ade8022' : '#f8717122',
-                        color: u.accessStatus === 'active' ? '#4ade80' : '#f87171',
-                        border: `1px solid ${u.accessStatus === 'active' ? '#4ade8044' : '#f8717144'}`,
-                      }}>
-                        {u.accessStatus === 'active' ? '● active' : '● suspended'}
-                      </span>
-                    </td>
                     <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)', fontFamily: 'monospace' }}>
                       {fmt(u.createdAt)}
                     </td>
                     <td style={{ padding: '10px 16px' }}>
                       {u.login !== currentLogin && (
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            onClick={() => {
-                              setEditingUser(u.id);
-                              setEditNotes(u.notes || '');
-                              setEditExpiry(u.accessExpiryDate || '');
-                              setEditStatus(u.accessStatus as 'active' | 'suspended');
-                            }}
-                            style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }}
-                          >
-                            Edit
-                          </button>
                           {confirmDelete === u.id ? (
                             <>
                               <button
@@ -227,7 +176,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                 ))}
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan={9} style={{ padding: '32px', textAlign: 'center', color: 'var(--text2)', fontSize: 13 }}>
+                    <td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: 'var(--text2)', fontSize: 13 }}>
                       Немає юзерів
                     </td>
                   </tr>
@@ -236,93 +185,6 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
             </table>
           </div>
         </>
-      )}
-
-      {editingUser && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-        }}>
-          <div style={{
-            background: 'var(--surface)', border: '1px solid var(--border)',
-            borderRadius: 16, padding: 32, maxWidth: 400, width: '100%',
-          }}>
-            <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 24 }}>
-              Edit User Access
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 14, color: 'var(--text2)', marginBottom: 8 }}>
-                Notes
-              </label>
-              <textarea
-                value={editNotes}
-                onChange={(e) => setEditNotes(e.target.value)}
-                rows={3}
-                style={{
-                  width: '100%', padding: '10px 12px', borderRadius: 8,
-                  border: '1px solid var(--border)', background: 'var(--bg)',
-                  color: 'var(--text)', fontSize: 14, resize: 'vertical',
-                }}
-              />
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 14, color: 'var(--text2)', marginBottom: 8 }}>
-                Access Expiry Date (ISO format)
-              </label>
-              <input
-                type="text"
-                value={editExpiry}
-                onChange={(e) => setEditExpiry(e.target.value)}
-                placeholder="2026-06-05T12:00:00.000Z"
-                style={{
-                  width: '100%', padding: '10px 12px', borderRadius: 8,
-                  border: '1px solid var(--border)', background: 'var(--bg)',
-                  color: 'var(--text)', fontSize: 14,
-                }}
-              />
-            </div>
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ display: 'block', fontSize: 14, color: 'var(--text2)', marginBottom: 8 }}>
-                Access Status
-              </label>
-              <select
-                value={editStatus}
-                onChange={(e) => setEditStatus(e.target.value as 'active' | 'suspended')}
-                style={{
-                  width: '100%', padding: '10px 12px', borderRadius: 8,
-                  border: '1px solid var(--border)', background: 'var(--bg)',
-                  color: 'var(--text)', fontSize: 14,
-                }}
-              >
-                <option value="active">Active</option>
-                <option value="suspended">Suspended</option>
-              </select>
-            </div>
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setEditingUser(null)}
-                style={{
-                  padding: '10px 20px', borderRadius: 8, border: 'none',
-                  background: 'var(--border)', color: 'var(--text)',
-                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => updateMutation.mutate({ id: editingUser, notes: editNotes, accessExpiryDate: editExpiry, accessStatus: editStatus })}
-                style={{
-                  padding: '10px 20px', borderRadius: 8, border: 'none',
-                  background: 'var(--primary)', color: '#fff',
-                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                }}
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
