@@ -84,11 +84,19 @@ const app = new Hono()
     return c.json({ ok: true }, 200);
   })
 
+  // ─── FIX USERID ─────────────────────────────────────────────────────────────
+  .post('/fix-userid', async (c) => {
+    // Update all trades to have userId=1 (default user)
+    await db.update(backtestTrades).set({ userId: 1 });
+    await db.update(liveTrades).set({ userId: 1 });
+    return c.json({ ok: true }, 200);
+  })
+
   // ─── STATS ────────────────────────────────────────────────────────────────
   .get('/stats', async (c) => {
-    // Temporarily return all data regardless of userId for testing
-    const bt = await db.select().from(backtestTrades).orderBy(asc(backtestTrades.id)).all();
-    const lv = await db.select().from(liveTrades).orderBy(asc(liveTrades.id)).all();
+    const uid = Number(c.req.query('userId') ?? 0);
+    const bt = await db.select().from(backtestTrades).where(eq(backtestTrades.userId, uid)).orderBy(asc(backtestTrades.id)).all();
+    const lv = await db.select().from(liveTrades).where(eq(liveTrades.userId, uid)).orderBy(asc(liveTrades.id)).all();
 
     const calcStats = (trades: typeof bt) => {
       const n = trades.length;
@@ -558,4 +566,373 @@ const app = new Hono()
         session: body.session,
         result: body.result,
         grossR: body.grossR,
-        cost
+        cost,
+        netR,
+        profitDollars: body.profitDollars,
+        notes: body.notes,
+        attachments: body.attachments,
+      }).returning();
+      return c.json(trade, 200);
+    }
+  )
+
+  .put('/live-trades/:id',
+    zValidator('json', z.object({
+      date: z.string().optional(),
+      asset: z.string().optional(),
+      direction: z.string().optional(),
+      rr: z.number().optional(),
+      session: z.string().optional(),
+      result: z.enum(['tp', 'sl', 'be']).optional(),
+      grossR: z.number().optional(),
+      cost: z.number().optional(),
+      netR: z.number().optional(),
+      profitDollars: z.number().nullable().optional(),
+      notes: z.string().nullable().optional(),
+      attachments: z.string().nullable().optional(), // JSON string
+    })),
+    async (c) => {
+      const id = Number(c.req.param('id'));
+      const uid = Number(c.req.query('userId') ?? 0);
+      const body = c.req.valid('json');
+      const existing = await db.select().from(liveTrades).where(eq(liveTrades.id, id)).get();
+      if (!existing) return c.json({ error: 'not found' }, 404);
+      if (existing.userId !== uid) return c.json({ error: 'Forbidden' }, 403);
+      const { date, ...rest } = body;
+      const [updated] = await db.update(liveTrades)
+        .set({
+          ...rest,
+          ...(date ? { month: date } : {}),
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(liveTrades.id, id)).returning();
+      return c.json(updated, 200);
+    }
+  )
+
+  .delete('/live-trades/:id', async (c) => {
+    const id = Number(c.req.param('id'));
+    const uid = Number(c.req.query('userId') ?? 0);
+    const existing = await db.select().from(liveTrades).where(eq(liveTrades.id, id)).get();
+    if (existing && existing.userId !== uid) return c.json({ error: 'Forbidden' }, 403);
+    await db.delete(liveTrades).where(eq(liveTrades.id, id));
+    return c.json({ ok: true }, 200);
+  })
+
+  // ─── BACKTEST TRADES ──────────────────────────────────────────────────────
+  .get('/backtest-trades', async (c) => {
+    const uid = Number(c.req.query('userId') ?? 0);
+    const trades = await db.select().from(backtestTrades)
+      .where(eq(backtestTrades.userId, uid))
+      .orderBy(asc(backtestTrades.instrument), asc(backtestTrades.year), asc(backtestTrades.month), asc(backtestTrades.tradeNum)).all();
+    return c.json(trades, 200);
+  })
+
+  // ─── XLSX IMPORT ──────────────────────────────────────────────────────────
+  .post('/import-backtest', async (c) => {
+    try {
+      const uid = Number(c.req.query('userId') ?? 0);
+      const formData = await c.req.formData();
+      const file = formData.get('file') as File | null;
+      if (!file) return c.json({ error: 'no file' }, 400);
+
+      const arrayBuffer = await file.arrayBuffer();
+      const wb = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+
+      let totalInserted = 0;
+
+      for (const sheetName of wb.SheetNames) {
+        // detect instrument from sheet name
+        let instrument = 'EUR';
+        if (sheetName.toUpperCase().includes('GER')) instrument = 'GER';
+        else if (sheetName.toUpperCase().includes('XAU') || sheetName.toUpperCase().includes('GOLD')) instrument = 'XAU';
+
+        // Skip non-raw sheets and live sheet
+        if (!sheetName.toLowerCase().includes('raw')) continue;
+        if (sheetName.toLowerCase().includes('live')) continue;
+
+        const ws = wb.Sheets[sheetName];
+        const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        const toInsert: typeof backtestTrades.$inferInsert[] = [];
+
+        for (const row of rows) {
+          if (!row || row.length < 6) continue;
+          const id = row[0];
+          if (id === 'ID' || id == null || id === '') continue;
+          if (id === 'SUMMARY') continue;
+
+          const idNum = typeof id === 'number' ? id : Number(id);
+          if (!Number.isFinite(idNum)) continue;
+
+          const dateRaw = String(row[1] ?? '').trim();
+          const direction = String(row[2] ?? '').trim().toLowerCase();
+          const rr = typeof row[3] === 'number' ? row[3] : parseFloat(String(row[3] ?? ''));
+          const session = String(row[4] ?? '').trim().toLowerCase();
+          const result = String(row[5] ?? '').trim().toLowerCase();
+          const grossR = typeof row[6] === 'number' ? row[6] : parseFloat(String(row[6] ?? ''));
+          const cost = typeof row[8] === 'number' ? row[8] : parseFloat(String(row[8] ?? '-0.1'));
+
+          if (!['long', 'short'].includes(direction)) continue;
+          if (!['tp', 'sl', 'be'].includes(result)) continue;
+          if (!Number.isFinite(grossR)) continue;
+
+          // Normalize month: "2021 - 01" → "2021-01"
+          const month = dateRaw.replace(/\s*-\s*/g, '-').trim();
+          const year = parseInt(month.slice(0, 4)) || 2025;
+          const validCost = Number.isFinite(cost) ? cost : -0.1;
+          const netR = Math.round((grossR + validCost) * 100) / 100;
+
+          toInsert.push({
+            userId: uid,
+            instrument,
+            year,
+            month,
+            tradeNum: idNum,
+            direction,
+            rr: Number.isFinite(rr) ? rr : null,
+            session: session || null,
+            result,
+            grossR,
+            cost: validCost,
+            netR,
+          });
+        }
+
+        if (toInsert.length > 0) {
+          for (let i = 0; i < toInsert.length; i += 50) {
+            await db.insert(backtestTrades).values(toInsert.slice(i, i + 50));
+          }
+          totalInserted += toInsert.length;
+        }
+      }
+
+      return c.json({ ok: true, inserted: totalInserted }, 200);
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  })
+
+  .delete('/backtest-trades/all', async (c) => {
+    const uid = Number(c.req.query('userId') ?? 0);
+    await db.delete(backtestTrades).where(eq(backtestTrades.userId, uid));
+    return c.json({ ok: true }, 200);
+  })
+
+  // ── Manual backtest entry ──────────────────────────────────────────────────
+  .post('/backtest-manual', async (c) => {
+    const uid = Number(c.req.query('userId') ?? 0);
+    const body = await c.req.json();
+    const { instrument, date, direction, rr, session, result, grossR, cost } = body;
+    if (!instrument || !date || !result) return c.json({ error: 'instrument, date and result are required' }, 400);
+    const month = String(date).slice(0, 7);
+    const year = Number(String(date).slice(0, 4));
+    const costVal = cost != null ? Number(cost) : -0.1;
+    const grossVal = grossR != null ? Number(grossR) : (result === 'tp' ? Number(rr ?? 1) : result === 'sl' ? -1 : 0);
+    const netVal = Math.round((grossVal + costVal) * 100) / 100;
+    // auto tradeNum
+    const existing = await db.select({ n: backtestTrades.tradeNum })
+      .from(backtestTrades)
+      .where(eq(backtestTrades.userId, uid))
+      .all();
+    const maxNum = existing.length > 0 ? Math.max(...existing.map(r => r.n ?? 0)) : 0;
+    const [trade] = await db.insert(backtestTrades).values({
+      userId: uid,
+      instrument: String(instrument).toUpperCase(),
+      year,
+      month,
+      tradeNum: maxNum + 1,
+      direction: direction ?? null,
+      rr: rr != null ? Number(rr) : null,
+      session: session ?? null,
+      result,
+      grossR: grossVal,
+      cost: costVal,
+      netR: netVal,
+    }).returning();
+    return c.json({ ok: true, trade }, 200);
+  })
+
+  .put('/backtest-trades/:id', async (c) => {
+    const uid = Number(c.req.query('userId') ?? 0);
+    const id = Number(c.req.param('id'));
+    const body = await c.req.json();
+    const { instrument, date, direction, rr, session, result, cost } = body;
+    const month = date ? String(date).slice(0, 7) : undefined;
+    const year = date ? Number(String(date).slice(0, 4)) : undefined;
+    const costVal = cost != null ? Number(cost) : -0.1;
+    const grossVal = result === 'tp' ? Number(rr ?? 1) : result === 'sl' ? -1 : 0;
+    const netVal = Math.round((grossVal + costVal) * 100) / 100;
+    const updates: any = {
+      ...(instrument && { instrument: String(instrument).toUpperCase() }),
+      ...(date && { month, year }),
+      ...(direction !== undefined && { direction }),
+      ...(rr !== undefined && { rr: rr != null ? Number(rr) : null }),
+      ...(session !== undefined && { session }),
+      ...(result !== undefined && { result, grossR: grossVal, netR: netVal }),
+      cost: costVal,
+    };
+    await db.update(backtestTrades).set(updates).where(eq(backtestTrades.id, id));
+    return c.json({ ok: true }, 200);
+  })
+
+  .delete('/backtest-trades/:id', async (c) => {
+    const uid = Number(c.req.query('userId') ?? 0);
+    const id = Number(c.req.param('id'));
+    await db.delete(backtestTrades).where(eq(backtestTrades.id, id));
+    return c.json({ ok: true }, 200);
+  })
+
+  // ── Bulk backtest entry (from manual database builder) ────────────────────
+  .post('/backtest-bulk', async (c) => {
+    const uid = Number(c.req.query('userId') ?? 0);
+    const body = await c.req.json();
+    const { trades } = body as { trades: any[] };
+    if (!Array.isArray(trades) || trades.length === 0) return c.json({ error: 'trades array required' }, 400);
+
+    const existing = await db.select({ n: backtestTrades.tradeNum })
+      .from(backtestTrades).where(eq(backtestTrades.userId, uid)).all();
+    let maxNum = existing.length > 0 ? Math.max(...existing.map(r => r.n ?? 0)) : 0;
+
+    const toInsert = trades.map(t => {
+      const month = String(t.date).slice(0, 7);
+      const year = Number(String(t.date).slice(0, 4));
+      const costVal = t.cost != null ? Number(t.cost) : -0.1;
+      const grossVal = t.grossR != null ? Number(t.grossR) : (t.result === 'tp' ? Number(t.rr ?? 1) : t.result === 'sl' ? -1 : 0);
+      const netVal = Math.round((grossVal + costVal) * 100) / 100;
+      maxNum += 1;
+      return {
+        userId: uid,
+        instrument: String(t.instrument).toUpperCase(),
+        year, month,
+        tradeNum: maxNum,
+        direction: t.direction ?? null,
+        rr: t.rr != null ? Number(t.rr) : null,
+        session: t.session ?? null,
+        result: t.result,
+        grossR: grossVal,
+        cost: costVal,
+        netR: netVal,
+      };
+    });
+
+    for (let i = 0; i < toInsert.length; i += 50) {
+      await db.insert(backtestTrades).values(toInsert.slice(i, i + 50));
+    }
+    return c.json({ ok: true, inserted: toInsert.length }, 200);
+  });
+
+// ─── Economic Calendar (faireconomy.media / ForexFactory data) ───────────────
+let newsCache: { ts: number; data: any[] } = { ts: 0, data: [] };
+
+async function fetchNewsData(): Promise<any[]> {
+  const urls = [
+    'https://nfs.faireconomy.media/ff_calendar_thisweek.json',
+    'https://nfs.faireconomy.media/ff_calendar_nextweek.json',
+  ];
+  const results = await Promise.all(urls.map(async url => {
+    try {
+      const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      if (!res.ok) return [];
+      return res.json();
+    } catch { return []; }
+  }));
+  const all = (results as any[][]).flat();
+  const watched = new Set(['USD', 'EUR', 'GBP']);
+  return all
+    .filter((e: any) => watched.has((e.currency ?? '').toUpperCase()) && (e.impact === 'High' || e.impact === 'Medium'))
+    .map((e: any) => ({
+      date: e.date ?? '',
+      currency: (e.currency ?? '').toUpperCase(),
+      impact: e.impact ?? '',
+      title: e.title ?? '',
+      forecast: e.forecast ?? null,
+      previous: e.previous ?? null,
+      actual: e.actual ?? null,
+    }));
+}
+
+app.get('/news', async (c) => {
+  const now = Date.now();
+  if (now - newsCache.ts < 5 * 60 * 1000 && newsCache.data.length > 0) {
+    return c.json(newsCache.data);
+  }
+  try {
+    const data = await fetchNewsData();
+    newsCache = { ts: now, data };
+    return c.json(data);
+  } catch (e) {
+    console.error('news error', e);
+    if (newsCache.data.length > 0) return c.json(newsCache.data);
+    return c.json([]);
+  }
+});
+
+// ─── Market weekly change ───────────────────────────────────────────────────
+let pricesCache: { ts: number; data: any } = { ts: 0, data: null };
+
+async function fetchWeeklyChanges() {
+  const symbols: Record<string, string> = {
+    EUR: 'EURUSD=X',
+    GBP: 'GBPUSD=X',
+    XAU: 'GC=F',
+    GER: '%5EGDAXI',
+  };
+  const results: Record<string, { change: number; current: number; open: number } | null> = {};
+
+  await Promise.all(
+    Object.entries(symbols).map(async ([key, sym]) => {
+      try {
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=7d`;
+        const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        const json = await res.json() as any;
+        const result = json?.chart?.result?.[0];
+        if (!result) { results[key] = null; return; }
+
+        const closes: number[] = result.indicators?.quote?.[0]?.close ?? [];
+        const timestamps: number[] = result.timestamps ?? result.timestamp ?? [];
+
+        // Filter out null/undefined closes
+        const valid = closes.map((c, i) => ({ c, t: timestamps[i] })).filter(x => x.c != null);
+        if (valid.length < 2) { results[key] = null; return; }
+
+        // Find Monday of current week (UTC)
+        const now = new Date();
+        const dayOfWeek = now.getUTCDay(); // 0=Sun,1=Mon,...6=Sat
+        const daysFromMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        const monStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysFromMon);
+
+        // Filter candles from Monday onwards
+        const weekCandles = valid.filter(x => x.t * 1000 >= monStart);
+        if (weekCandles.length === 0) { results[key] = null; return; }
+
+        const weekOpen = weekCandles[0].c;
+        const current = valid[valid.length - 1].c;
+        const change = ((current - weekOpen) / weekOpen) * 100;
+
+        results[key] = { change: Math.round(change * 100) / 100, current, open: weekOpen };
+      } catch {
+        results[key] = null;
+      }
+    })
+  );
+  return results;
+}
+
+app.get('/prices', async (c) => {
+  const now = Date.now();
+  if (now - pricesCache.ts < 10 * 60 * 1000 && pricesCache.data) {
+    return c.json(pricesCache.data);
+  }
+  try {
+    const data = await fetchWeeklyChanges();
+    pricesCache = { ts: now, data };
+    return c.json(data);
+  } catch (e) {
+    console.error('prices error', e);
+    if (pricesCache.data) return c.json(pricesCache.data);
+    return c.json({});
+  }
+});
+
+export type AppType = typeof app;
+export default app;
