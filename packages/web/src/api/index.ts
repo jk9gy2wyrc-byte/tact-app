@@ -700,7 +700,6 @@ const app = new Hono()
     return c.json({ ok: true }, 200);
   });
 
-export default app;
 // ─── Economic Calendar (faireconomy.media / ForexFactory data) ───────────────
 let newsCache: { ts: number; data: any[] } = { ts: 0, data: [] };
 
@@ -771,17 +770,14 @@ async function fetchWeeklyChanges() {
         const closes: number[] = result.indicators?.quote?.[0]?.close ?? [];
         const timestamps: number[] = result.timestamps ?? result.timestamp ?? [];
 
-        // Filter out null/undefined closes
         const valid = closes.map((c, i) => ({ c, t: timestamps[i] })).filter(x => x.c != null);
         if (valid.length < 2) { results[key] = null; return; }
 
-        // Find Monday of current week (UTC)
         const now = new Date();
-        const dayOfWeek = now.getUTCDay(); // 0=Sun,1=Mon,...6=Sat
+        const dayOfWeek = now.getUTCDay();
         const daysFromMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
         const monStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysFromMon);
 
-        // Filter candles from Monday onwards
         const weekCandles = valid.filter(x => x.t * 1000 >= monStart);
         if (weekCandles.length === 0) { results[key] = null; return; }
 
@@ -813,3 +809,5 @@ app.get('/prices', async (c) => {
     return c.json({});
   }
 });
+
+export default app;
