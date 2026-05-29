@@ -30,10 +30,12 @@ async function fetchPrices() {
   return r.json();
 }
 
+// ForexFactory times are in EST (UTC-4). User is UTC+3 → +7h shift
 const MONTH_MAP: Record<string, number> = {
   Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11
 };
 
+/** Parse "Thu May 21" + "8:00am" (no leading-zero safe) → Date in UTC+3 */
 function parseFFDateTime(dateStr: string, timeStr: string): Date | null {
   if (!dateStr || !timeStr) return null;
   const t = timeStr.trim().toLowerCase();
@@ -50,19 +52,23 @@ function parseFFDateTime(dateStr: string, timeStr: string): Date | null {
   const day = parseInt(dm[2], 10);
   if (mon === undefined) return null;
   const year = new Date().getFullYear();
+  // Build UTC ms from EST (UTC-4): add 4h to get UTC, then add 3h to get UTC+3
   const estMs = Date.UTC(year, mon, day, h, m, 0) + 4 * 3600_000;
   return new Date(estMs + 3 * 3600_000);
 }
 
+/** Current time as UTC+3 Date */
 function nowUTC3(): Date {
   return new Date(Date.now() + 3 * 3600_000);
 }
 
+/** Start of today (midnight) in UTC+3 */
 function todayStartUTC3(): Date {
   const n = nowUTC3();
   return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()));
 }
 
+/** Show news for today + next 2 days (3 days total) */
 function windowEndUTC3(): Date {
   const today = todayStartUTC3();
   return new Date(today.getTime() + 2 * 86400_000 + 86399_999);
@@ -89,6 +95,7 @@ function NewsWidget() {
   const todayStart = todayStartUTC3();
   const windowEnd = windowEndUTC3();
 
+  // Enrich each item with parsed datetime + filter
   const enriched = (news as any[])
     .map(item => {
       const dt = parseFFDateTime(item.date, item.time);
@@ -104,6 +111,7 @@ function NewsWidget() {
     <div style={{ color: 'var(--text2)', fontSize: 12, padding: '8px 0' }}>No upcoming high-impact news this week.</div>
   );
 
+  // Group by date string
   const grouped: Record<string, typeof enriched> = {};
   for (const item of enriched) {
     const key = item.date;
@@ -116,6 +124,7 @@ function NewsWidget() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {Object.entries(grouped).map(([date, items]) => {
+        // Is any event in this group "live" right now?
         const hasLive = items.some(it => it.dt && Math.abs(it.dt.getTime() - nowMs) <= 15 * 60_000);
         return (
           <div key={date}>
@@ -136,11 +145,12 @@ function NewsWidget() {
                 const isLive = Math.abs(diffMin) <= 15;
                 const isSoon = diffMin > 0 && diffMin <= 120;
 
-                let rowBg = '#1a1d24';
+                let rowBg = '#1a1d24'; // default grey
                 let rowBorder = '#2a2d36';
                 if (isLive) { rowBg = 'rgba(22,163,74,0.13)'; rowBorder = 'rgba(22,163,74,0.5)'; }
                 else if (isSoon) { rowBg = 'rgba(234,179,8,0.07)'; rowBorder = 'rgba(234,179,8,0.25)'; }
 
+                // Format time in UTC+3
                 const localHH = item.dt.getUTCHours().toString().padStart(2, '0');
                 const localMM = item.dt.getUTCMinutes().toString().padStart(2, '0');
                 const localTime = `${localHH}:${localMM}`;
@@ -153,26 +163,31 @@ function NewsWidget() {
                     border: `1px solid ${rowBorder}`,
                     transition: 'background 0.3s',
                   }}>
+                    {/* Impact dot */}
                     <div style={{
                       width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
                       background: item.impact === 'red' ? '#ef4444' : '#f97316',
                       boxShadow: item.impact === 'red' ? '0 0 5px #ef4444aa' : '0 0 5px #f97316aa',
                     }} />
+                    {/* Currency */}
                     <span style={{
                       fontSize: 10, fontWeight: 700, fontFamily: 'monospace',
                       color: '#9ca3af',
                       minWidth: 28,
                     }}>{item.currency}</span>
+                    {/* Time (UTC+3) */}
                     <span style={{
                       fontSize: 10, fontFamily: 'monospace', minWidth: 42,
                       color: isLive ? '#4ade80' : isSoon ? '#facc15' : '#6b7280',
                       fontWeight: isLive || isSoon ? 700 : 400,
                     }}>{localTime}</span>
+                    {/* Title */}
                     <span style={{
                       fontSize: 12, flex: 1,
                       color: isLive ? '#f1f5f9' : isSoon ? '#e2e8f0' : '#94a3b8',
                       fontWeight: isLive ? 600 : 400,
                     }}>{item.title}</span>
+                    {/* Status badge */}
                     {isLive && <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 6px', fontWeight: 700, flexShrink: 0 }}>NOW</span>}
                     {isSoon && !isLive && (
                       <span style={{ fontSize: 9, color: '#facc15', fontFamily: 'monospace', flexShrink: 0 }}>
@@ -211,6 +226,7 @@ function WeeklyChanges() {
     staleTime: 9 * 60 * 1000,
   });
 
+  // Week label: Mon–today
   const now = new Date();
   const dayOfWeek = now.getUTCDay();
   const daysFromMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
@@ -320,26 +336,12 @@ function calcQuickStats(trades: any[]) {
 
 export default function Dashboard() {
   const isMobile = useMobile();
-  const { data: accessData } = useQuery({ queryKey: ['access'], queryFn: checkAccess });
   const { data, isLoading, error } = useQuery({ queryKey: ['stats'], queryFn: fetchStats, refetchInterval: 10000 });
   const { data: liveTrades = [] } = useQuery({ queryKey: ['live-trades'], queryFn: fetchLive, refetchInterval: 10000 });
   const [btTab, setBtTab] = useState('EUR');
 
   if (isLoading) return <div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>;
   if (error || !data) return <div style={{ padding: 32, color: 'var(--red)' }}>Error loading stats</div>;
-
-  if (accessData && !accessData.hasAccess) {
-    return (
-      <div style={{ padding: 48, textAlign: 'center' }}>
-        <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
-          Access Restricted
-        </div>
-        <div style={{ fontSize: 16, color: 'var(--text2)' }}>
-          Manage your plan to get full access
-        </div>
-      </div>
-    );
-  }
 
   const bt = (data as any).btStats;
   const lv = (data as any).lvStats;
@@ -372,14 +374,17 @@ export default function Dashboard() {
         </span>
       </div>
 
+      {/* FOREX NEWS */}
       <Section title="Upcoming High-Impact News · USD / EUR / GBP">
         <NewsWidget />
       </Section>
 
+      {/* WEEKLY CHANGES */}
       <Section title="Weekly Change">
         <WeeklyChanges />
       </Section>
 
+      {/* LIVE — current month */}
       <Section title={`Live — ${currentMonth}`}>
         {currentMonthStats ? (
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -394,6 +399,7 @@ export default function Dashboard() {
         )}
       </Section>
 
+      {/* LIVE — all-time */}
       <Section title="Live — All Time">
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <StatCard label="Total R" value={fmt(lv.totalR)} color={lv.totalR >= 0 ? 'var(--green)' : 'var(--red)'} sub={`${lv.n} trades`} />
@@ -404,6 +410,7 @@ export default function Dashboard() {
         </div>
       </Section>
 
+      {/* BT ALL */}
       <Section title="Backtest — All">
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <StatCard label="Total R" value={fmt(bt.totalR)} color={bt.totalR >= 0 ? 'var(--green)' : 'var(--red)'} sub={`${bt.n} trades`} />
@@ -414,7 +421,9 @@ export default function Dashboard() {
         </div>
       </Section>
 
+      {/* BT BY INSTRUMENT + LIVE BY MONTH — stack on mobile */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
+        {/* BT by instrument */}
         <Section title="Backtest by Instrument">
           <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
             {INSTRUMENTS.map(inst => (
@@ -493,6 +502,7 @@ export default function Dashboard() {
           </div>
         </Section>
 
+        {/* LIVE BY MONTH */}
         <Section title="Live by Month">
           <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table style={{ minWidth: isMobile ? 220 : 300 }}>
