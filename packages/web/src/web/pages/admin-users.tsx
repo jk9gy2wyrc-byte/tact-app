@@ -135,14 +135,20 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                       }}>{u.password}</code>
                     </td>
                     <td style={{ padding: '10px 16px' }}>
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, padding: '2px 10px', borderRadius: 20,
-                        background: u.role === 'admin' ? '#facc1522' : '#4b526322',
-                        color: u.role === 'admin' ? '#facc15' : 'var(--blue)',
-                        border: `1px solid ${u.role === 'admin' ? '#facc1544' : '#4b526344'}`,
-                      }}>
-                        {u.role === 'admin' ? '★ admin' : 'user'}
-                      </span>
+                      <select
+                        value={u.role}
+                        disabled
+                        style={{
+                          fontSize: 10, padding: '2px 8px', borderRadius: 6,
+                          border: '1px solid var(--border)', background: 'var(--surface2)',
+                          color: 'var(--text)', outline: 'none', cursor: 'default',
+                        }}
+                      >
+                        <option value="admin">admin</option>
+                        <option value="user">user</option>
+                        <option value="free">free</option>
+                        <option value="paid">paid</option>
+                      </select>
                     </td>
                     <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)', fontFamily: 'monospace' }}>
                       {fmt(u.createdAt)}
