@@ -7,6 +7,7 @@ import BacktestTrades from "./pages/backtest-trades";
 import BacktestAnalysis from "./pages/backtest-analysis";
 import Charts from "./pages/charts";
 import AdminUsers from "./pages/admin-users";
+import Subscription from "./pages/subscription";
 import { setSession, clearSession, getSession, type Session } from "./lib/session";
 
 // ─── NAV (admin gets extra tab) ──────────────────────────────────────────────
@@ -24,147 +25,25 @@ function buildNav(role: string) {
   return nav;
 }
 
-function NavItem({ path, label }: { path: string; label: string; icon?: string }) {
+function NavItem({ path, label, icon }: { path: string; label: string; icon?: string }) {
   const [active] = useRoute(path === "/" ? "/" : path + "*");
   return (
     <Link href={path}>
       <div style={{
-        display: 'flex', alignItems: 'center', padding: '9px 16px',
-        background: active ? '#1c2030' : 'transparent',
-        borderLeft: active ? '2px solid #4b5263' : '2px solid transparent',
-        cursor: 'pointer', transition: 'background 0.15s',
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 16px', borderRadius: 8,
+        background: active ? 'var(--surface2)' : 'transparent',
         color: active ? 'var(--text)' : 'var(--text2)',
-        fontSize: 13, borderRadius: '0 8px 8px 0', margin: '1px 8px 1px 0',
+        fontSize: 13, fontWeight: active ? 600 : 400,
+        cursor: 'pointer', transition: 'background 0.15s',
       }}>
+        {icon && <span style={{ fontSize: 16 }}>{icon}</span>}
         {label}
       </div>
     </Link>
   );
 }
 
-// ─── LOGIN PAGE ───────────────────────────────────────────────────────────────
-function Login({ onAuth }: { onAuth: (s: Session) => void }) {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [login, setLogin] = useState('');
-  const [pass, setPass] = useState('');
-  const [pass2, setPass2] = useState('');
-  const [err, setErr] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const reset = (m: 'login' | 'register') => { setMode(m); setErr(''); setPass(''); setPass2(''); };
-
-  const submit = async () => {
-    setErr('');
-    if (!login.trim()) return setErr('Введи логін');
-    if (!pass) return setErr('Введи пароль');
-
-    if (mode === 'register') {
-      if (pass !== pass2) return setErr('Паролі не співпадають');
-      if (pass.length < 4) return setErr('Пароль мінімум 4 символи');
-      if (login.length < 3) return setErr('Логін мінімум 3 символи');
-    }
-
-    setLoading(true);
-    try {
-      const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ login: login.trim(), password: pass }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setErr(data.error ?? 'Помилка'); return; }
-      onAuth({ login: data.login, role: data.role, id: data.id });
-    } catch {
-      setErr('Помилка мережі');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: '100%', marginBottom: 10, fontSize: 14,
-    borderRadius: 10, padding: '10px 14px', boxSizing: 'border-box',
-    background: 'var(--surface2)', border: '1px solid var(--border)',
-    color: 'var(--text)', outline: 'none',
-  };
-
-  return (
-    <div style={{
-      minHeight: '100vh', background: 'var(--bg)', display: 'flex',
-      alignItems: 'center', justifyContent: 'center',
-    }}>
-      <div style={{
-        background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: 16, padding: '40px 48px', width: 340,
-      }}>
-        {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '0.04em' }}>TSCT</div>
-          <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>Trading Analysis Tool</div>
-          <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2, opacity: 0.6 }}>(trading strategy crash test)</div>
-        </div>
-
-        {/* Tab */}
-        <div style={{ display: 'flex', marginBottom: 24, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
-          {(['login', 'register'] as const).map(m => (
-            <button key={m} onClick={() => reset(m)} style={{
-              flex: 1, padding: '9px 0', fontSize: 12, fontWeight: 600,
-              background: mode === m ? '#4b5263' : 'transparent',
-              color: mode === m ? '#fff' : 'var(--text2)',
-              border: 'none', cursor: 'pointer', transition: 'background 0.15s',
-            }}>
-              {m === 'login' ? 'Увійти' : 'Зареєструватись'}
-            </button>
-          ))}
-        </div>
-
-        {/* Fields */}
-        <input
-          placeholder="Логін"
-          value={login}
-          onChange={e => { setLogin(e.target.value); setErr(''); }}
-          onKeyDown={e => e.key === 'Enter' && submit()}
-          style={inputStyle}
-          autoFocus
-        />
-        <input
-          type="password"
-          placeholder="Пароль"
-          value={pass}
-          onChange={e => { setPass(e.target.value); setErr(''); }}
-          onKeyDown={e => e.key === 'Enter' && submit()}
-          style={inputStyle}
-        />
-        {mode === 'register' && (
-          <input
-            type="password"
-            placeholder="Пароль ще раз"
-            value={pass2}
-            onChange={e => { setPass2(e.target.value); setErr(''); }}
-            onKeyDown={e => e.key === 'Enter' && submit()}
-            style={inputStyle}
-          />
-        )}
-
-        {err && (
-          <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10, textAlign: 'center' }}>{err}</div>
-        )}
-
-        <button
-          className="btn-primary"
-          onClick={submit}
-          disabled={loading}
-          style={{ width: '100%', borderRadius: 10, padding: '10px 0', marginTop: 4, opacity: loading ? 0.7 : 1 }}
-        >
-          {loading ? '...' : mode === 'login' ? 'Увійти' : 'Створити акаунт'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── MOBILE HOOK ──────────────────────────────────────────────────────────────
 function useIsMobile() {
   const [mobile, setMobile] = useState(() => window.innerWidth < 768);
   useEffect(() => {
@@ -295,7 +174,86 @@ export default function App() {
     setSessionState(null);
   };
 
-  if (!session) return <Login onAuth={handleAuth} />;
+  if (!session) {
+    return (
+      <div style={{
+        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'var(--bg)', color: 'var(--text)',
+      }}>
+        <div style={{
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 16, padding: '32px 40px', width: 320,
+        }}>
+          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 24, textAlign: 'center' }}>TSCT Login</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <input
+              placeholder="Login"
+              id="login-input"
+              style={{
+                width: '100%', fontSize: 14, borderRadius: 10, padding: '12px 14px',
+                boxSizing: 'border-box', background: 'var(--surface2)',
+                border: '1px solid var(--border)', color: 'var(--text)', outline: 'none',
+              }}
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              id="password-input"
+              style={{
+                width: '100%', fontSize: 14, borderRadius: 10, padding: '12px 14px',
+                boxSizing: 'border-box', background: 'var(--surface2)',
+                border: '1px solid var(--border)', color: 'var(--text)', outline: 'none',
+              }}
+            />
+            <button
+              className="btn-primary"
+              onClick={() => {
+                const login = (document.getElementById('login-input') as HTMLInputElement)?.value;
+                const password = (document.getElementById('password-input') as HTMLInputElement)?.value;
+                if (!login || !password) return;
+                fetch('/api/auth/login', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ login, password }),
+                })
+                  .then(r => r.json())
+                  .then(data => {
+                    if (data.error) alert(data.error);
+                    else handleAuth(data);
+                  })
+                  .catch(() => alert('Error'));
+              }}
+              style={{ borderRadius: 10, padding: '12px 0', fontSize: 14 }}
+            >
+              Login
+            </button>
+            <button
+              className="btn-ghost"
+              onClick={() => {
+                const login = (document.getElementById('login-input') as HTMLInputElement)?.value;
+                const password = (document.getElementById('password-input') as HTMLInputElement)?.value;
+                if (!login || !password) return;
+                fetch('/api/auth/register', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ login, password }),
+                })
+                  .then(r => r.json())
+                  .then(data => {
+                    if (data.error) alert(data.error);
+                    else handleAuth(data);
+                  })
+                  .catch(() => alert('Error'));
+              }}
+              style={{ borderRadius: 10, padding: '10px 0', fontSize: 13 }}
+            >
+              Register
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const nav = buildNav(session.role);
 
@@ -328,76 +286,60 @@ export default function App() {
         {isMobile && (
           <button
             onClick={() => setDrawerOpen(false)}
-            style={{ background: 'none', border: 'none', color: 'var(--text2)', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}
+            style={{ background: 'none', border: 'none', color: 'var(--text2)', fontSize: 20, cursor: 'pointer', padding: 0 }}
           >
-            ✕
+            ×
           </button>
         )}
       </div>
-      <nav style={{ paddingTop: 10, flex: 1 }} onClick={() => isMobile && setDrawerOpen(false)}>
-        {nav.map(n => <NavItem key={n.path} {...n} />)}
-      </nav>
+      <div style={{ padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {nav.map(item => (
+          <NavItem key={item.path} path={item.path} label={item.label} icon={item.icon} />
+        ))}
+      </div>
     </>
   );
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)' }}>
+      {/* Mobile drawer */}
+      {isMobile && drawerOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)',
+        }} onClick={() => setDrawerOpen(false)}>
+          <div style={{
+            position: 'absolute', left: 0, top: 0, bottom: 0, width: 240,
+            background: 'var(--surface)', borderRight: '1px solid var(--border)',
+          }} onClick={e => e.stopPropagation()}>
+            <SidebarContent />
+          </div>
+        </div>
+      )}
+
       {/* Desktop sidebar */}
       {!isMobile && (
-        <aside style={{
+        <div style={{
           width: 186, background: 'var(--surface)', borderRight: '1px solid var(--border)',
-          display: 'flex', flexDirection: 'column', flexShrink: 0, position: 'fixed',
-          top: 0, left: 0, height: '100vh', zIndex: 100,
+          position: 'fixed', left: 0, top: 0, bottom: 0,
         }}>
           <SidebarContent />
-        </aside>
+        </div>
       )}
 
-      {/* Mobile drawer overlay */}
-      {isMobile && drawerOpen && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 200,
-            background: 'rgba(0,0,0,0.55)',
-          }}
-          onClick={() => setDrawerOpen(false)}
-        />
-      )}
-
-      {/* Mobile drawer */}
-      {isMobile && (
-        <aside style={{
-          position: 'fixed', top: 0, left: 0, height: '100vh', zIndex: 201,
-          width: 220, background: 'var(--surface)', borderRight: '1px solid var(--border)',
-          display: 'flex', flexDirection: 'column',
-          transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
-          transition: 'transform 0.22s cubic-bezier(.4,0,.2,1)',
-        }}>
-          <SidebarContent />
-        </aside>
-      )}
-
-      {/* Mobile top bar */}
+      {/* Mobile header */}
       {isMobile && (
         <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 150,
-          height: 48, background: 'var(--surface)', borderBottom: '1px solid var(--border)',
-          display: 'flex', alignItems: 'center', padding: '0 16px', gap: 14,
+          position: 'fixed', top: 0, left: 0, right: 0, height: 48,
+          background: 'var(--surface)', borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', padding: '0 16px', zIndex: 100,
         }}>
           <button
-            onClick={() => setDrawerOpen(o => !o)}
-            style={{
-              background: 'none', border: 'none', color: 'var(--text)',
-              fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0,
-              display: 'flex', alignItems: 'center',
-            }}
+            onClick={() => setDrawerOpen(true)}
+            style={{ background: 'none', border: 'none', color: 'var(--text)', fontSize: 20, cursor: 'pointer', padding: 0, marginRight: 12 }}
           >
             ☰
           </button>
-          <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: '0.06em' }}>TSCT</div>
-          <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text2)' }}>
-            {session.login.includes('@') ? session.login.split('@')[0] : session.login}
-          </div>
+          <span style={{ fontSize: 14, fontWeight: 600 }}>TSCT</span>
         </div>
       )}
 
@@ -419,9 +361,7 @@ export default function App() {
               <AdminUsers currentLogin={session.login} />
             </Route>
           )}
-          <Route path="/subscription">
-            <div style={{ padding: 32, color: 'var(--text2)' }}>Subscription — скоро</div>
-          </Route>
+          <Route path="/subscription" component={Subscription} />
         </Switch>
       </main>
 
