@@ -239,7 +239,7 @@ function WeeklyChanges() {
           const entry = (prices as any)?.[key];
           const change: number | null = entry?.change ?? null;
           const isPos = change !== null && change >= 0;
-          const color = change === null ? 'var(--text2)' : isPos ? '#4ade80' : '#f87171';
+          const color = change === null ? 'var(--text2)' : 'var(--text)';
           const arrow = change === null ? '' : isPos ? '▲' : '▼';
 
           return (
