@@ -5,7 +5,7 @@ export default function Subscription() {
   const session = getSession();
   const isAdmin = session?.role === 'admin';
 
-  const [settings, setSettings] = useState({ buttonText: 'Contact Us', buttonUrl: 'mailto:' });
+  const [settings, setSettings] = useState({ buttonText: 'Contact Us', buttonUrl: '' });
   const [showEditModal, setShowEditModal] = useState(false);
   const [editButtonText, setEditButtonText] = useState('');
   const [editButtonUrl, setEditButtonUrl] = useState('');
