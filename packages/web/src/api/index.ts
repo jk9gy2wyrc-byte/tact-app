@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { db } from "./database";
-import { backtestTrades, liveTrades, users, subscriptionSettings } from "./database/schema";
+import { backtestTrades, liveTrades, users } from "./database/schema";
 import { eq, desc, asc, sql } from "drizzle-orm";
 import * as XLSX from "xlsx";
 
@@ -11,23 +11,12 @@ const app = new Hono()
   .basePath('api')
   .use(cors({ origin: (origin) => origin ?? "*", credentials: true }))
 
-  // ─── HEALTH ───────────────────────────────────────────────────────────────
   .get('/health', (c) => c.json({ status: 'ok' }, 200))
 
-  // ─── AUTH: SEED ADMIN + LOGIN + REGISTER ──────────────────────────────────
   .get('/auth/seed', async (c) => {
-    // Ensure admin user exists
     const existing = await db.select().from(users).where(eq(users.login, 'whatif')).get();
     if (!existing) {
       await db.insert(users).values({ login: 'whatif', password: '7777', role: 'admin' });
-    }
-    // Ensure subscription settings exist
-    const subSettings = await db.select().from(subscriptionSettings).limit(1).get();
-    if (!subSettings) {
-      await db.insert(subscriptionSettings).values({
-        buttonText: 'Contact Us',
-        buttonLink: 'mailto:',
-      });
     }
     return c.json({ ok: true }, 200);
   })
@@ -74,7 +63,6 @@ const app = new Hono()
     }
   )
 
-  // ─── ADMIN: list all users ────────────────────────────────────────────────
   .get('/admin/users', async (c) => {
     const asLogin = c.req.query('asLogin');
     const caller = await db.select().from(users).where(eq(users.login, asLogin ?? '')).get();
@@ -92,42 +80,6 @@ const app = new Hono()
     return c.json({ ok: true }, 200);
   })
 
-  // ─── SUBSCRIPTION SETTINGS ───────────────────────────────────────────────────
-  .get('/subscription/settings', async (c) => {
-    const settings = await db.select().from(subscriptionSettings).limit(1).get();
-    if (!settings) {
-      const [created] = await db.insert(subscriptionSettings).values({
-        buttonText: 'Contact Us',
-        buttonLink: 'mailto:',
-      }).returning();
-      return c.json(created, 200);
-    }
-    return c.json(settings, 200);
-  })
-
-  .post('/subscription/settings',
-    zValidator('json', z.object({ buttonText: z.string().min(1).max(100), buttonLink: z.string().min(1).max(500) })),
-    async (c) => {
-      const asLogin = c.req.query('asLogin');
-      const caller = await db.select().from(users).where(eq(users.login, asLogin ?? '')).get();
-      if (!caller || caller.role !== 'admin') return c.json({ error: 'Forbidden' }, 403);
-
-      const { buttonText, buttonLink } = c.req.valid('json');
-      const existing = await db.select().from(subscriptionSettings).limit(1).get();
-      if (existing) {
-        const [updated] = await db.update(subscriptionSettings)
-          .set({ buttonText, buttonLink })
-          .where(eq(subscriptionSettings.id, existing.id))
-          .returning();
-        return c.json(updated, 200);
-      } else {
-        const [created] = await db.insert(subscriptionSettings).values({ buttonText, buttonLink }).returning();
-        return c.json(created, 200);
-      }
-    }
-  )
-
-  // ─── STATS ────────────────────────────────────────────────────────────────
   .get('/stats', async (c) => {
     const uid = Number(c.req.query('userId') ?? 0);
     const bt = await db.select().from(backtestTrades).where(eq(backtestTrades.userId, uid)).orderBy(asc(backtestTrades.id)).all();
@@ -165,7 +117,6 @@ const app = new Hono()
     const btStats = calcStats(bt);
     const lvStats = calcStats(lv);
 
-    // Live by month
     const liveByMonth: Record<string, any> = {};
     for (const t of lv) {
       const m = t.month;
@@ -176,7 +127,6 @@ const app = new Hono()
       liveByMonth[m] = calcStats(liveByMonth[m]);
     }
 
-    // Backtest by instrument
     const btByInst: Record<string, any> = {};
     for (const t of bt) {
       const i = t.instrument;
@@ -187,7 +137,6 @@ const app = new Hono()
       btByInst[i] = calcStats(btByInst[i]);
     }
 
-    // Backtest by instrument + year
     const btByInstYear: Record<string, Record<string, any>> = {};
     for (const t of bt) {
       const i = t.instrument;
@@ -205,7 +154,6 @@ const app = new Hono()
     return c.json({ btStats, lvStats, liveByMonth, btByInst, btByInstYear }, 200);
   })
 
-  // ─── LIVE TRADES ───────────────────────────────────────────────────────────
   .get('/live-trades', async (c) => {
     const uid = Number(c.req.query('userId') ?? 0);
     const trades = await db.select().from(liveTrades).where(eq(liveTrades.userId, uid)).orderBy(desc(liveTrades.id)).all();
@@ -266,7 +214,6 @@ const app = new Hono()
     return c.json({ ok: true }, 200);
   })
 
-  // ─── BACKTEST TRADES ────────────────────────────────────────────────────────
   .get('/backtest-trades', async (c) => {
     const uid = Number(c.req.query('userId') ?? 0);
     const trades = await db.select().from(backtestTrades).where(eq(backtestTrades.userId, uid)).orderBy(asc(backtestTrades.id)).all();
@@ -301,7 +248,6 @@ const app = new Hono()
     return c.json({ ok: true }, 200);
   })
 
-  // ─── XLSX UPLOAD ────────────────────────────────────────────────────────────
   .post('/upload/xlsx', async (c) => {
     const uid = Number(c.req.query('userId') ?? 0);
     const body = await c.req.parseBody();
@@ -333,7 +279,6 @@ const app = new Hono()
     return c.json({ ok: true, inserted: trades.length }, 200);
   })
 
-  // ─── NEWS ─────────────────────────────────────────────────────────────────
   .get('/news', async (c) => {
     const r = await fetch('https://www.forexfactory.com/calendar.php?csv=1');
     const text = await r.text();
@@ -351,7 +296,6 @@ const app = new Hono()
     return c.json(news, 200);
   })
 
-  // ─── PRICES ────────────────────────────────────────────────────────────────
   .get('/prices', async (c) => {
     const EUR = await fetch('https://api.exchangerate-api.com/v4/latest/USD').then(r => r.json()).then(d => ({ change: ((d.rates.EUR - 1) / 1) * 100 }));
     const GBP = await fetch('https://api.exchangerate-api.com/v4/latest/USD').then(r => r.json()).then(d => ({ change: ((d.rates.GBP - 1) / 1) * 100 }));
@@ -360,7 +304,6 @@ const app = new Hono()
     return c.json({ EUR, GBP, XAU, GER }, 200);
   })
 
-  // ─── MC STRESS ─────────────────────────────────────────────────────────────
   .post('/mc-stress',
     zValidator('json', z.object({
       lossAmp: z.number().optional(),
@@ -410,7 +353,6 @@ const app = new Hono()
           let netR = t.netR ?? 0;
           let isWin = netR > 0;
 
-          // Apply stress factors
           if (isWin) {
             netR *= winReduction;
             if (Math.random() < missedWin) netR = 0;
