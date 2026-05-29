@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useMobile } from "../hooks/useMobile";
-import { uidParam } from "../lib/session";
+import { uidParam, getSession } from "../lib/session";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
   BarChart, Bar, Cell, CartesianGrid, LabelList,
@@ -9,6 +9,13 @@ import {
 
 async function fetchLive() {
   const r = await fetch(`/api/live-trades${uidParam()}`);
+  return r.json();
+}
+
+async function checkAccess() {
+  const session = getSession();
+  if (!session) return { hasAccess: false, reason: 'no_session' };
+  const r = await fetch(`/api/auth/access/${session.id}`);
   return r.json();
 }
 
@@ -31,7 +38,6 @@ const monthLabel = (key: string) => {
   return y && m ? `${names[parseInt(m)]} ${y}` : key;
 };
 
-// ── Custom tooltip ────────────────────────────────────────────────────────────
 const ChartTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
@@ -49,7 +55,6 @@ const ChartTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-// ── Stat card ────────────────────────────────────────────────────────────────
 function Stat({ label, value, color }: { label: string; value: string | number; color?: string }) {
   return (
     <div style={{
@@ -64,7 +69,6 @@ function Stat({ label, value, color }: { label: string; value: string | number; 
   );
 }
 
-// ── Section header ───────────────────────────────────────────────────────────
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
@@ -76,34 +80,43 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────────
 export default function LiveAnalysis() {
   const isMobile = useMobile();
+  const { data: accessData } = useQuery({ queryKey: ['access'], queryFn: checkAccess });
   const { data: rawTrades = [], isLoading } = useQuery({ queryKey: ["live-trades"], queryFn: fetchLive });
   const allTrades: any[] = rawTrades as any[];
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
 
   if (isLoading) return <div style={{ padding: 32, color: "var(--text2)" }}>Loading...</div>;
+
+  if (accessData && !accessData.hasAccess) {
+    return (
+      <div style={{ padding: 48, textAlign: 'center' }}>
+        <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
+          Access Restricted
+        </div>
+        <div style={{ fontSize: 16, color: 'var(--text2)' }}>
+          Manage your plan to get full access
+        </div>
+      </div>
+    );
+  }
+
   if (!allTrades.length) return <div style={{ padding: 32, color: "var(--text2)", textAlign: "center" }}>No live trades yet.</div>;
 
-  // ── all months list (for selector) ───────────────────────────────────────
   const allMonthKeys = Array.from(
     new Set(allTrades.map(t => (t.month ?? "").slice(0, 7)).filter(Boolean))
   ).sort();
 
-  // ── active trades = filtered by selected month ────────────────────────────
   const trades = selectedMonth === "all"
     ? allTrades
     : allTrades.filter(t => (t.month ?? "").slice(0, 7) === selectedMonth);
 
-  // ── sort by date asc ──────────────────────────────────────────────────────
   const sorted = [...trades].sort((a, b) => {
     const m = (a.month ?? "").localeCompare(b.month ?? "");
     return m !== 0 ? m : (a.id ?? 0) - (b.id ?? 0);
   });
 
-  // ── Equity curve ─────────────────────────────────────────────────────────
-  // Each trade risks 1% of deposit → pnl% = netR * 1%
   const RISK_PCT = 1;
   let cumPct = 0;
   let cumNet = 0;
@@ -118,14 +131,12 @@ export default function LiveAnalysis() {
     };
   });
 
-  // ── P&L distribution (worst→best) ────────────────────────────────────────
   const distrib = [...sorted]
     .sort((a, b) => (a.netR ?? 0) - (b.netR ?? 0))
     .map((t, i) => ({ i: i + 1, net: t.netR ?? 0 }));
 
   const avgNet = trades.reduce((s, t) => s + (t.netR ?? 0), 0) / trades.length;
 
-  // ── Monthly return ────────────────────────────────────────────────────────
   const monthMap: Record<string, number> = {};
   for (const t of sorted) {
     const key = (t.month ?? "").slice(0, 7);
@@ -137,7 +148,6 @@ export default function LiveAnalysis() {
   const totalNet = Math.round(trades.reduce((s, t) => s + (t.netR ?? 0), 0) * 100) / 100;
   const monthlyData = [...months, { label: "TOTAL", val: totalNet }];
 
-  // ── P&L by market ────────────────────────────────────────────────────────
   const mktMap: Record<string, { net: number; tp: number; total: number }> = {};
   for (const t of sorted) {
     const a = (t.asset ?? "—").toUpperCase();
@@ -155,7 +165,6 @@ export default function LiveAnalysis() {
     }))
     .sort((a, b) => b.net - a.net);
 
-  // ── Stats ─────────────────────────────────────────────────────────────────
   const total = trades.length;
   const tpCount = trades.filter(t => t.result === "tp").length;
   const slCount = trades.filter(t => t.result === "sl").length;
@@ -170,7 +179,6 @@ export default function LiveAnalysis() {
     ? Math.round(Math.abs(wins.reduce((a, b) => a + b, 0) / losses.reduce((a, b) => a + b, 0)) * 100) / 100
     : "∞";
 
-  // Max drawdown
   let peak = 0, dd = 0, maxDd = 0, runCum = 0;
   for (const t of sorted) {
     runCum += t.netR ?? 0;
@@ -179,12 +187,10 @@ export default function LiveAnalysis() {
     if (dd > maxDd) maxDd = dd;
   }
 
-  // Best / worst
   const allNets = trades.map(t => t.netR ?? 0);
   const best = Math.max(...allNets);
   const worst = Math.min(...allNets);
 
-  // Win/loss streak
   const resultsSeq = sorted.map(t => (t.netR ?? 0) > 0);
   let maxWinStreak = 0, maxLossStreak = 0, curWin = 0, curLoss = 0;
   for (const w of resultsSeq) {
@@ -203,7 +209,6 @@ export default function LiveAnalysis() {
 
   return (
     <div style={{ padding: isMobile ? "16px" : "24px 28px", display: "flex", flexDirection: "column", gap: 28 }}>
-      {/* ── HEADER + MONTH SELECTOR ── */}
       <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexDirection: isMobile ? "column" : "row", gap: 12 }}>
         <div style={{ fontSize: 18, fontWeight: 700 }}>Live Analysis</div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -233,7 +238,6 @@ export default function LiveAnalysis() {
         </div>
       </div>
 
-      {/* ── EQUITY CURVE ── */}
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
         <SectionTitle>Equity Curve (Net R)</SectionTitle>
         <ResponsiveContainer width="100%" height={200}>
@@ -274,9 +278,7 @@ export default function LiveAnalysis() {
         </ResponsiveContainer>
       </div>
 
-      {/* ── P&L DISTRIBUTION + P&L BY MARKET ── */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>
-        {/* Distribution */}
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
           <SectionTitle>P&L Distribution (Net R)</SectionTitle>
           <div style={{ fontSize: 10, color: "#888", marginBottom: 8 }}>
@@ -303,7 +305,6 @@ export default function LiveAnalysis() {
           </ResponsiveContainer>
         </div>
 
-        {/* P&L by Market */}
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
           <SectionTitle>P&L by Market (Net R)</SectionTitle>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
@@ -332,7 +333,6 @@ export default function LiveAnalysis() {
         </div>
       </div>
 
-      {/* ── MONTHLY RETURN / DAY BREAKDOWN ── */}
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
         {selectedMonth === "all" ? (
           <>
@@ -368,7 +368,6 @@ export default function LiveAnalysis() {
             </div>
           </>
         ) : (() => {
-          // Per-trade breakdown for selected month
           const dayData = sorted.map((t, i) => ({
             i: i + 1,
             label: `#${t.tradeNum ?? i + 1}`,
@@ -416,7 +415,6 @@ export default function LiveAnalysis() {
         })()}
       </div>
 
-      {/* ── STATS GRID ── */}
       <div>
         <SectionTitle>Statistics</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 10 }}>
@@ -433,7 +431,6 @@ export default function LiveAnalysis() {
           <Stat label="Max Loss Streak" value={maxLossStreak} color="#f0a070" />
           <Stat label="TP / SL / BE" value={`${tpCount} / ${slCount} / ${beCount}`} />
         </div>
-        {/* Longs / Shorts */}
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginTop: 10 }}>
           <div style={{
             background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10,
