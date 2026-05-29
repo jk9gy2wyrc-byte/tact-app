@@ -90,8 +90,10 @@ const app = new Hono()
       if (n === 0) return { n: 0, totalR: 0, wr: 0, avgRR: 0, pf: 0, maxDD: 0, sqn: 0, stdDev: 0 };
       const netrArr = trades.map(t => t.netR ?? 0);
       const totalR = Math.round(netrArr.reduce((a, b) => a + b, 0) * 100) / 100;
-      const wins = trades.filter(t => t.result === 'tp').length;
-      const wr = n > 0 ? wins / n : 0;
+      const fakes = trades.filter(t => t.result === 'fake').length;
+      const tps   = trades.filter(t => t.result === 'tp').length;
+      const wrRaw = fakes > 0 ? fakes / n : tps / n || 0;
+      const wr = wrRaw;
       const rrs = trades.filter(t => t.rr != null && t.rr > 0).map(t => t.rr!);
       const avgRR = rrs.length ? rrs.reduce((a, b) => a + b, 0) / rrs.length : 0;
       const grossWins = netrArr.filter(r => r > 0).reduce((a, b) => a + b, 0);
