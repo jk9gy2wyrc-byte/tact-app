@@ -48,3 +48,11 @@ export const liveTrades = sqliteTable("live_trades", {
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
+
+// Subscription settings (admin-editable)
+export const subscriptionSettings = sqliteTable("subscription_settings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  buttonText: text("button_text").notNull().default("Contact Us"),
+  buttonLink: text("button_link").notNull().default("mailto:"),
+  updatedAt: text("updated_at").default(sql`(datetime('now'))`),
+});
