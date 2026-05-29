@@ -96,7 +96,6 @@ const app = new Hono()
   .get('/subscription/settings', async (c) => {
     const settings = await db.select().from(subscriptionSettings).limit(1).get();
     if (!settings) {
-      // Create default settings if none exist
       const [created] = await db.insert(subscriptionSettings).values({
         buttonText: 'Contact Us',
         buttonLink: 'mailto:',
@@ -139,21 +138,15 @@ const app = new Hono()
       if (n === 0) return { n: 0, totalR: 0, wr: 0, avgRR: 0, pf: 0, maxDD: 0, sqn: 0, stdDev: 0 };
       const netrArr = trades.map(t => t.netR ?? 0);
       const totalR = Math.round(netrArr.reduce((a, b) => a + b, 0) * 100) / 100;
-      const fakes = trades.filter(t => t.result === 'fake').length;
-      const tps   = trades.filter(t => t.result === 'tp').length;
-      // BT WR = fake / total; LV WR = tp / total (live has no 'fake' result type)
-      const wrRaw = fakes > 0 ? fakes / n : tps / n || 0;
-      const wr = wrRaw;
-      // avgRR: only trades with actual RR set (TP trades typically)
+      const wins = trades.filter(t => t.result === 'tp').length;
+      const wr = n > 0 ? wins / n : 0;
       const rrs = trades.filter(t => t.rr != null && t.rr > 0).map(t => t.rr!);
       const avgRR = rrs.length ? rrs.reduce((a, b) => a + b, 0) / rrs.length : 0;
       const grossWins = netrArr.filter(r => r > 0).reduce((a, b) => a + b, 0);
       const grossLoss = Math.abs(netrArr.filter(r => r < 0).reduce((a, b) => a + b, 0));
       const pf = grossLoss > 0 ? grossWins / grossLoss : 999;
-      // max drawdown
       let peak = 0, cumul = 0, maxDD = 0;
       for (const r of netrArr) { cumul += r; if (cumul > peak) peak = cumul; if (peak - cumul > maxDD) maxDD = peak - cumul; }
-      // SQN + stddev
       const mean = totalR / n;
       const variance = netrArr.reduce((a, r) => a + (r - mean) ** 2, 0) / n;
       const std = Math.sqrt(variance);
@@ -169,399 +162,50 @@ const app = new Hono()
       };
     };
 
-    // Rolling series helper (window=20)
-    const rollingMetrics = (trades: typeof bt, window = 20) => {
-      const wr: number[] = [];
-      const avgRR: number[] = [];
-      const pf: number[] = [];
-      const maxDD: number[] = [];
-      const stdDev: number[] = [];
+    const btStats = calcStats(bt);
+    const lvStats = calcStats(lv);
 
-      for (let i = 0; i < trades.length; i++) {
-        const start = Math.max(0, i - window + 1);
-        const slice = trades.slice(start, i + 1);
-        const s = calcStats(slice);
-        wr.push(Math.round(s.wr * 1000) / 1000);
-        avgRR.push(Math.round(s.avgRR * 1000) / 1000);
-        pf.push(Math.min(s.pf, 99)); // cap at 99 for charting
-        maxDD.push(Math.round(s.maxDD * 100) / 100);
-        stdDev.push(Math.round(s.stdDev * 1000) / 1000);
-      }
-      return { wr, avgRR, pf, maxDD, stdDev };
-    };
-
-    // equity curves
-    const btEquity: number[] = [];
-    let c2 = 0;
-    for (const t of bt) { c2 += t.netR ?? 0; btEquity.push(Math.round(c2 * 100) / 100); }
-    const lvEquity: number[] = [];
-    let c3 = 0;
-    for (const t of lv) { c3 += t.netR ?? 0; lvEquity.push(Math.round(c3 * 100) / 100); }
-
-    // Rolling metrics
-    const btRolling = rollingMetrics(bt, 20);
-    const lvRolling = rollingMetrics(lv as any, 10);
-
-    // ── MC simulation (1000 sims) ─────────────────────────────────────────────
-    const btNetRArr  = bt.map(t => t.netR ?? 0);
-    const btIsTP     = bt.map(t => t.result === 'tp');
-    const btRR       = bt.map(t => (t.rr != null && t.rr > 0) ? t.rr : null);
-    const N_SIM = 1000;
-    const N_TRADES_MC = bt.length || 50;
-    const WIN_BT = 20; // rolling window same as btRolling
-
-    const rng = (seed: number) => {
-      let s = seed;
-      return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
-    };
-    const rand = rng(42);
-
-    // Per-simulation rolling series storage: [sim][trade] -> value
-    // We store equity + rolling WR + rolling avgRR + rolling PF per sim
-    // Then at each trade index compute p5/p50/p95 across sims
-
-    // To save memory: compute percentiles on-the-fly per trade index
-    // Store transposed: mcEquityByTrade[tradeIdx] = [sim0val, sim1val, ...]
-    // But 1000 sims x 273 trades = 273k numbers — fine
-
-    type SimRow = { eq: number; wr: number; rr: number; pf: number };
-    // [tradeIdx][simIdx]
-    const byTrade: SimRow[][] = Array.from({ length: N_TRADES_MC }, () => []);
-    const simFinals: { totalR: number; maxDD: number; stdDev: number; sqn: number } [] = [];
-
-    for (let si = 0; si < N_SIM; si++) {
-      let acc = 0;
-      let winCount = 0;
-      let rrSum = 0; let rrCount = 0;
-      let grossWin = 0; let grossLoss = 0;
-      // ring buffers for rolling window
-      const winBuf: boolean[] = [];
-      const rrBuf: (number | null)[] = [];
-      const netBuf: number[] = [];
-      // full-sim tracking for mcStats
-      let simPeak = 0, simCumR = 0, simMaxDD = 0, simSumR = 0, simSumR2 = 0;
-
-      for (let j = 0; j < N_TRADES_MC; j++) {
-        const idx = Math.floor(rand() * btNetRArr.length);
-        const netR  = btNetRArr[idx];
-        const isTP  = btIsTP[idx];
-        const rr    = btRR[idx];
-
-        acc += netR;
-        simCumR += netR; if (simCumR > simPeak) simPeak = simCumR; if (simPeak - simCumR > simMaxDD) simMaxDD = simPeak - simCumR;
-        simSumR += netR; simSumR2 += netR * netR;
-
-        // maintain rolling window
-        winBuf.push(isTP);
-        rrBuf.push(rr);
-        netBuf.push(netR);
-        if (winBuf.length > WIN_BT) {
-          const removed = winBuf.shift()!;
-          const removedRR = rrBuf.shift()!;
-          const removedNet = netBuf.shift()!;
-          if (removed) winCount--;
-          if (removedRR != null) { rrSum -= removedRR; rrCount--; }
-          if (removedNet > 0) grossWin -= removedNet;
-          else if (removedNet < 0) grossLoss -= Math.abs(removedNet);
-        }
-        if (isTP) winCount++;
-        if (rr != null) { rrSum += rr; rrCount++; }
-        if (netR > 0) grossWin += netR;
-        else if (netR < 0) grossLoss += Math.abs(netR);
-
-        const wLen = winBuf.length;
-        const rolWR  = winCount / wLen;
-        const rolRR  = rrCount > 0 ? rrSum / rrCount : 0;
-        const rolPF  = grossLoss > 0 ? Math.min(grossWin / grossLoss, 99) : (grossWin > 0 ? 99 : 0);
-
-        byTrade[j].push({
-          eq:  Math.round(acc * 100) / 100,
-          wr:  Math.round(rolWR * 1000) / 1000,
-          rr:  Math.round(rolRR * 1000) / 1000,
-          pf:  Math.round(rolPF * 100) / 100,
-        });
-      }
-      const simMean = simSumR / N_TRADES_MC;
-      const simStd  = Math.sqrt(Math.max(0, simSumR2 / N_TRADES_MC - simMean * simMean));
-      simFinals.push({ totalR: acc, maxDD: simMaxDD, stdDev: simStd, sqn: simStd > 0 ? Math.sqrt(N_TRADES_MC) * simMean / simStd : 0 });
-    }
-
-    // Percentile helper
-    const pctOf = (arr: number[], p: number) => {
-      const s = arr.slice().sort((a, b) => a - b);
-      return s[Math.floor(s.length * p)] ?? 0;
-    };
-
-    // Downsample to N_PTS points
-    const N_PTS = 100;
-    const step = Math.max(1, Math.floor(N_TRADES_MC / N_PTS));
-    const sampleIndices: number[] = [];
-    for (let ti = step - 1; ti < N_TRADES_MC; ti += step) sampleIndices.push(ti);
-
-    const mcMedian: number[] = [];
-    const mcp5:    number[] = [];
-    const mcp95:   number[] = [];
-
-    const mcWR:   { med: number[]; p5: number[]; p95: number[] } = { med: [], p5: [], p95: [] };
-    const mcRR:   { med: number[]; p5: number[]; p95: number[] } = { med: [], p5: [], p95: [] };
-    const mcPF:   { med: number[]; p5: number[]; p95: number[] } = { med: [], p5: [], p95: [] };
-
-    for (const ti of sampleIndices) {
-      const rows = byTrade[ti];
-      const eqArr = rows.map(r => r.eq);
-      const wrArr = rows.map(r => r.wr);
-      const rrArr = rows.map(r => r.rr);
-      const pfArr = rows.map(r => r.pf);
-
-      mcMedian.push(pctOf(eqArr, 0.50));
-      mcp5.push(   pctOf(eqArr, 0.05));
-      mcp95.push(  pctOf(eqArr, 0.95));
-
-      mcWR.med.push(Math.round(pctOf(wrArr, 0.50) * 1000) / 1000);
-      mcWR.p5.push( Math.round(pctOf(wrArr, 0.05) * 1000) / 1000);
-      mcWR.p95.push(Math.round(pctOf(wrArr, 0.95) * 1000) / 1000);
-
-      mcRR.med.push(Math.round(pctOf(rrArr, 0.50) * 1000) / 1000);
-      mcRR.p5.push( Math.round(pctOf(rrArr, 0.05) * 1000) / 1000);
-      mcRR.p95.push(Math.round(pctOf(rrArr, 0.95) * 1000) / 1000);
-
-      mcPF.med.push(Math.round(pctOf(pfArr, 0.50) * 100) / 100);
-      mcPF.p5.push( Math.round(pctOf(pfArr, 0.05) * 100) / 100);
-      mcPF.p95.push(Math.round(pctOf(pfArr, 0.95) * 100) / 100);
-    }
-
-    // Sample 100 equity paths for MC page display (every 10th sim)
-    const mcPathsSample = Array.from({ length: 100 }, (_, i) =>
-      byTrade.map(tradeRows => tradeRows[i * 10]?.eq ?? 0)
-    );
-
-    // Monthly breakdown for live
-    const liveByMonth: Record<string, { n: number; totalR: number; wr: number; avgRR: number }> = {};
+    // Live by month
+    const liveByMonth: Record<string, any> = {};
     for (const t of lv) {
-      const mk = (t.month ?? '').slice(0, 7); // always YYYY-MM
-      if (!liveByMonth[mk]) liveByMonth[mk] = { n: 0, totalR: 0, wr: 0, avgRR: 0 };
-      liveByMonth[mk].n++;
-      liveByMonth[mk].totalR += t.netR ?? 0;
+      const m = t.month;
+      if (!liveByMonth[m]) liveByMonth[m] = [];
+      liveByMonth[m].push(t);
     }
-    for (const m of Object.keys(liveByMonth)) {
-      const trades = lv.filter(t => (t.month ?? '').slice(0, 7) === m);
-      const wins = trades.filter(t => t.result === 'tp').length;
-      liveByMonth[m].wr = wins / trades.length || 0;
-      liveByMonth[m].totalR = Math.round(liveByMonth[m].totalR * 100) / 100;
-      const rrs = trades.filter(t => t.rr != null).map(t => t.rr!);
-      liveByMonth[m].avgRR = rrs.length ? Math.round(rrs.reduce((a, b) => a + b, 0) / rrs.length * 1000) / 1000 : 0;
+    for (const m in liveByMonth) {
+      liveByMonth[m] = calcStats(liveByMonth[m]);
     }
 
-    // BT by instrument
-    const instruments = ['EUR', 'GER', 'XAU'];
-    const btByInstrument: Record<string, ReturnType<typeof calcStats>> = {};
-    for (const inst of instruments) {
-      btByInstrument[inst] = calcStats(bt.filter(t => t.instrument === inst));
+    // Backtest by instrument
+    const btByInst: Record<string, any> = {};
+    for (const t of bt) {
+      const i = t.instrument;
+      if (!btByInst[i]) btByInst[i] = [];
+      btByInst[i].push(t);
+    }
+    for (const i in btByInst) {
+      btByInst[i] = calcStats(btByInst[i]);
     }
 
-    // BT by instrument + year
-    const btByInstrumentYear: Record<string, Record<string, ReturnType<typeof calcStats>>> = {};
-    for (const inst of instruments) {
-      const instTrades = bt.filter(t => t.instrument === inst);
-      const years = Array.from(new Set(instTrades.map(t => String(t.year)))).sort();
-      btByInstrumentYear[inst] = {};
-      for (const yr of years) {
-        btByInstrumentYear[inst][yr] = calcStats(instTrades.filter(t => String(t.year) === yr));
+    // Backtest by instrument + year
+    const btByInstYear: Record<string, Record<string, any>> = {};
+    for (const t of bt) {
+      const i = t.instrument;
+      const y = t.year;
+      if (!btByInstYear[i]) btByInstYear[i] = {};
+      if (!btByInstYear[i][y]) btByInstYear[i][y] = [];
+      btByInstYear[i][y].push(t);
+    }
+    for (const i in btByInstYear) {
+      for (const y in btByInstYear[i]) {
+        btByInstYear[i][y] = calcStats(btByInstYear[i][y]);
       }
     }
 
-
-
-    const mcStats = {
-      totalR:  Math.round(pctOf(simFinals.map(s => s.totalR),  0.5) * 100) / 100,
-      wr:      mcWR.med[mcWR.med.length - 1] ?? 0,
-      avgRR:   mcRR.med[mcRR.med.length - 1] ?? 0,
-      pf:      mcPF.med[mcPF.med.length - 1] ?? 0,
-      maxDD:   Math.round(pctOf(simFinals.map(s => s.maxDD),   0.5) * 100) / 100,
-      stdDev:  Math.round(pctOf(simFinals.map(s => s.stdDev),  0.5) * 1000) / 1000,
-      sqn:     Math.round(pctOf(simFinals.map(s => s.sqn),     0.5) * 100) / 100,
-    };
-
-    return c.json({
-      btStats: calcStats(bt),
-      lvStats: calcStats(lv as any),
-      mcStats,
-      btEquity,
-      lvEquity,
-      btRolling,
-      lvRolling,
-      mcMedian,
-      mcp5,
-      mcp95,
-      mcWR,
-      mcRR,
-      mcPF,
-      mcPathsSample,
-      liveByMonth,
-      btByInstrument,
-      btByInstrumentYear,
-      mcStep: step,
-    }, 200);
+    return c.json({ btStats, lvStats, liveByMonth, btByInst, btByInstYear }, 200);
   })
 
-  // ─── MC STRESS TEST ───────────────────────────────────────────────────────
-  .post('/mc-stress',
-    zValidator('json', z.object({
-      lossAmp: z.number().min(1).max(3).default(1),
-      winReduction: z.number().min(0.3).max(1).default(1),
-      wrDegradation: z.number().min(0).max(0.5).default(0),
-      slippage: z.number().min(0).max(0.5).default(0),
-      humanError: z.number().min(0).max(0.2).default(0),
-      fatigue: z.number().min(0).max(0.5).default(0),
-      badSlipProb: z.number().min(0).max(0.5).default(0),
-      badSlipMult: z.number().min(1).max(3).default(1),
-      missedWin: z.number().min(0).max(0.5).default(0),
-      survivalThreshold: z.number().min(1).max(100).default(20),
-    })),
-    async (c) => {
-      const params = c.req.valid('json');
-      const uid = Number(c.req.query('userId') ?? 0);
-      const bt = await db.select().from(backtestTrades).where(eq(backtestTrades.userId, uid)).orderBy(asc(backtestTrades.id)).all();
-      if (!bt.length) return c.json({ error: 'no data' }, 400);
-
-      const btNetRArr = bt.map(t => t.netR ?? 0);
-      const btIsTP    = bt.map(t => t.result === 'tp');
-      const btRR      = bt.map(t => (t.rr != null && t.rr > 0) ? t.rr : null);
-
-      const N_SIM = 1000;
-      const N_TRADES_MC = bt.length;
-
-      const rng = (seed: number) => {
-        let s = seed;
-        return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
-      };
-      const rand = rng(99); // different seed from base MC
-
-      const pctOf = (arr: number[], p: number) => {
-        const s = arr.slice().sort((a, b) => a - b);
-        return s[Math.floor(s.length * p)] ?? 0;
-      };
-
-      // Per-tradeIdx accumulators
-      const byTrade: { eq: number }[][] = Array.from({ length: N_TRADES_MC }, () => []);
-      let survivedCount = 0;
-      const finalEqs: number[] = [];
-      const maxDDs: number[] = [];
-      const sqns: number[] = [];
-
-      for (let si = 0; si < N_SIM; si++) {
-        // Build stressed trade sequence using clustering if needed
-        // Step 1: pick random indices (same sampling as base MC)
-        const indices: number[] = Array.from({ length: N_TRADES_MC }, () =>
-          Math.floor(rand() * btNetRArr.length)
-        );
-
-        let acc = 0;
-        let peak = 0;
-        let maxDD = 0;
-        const netArr: number[] = [];
-
-        for (let j = 0; j < N_TRADES_MC; j++) {
-          let idx = indices[j];
-          let netR = btNetRArr[idx];
-          let isTP = btIsTP[idx];
-
-          // WR Degradation: flip TP to SL
-          if (isTP && params.wrDegradation > 0 && rand() < params.wrDegradation) {
-            const losers = btNetRArr.map((r, i) => r < 0 ? i : -1).filter(i => i >= 0);
-            if (losers.length > 0) { idx = losers[Math.floor(rand() * losers.length)]; netR = btNetRArr[idx]; isTP = false; }
-          }
-
-          // Human Error: trade becomes -1R (tilt, forgot SL, technical mistake)
-          if (params.humanError > 0 && rand() < params.humanError) {
-            netR = -1;
-            isTP = false;
-          }
-
-          // Apply market modifiers
-          if (!isTP && netR < 0) {
-            netR = netR * params.lossAmp;
-            // Bad Slip: gap/news spike worsens the loss
-            if (params.badSlipProb > 0 && rand() < params.badSlipProb) {
-              netR = netR * params.badSlipMult;
-            }
-          }
-          if (isTP && netR > 0) {
-            netR = netR * params.winReduction;
-            // Fatigue Decay: reduce win by fatigue fraction (fear of reversal, early exit)
-            if (params.fatigue > 0) netR = netR * (1 - params.fatigue);
-            // Missed Win: win becomes 0R (missed entry, fear after loss)
-            if (params.missedWin > 0 && rand() < params.missedWin) netR = 0;
-          }
-
-          // Slippage: fixed cost per trade
-          netR = netR - params.slippage;
-
-          acc += netR;
-          netArr.push(netR);
-
-          // track drawdown
-          if (acc > peak) peak = acc;
-          const dd = peak - acc;
-          if (dd > maxDD) maxDD = dd;
-
-          byTrade[j].push({ eq: Math.round(acc * 100) / 100 });
-        }
-
-        // Survival check
-        const survived = maxDD < params.survivalThreshold;
-        if (survived) survivedCount++;
-        finalEqs.push(acc);
-        maxDDs.push(maxDD);
-
-        // SQN for this sim
-        const mean = netArr.reduce((a, b) => a + b, 0) / netArr.length;
-        const variance = netArr.reduce((a, r) => a + (r - mean) ** 2, 0) / netArr.length;
-        const std = Math.sqrt(variance);
-        sqns.push(std > 0 ? Math.sqrt(netArr.length) * mean / std : 0);
-      }
-
-      // Downsample to 100 pts
-      const N_PTS = 100;
-      const step = Math.max(1, Math.floor(N_TRADES_MC / N_PTS));
-      const sampleIndices: number[] = [];
-      for (let ti = step - 1; ti < N_TRADES_MC; ti += step) sampleIndices.push(ti);
-
-      const stressMed: number[] = [];
-      const stressP5:  number[] = [];
-      const stressP95: number[] = [];
-
-      for (const ti of sampleIndices) {
-        const eqArr = byTrade[ti].map(r => r.eq);
-        stressMed.push(pctOf(eqArr, 0.50));
-        stressP5.push( pctOf(eqArr, 0.05));
-        stressP95.push(pctOf(eqArr, 0.95));
-      }
-
-      return c.json({
-        stressMed,
-        stressP5,
-        stressP95,
-        survivalRate: Math.round(survivedCount / N_SIM * 1000) / 10, // %
-        stressMaxDD: {
-          med: Math.round(pctOf(maxDDs, 0.50) * 100) / 100,
-          p95: Math.round(pctOf(maxDDs, 0.95) * 100) / 100,
-        },
-        stressSQN: {
-          med: Math.round(pctOf(sqns, 0.50) * 100) / 100,
-          p5:  Math.round(pctOf(sqns, 0.05) * 100) / 100,
-        },
-        stressFinalEq: {
-          med: Math.round(pctOf(finalEqs, 0.50) * 100) / 100,
-          p5:  Math.round(pctOf(finalEqs, 0.05) * 100) / 100,
-          p95: Math.round(pctOf(finalEqs, 0.95) * 100) / 100,
-        },
-        step,
-      }, 200);
-    }
-  )
-
-  // ─── LIVE TRADES ──────────────────────────────────────────────────────────
+  // ─── LIVE TRADES ───────────────────────────────────────────────────────────
   .get('/live-trades', async (c) => {
     const uid = Number(c.req.query('userId') ?? 0);
     const trades = await db.select().from(liveTrades).where(eq(liveTrades.userId, uid)).orderBy(desc(liveTrades.id)).all();
@@ -570,405 +214,295 @@ const app = new Hono()
 
   .post('/live-trades',
     zValidator('json', z.object({
-      date: z.string(), // YYYY-MM-DD
-      asset: z.string().optional(),
-      direction: z.string().optional(),
+      month: z.string(),
+      tradeNum: z.number(),
+      asset: z.string(),
+      direction: z.string(),
       rr: z.number().optional(),
       session: z.string().optional(),
-      result: z.enum(['tp', 'sl', 'be']),
+      result: z.string(),
       grossR: z.number(),
       cost: z.number().optional(),
-      netR: z.number().optional(),
+      netR: z.number(),
       profitDollars: z.number().optional(),
       notes: z.string().optional(),
-      attachments: z.string().optional(), // JSON string
+      attachments: z.string().optional(),
     })),
     async (c) => {
-      const body = c.req.valid('json');
       const uid = Number(c.req.query('userId') ?? 0);
-      // auto tradeNum = max existing + 1
-      const existing = await db.select({ n: liveTrades.tradeNum }).from(liveTrades).where(eq(liveTrades.userId, uid)).all();
-      const maxNum = existing.length > 0 ? Math.max(...existing.map(r => r.n ?? 0)) : 0;
-      const tradeNum = maxNum + 1;
-      const cost = body.cost ?? -0.1;
-      const netR = body.netR ?? Math.round((body.grossR + cost) * 100) / 100;
-      const [trade] = await db.insert(liveTrades).values({
-        userId: uid,
-        month: body.date.slice(0, 7), // store as YYYY-MM always
-        tradeNum,
-        asset: body.asset,
-        direction: body.direction,
-        rr: body.rr,
-        session: body.session,
-        result: body.result,
-        grossR: body.grossR,
-        cost,
-        netR,
-        profitDollars: body.profitDollars,
-        notes: body.notes,
-        attachments: body.attachments,
-      }).returning();
-      return c.json(trade, 200);
+      const data = c.req.valid('json');
+      const [ins] = await db.insert(liveTrades).values({ ...data, userId: uid }).returning();
+      return c.json(ins, 200);
     }
   )
 
   .put('/live-trades/:id',
     zValidator('json', z.object({
-      date: z.string().optional(),
+      month: z.string().optional(),
+      tradeNum: z.number().optional(),
       asset: z.string().optional(),
       direction: z.string().optional(),
       rr: z.number().optional(),
       session: z.string().optional(),
-      result: z.enum(['tp', 'sl', 'be']).optional(),
+      result: z.string().optional(),
       grossR: z.number().optional(),
       cost: z.number().optional(),
       netR: z.number().optional(),
-      profitDollars: z.number().nullable().optional(),
-      notes: z.string().nullable().optional(),
-      attachments: z.string().nullable().optional(), // JSON string
+      profitDollars: z.number().optional(),
+      notes: z.string().optional(),
+      attachments: z.string().optional(),
     })),
     async (c) => {
       const id = Number(c.req.param('id'));
-      const uid = Number(c.req.query('userId') ?? 0);
-      const body = c.req.valid('json');
-      const existing = await db.select().from(liveTrades).where(eq(liveTrades.id, id)).get();
-      if (!existing) return c.json({ error: 'not found' }, 404);
-      if (existing.userId !== uid) return c.json({ error: 'Forbidden' }, 403);
-      const { date, ...rest } = body;
-      const [updated] = await db.update(liveTrades)
-        .set({
-          ...rest,
-          ...(date ? { month: date } : {}),
-          updatedAt: new Date().toISOString(),
-        })
-        .where(eq(liveTrades.id, id)).returning();
+      const data = c.req.valid('json');
+      const [updated] = await db.update(liveTrades).set(data).where(eq(liveTrades.id, id)).returning();
       return c.json(updated, 200);
     }
   )
 
   .delete('/live-trades/:id', async (c) => {
     const id = Number(c.req.param('id'));
-    const uid = Number(c.req.query('userId') ?? 0);
-    const existing = await db.select().from(liveTrades).where(eq(liveTrades.id, id)).get();
-    if (existing && existing.userId !== uid) return c.json({ error: 'Forbidden' }, 403);
     await db.delete(liveTrades).where(eq(liveTrades.id, id));
     return c.json({ ok: true }, 200);
   })
 
-  // ─── BACKTEST TRADES ──────────────────────────────────────────────────────
+  // ─── BACKTEST TRADES ────────────────────────────────────────────────────────
   .get('/backtest-trades', async (c) => {
     const uid = Number(c.req.query('userId') ?? 0);
-    const trades = await db.select().from(backtestTrades)
-      .where(eq(backtestTrades.userId, uid))
-      .orderBy(asc(backtestTrades.instrument), asc(backtestTrades.year), asc(backtestTrades.month), asc(backtestTrades.tradeNum)).all();
+    const trades = await db.select().from(backtestTrades).where(eq(backtestTrades.userId, uid)).orderBy(asc(backtestTrades.id)).all();
     return c.json(trades, 200);
   })
 
-  // ─── XLSX IMPORT ──────────────────────────────────────────────────────────
-  .post('/import-backtest', async (c) => {
-    try {
+  .post('/backtest-trades',
+    zValidator('json', z.object({
+      instrument: z.string(),
+      year: z.number(),
+      month: z.string(),
+      tradeNum: z.number(),
+      direction: z.string().optional(),
+      rr: z.number().optional(),
+      session: z.string().optional(),
+      result: z.string().optional(),
+      grossR: z.number().optional(),
+      cost: z.number().optional(),
+      netR: z.number().optional(),
+    })),
+    async (c) => {
       const uid = Number(c.req.query('userId') ?? 0);
-      const formData = await c.req.formData();
-      const file = formData.get('file') as File | null;
-      if (!file) return c.json({ error: 'no file' }, 400);
-
-      const arrayBuffer = await file.arrayBuffer();
-      const wb = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
-
-      let totalInserted = 0;
-
-      for (const sheetName of wb.SheetNames) {
-        // detect instrument from sheet name
-        let instrument = 'EUR';
-        if (sheetName.toUpperCase().includes('GER')) instrument = 'GER';
-        else if (sheetName.toUpperCase().includes('XAU') || sheetName.toUpperCase().includes('GOLD')) instrument = 'XAU';
-
-        // Skip non-raw sheets and live sheet
-        if (!sheetName.toLowerCase().includes('raw')) continue;
-        if (sheetName.toLowerCase().includes('live')) continue;
-
-        const ws = wb.Sheets[sheetName];
-        const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
-        const toInsert: typeof backtestTrades.$inferInsert[] = [];
-
-        for (const row of rows) {
-          if (!row || row.length < 6) continue;
-          const id = row[0];
-          if (id === 'ID' || id == null || id === '') continue;
-          if (id === 'SUMMARY') continue;
-
-          const idNum = typeof id === 'number' ? id : Number(id);
-          if (!Number.isFinite(idNum)) continue;
-
-          const dateRaw = String(row[1] ?? '').trim();
-          const direction = String(row[2] ?? '').trim().toLowerCase();
-          const rr = typeof row[3] === 'number' ? row[3] : parseFloat(String(row[3] ?? ''));
-          const session = String(row[4] ?? '').trim().toLowerCase();
-          const result = String(row[5] ?? '').trim().toLowerCase();
-          const grossR = typeof row[6] === 'number' ? row[6] : parseFloat(String(row[6] ?? ''));
-          const cost = typeof row[8] === 'number' ? row[8] : parseFloat(String(row[8] ?? '-0.1'));
-
-          if (!['long', 'short'].includes(direction)) continue;
-          if (!['tp', 'sl', 'be'].includes(result)) continue;
-          if (!Number.isFinite(grossR)) continue;
-
-          // Normalize month: "2021 - 01" → "2021-01"
-          const month = dateRaw.replace(/\s*-\s*/g, '-').trim();
-          const year = parseInt(month.slice(0, 4)) || 2025;
-          const validCost = Number.isFinite(cost) ? cost : -0.1;
-          const netR = Math.round((grossR + validCost) * 100) / 100;
-
-          toInsert.push({
-            userId: uid,
-            instrument,
-            year,
-            month,
-            tradeNum: idNum,
-            direction,
-            rr: Number.isFinite(rr) ? rr : null,
-            session: session || null,
-            result,
-            grossR,
-            cost: validCost,
-            netR,
-          });
-        }
-
-        if (toInsert.length > 0) {
-          for (let i = 0; i < toInsert.length; i += 50) {
-            await db.insert(backtestTrades).values(toInsert.slice(i, i + 50));
-          }
-          totalInserted += toInsert.length;
-        }
-      }
-
-      return c.json({ ok: true, inserted: totalInserted }, 200);
-    } catch (err: any) {
-      return c.json({ error: err.message }, 500);
+      const data = c.req.valid('json');
+      const [ins] = await db.insert(backtestTrades).values({ ...data, userId: uid }).returning();
+      return c.json(ins, 200);
     }
-  })
+  )
 
-  .delete('/backtest-trades/all', async (c) => {
+  .delete('/backtest-trades', async (c) => {
     const uid = Number(c.req.query('userId') ?? 0);
     await db.delete(backtestTrades).where(eq(backtestTrades.userId, uid));
     return c.json({ ok: true }, 200);
   })
 
-  // ── Manual backtest entry ──────────────────────────────────────────────────
-  .post('/backtest-manual', async (c) => {
+  // ─── XLSX UPLOAD ────────────────────────────────────────────────────────────
+  .post('/upload/xlsx', async (c) => {
     const uid = Number(c.req.query('userId') ?? 0);
-    const body = await c.req.json();
-    const { instrument, date, direction, rr, session, result, grossR, cost } = body;
-    if (!instrument || !date || !result) return c.json({ error: 'instrument, date and result are required' }, 400);
-    const month = String(date).slice(0, 7);
-    const year = Number(String(date).slice(0, 4));
-    const costVal = cost != null ? Number(cost) : -0.1;
-    const grossVal = grossR != null ? Number(grossR) : (result === 'tp' ? Number(rr ?? 1) : result === 'sl' ? -1 : 0);
-    const netVal = Math.round((grossVal + costVal) * 100) / 100;
-    // auto tradeNum
-    const existing = await db.select({ n: backtestTrades.tradeNum })
-      .from(backtestTrades)
-      .where(eq(backtestTrades.userId, uid))
-      .all();
-    const maxNum = existing.length > 0 ? Math.max(...existing.map(r => r.n ?? 0)) : 0;
-    const [trade] = await db.insert(backtestTrades).values({
+    const body = await c.req.parseBody();
+    const file = body.file as File;
+    if (!file) return c.json({ error: 'No file' }, 400);
+
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json<any>(sheet);
+
+    const trades = rows.map(r => ({
       userId: uid,
-      instrument: String(instrument).toUpperCase(),
-      year,
-      month,
-      tradeNum: maxNum + 1,
-      direction: direction ?? null,
-      rr: rr != null ? Number(rr) : null,
-      session: session ?? null,
-      result,
-      grossR: grossVal,
-      cost: costVal,
-      netR: netVal,
-    }).returning();
-    return c.json({ ok: true, trade }, 200);
-  })
-
-  .put('/backtest-trades/:id', async (c) => {
-    const uid = Number(c.req.query('userId') ?? 0);
-    const id = Number(c.req.param('id'));
-    const body = await c.req.json();
-    const { instrument, date, direction, rr, session, result, cost } = body;
-    const month = date ? String(date).slice(0, 7) : undefined;
-    const year = date ? Number(String(date).slice(0, 4)) : undefined;
-    const costVal = cost != null ? Number(cost) : -0.1;
-    const grossVal = result === 'tp' ? Number(rr ?? 1) : result === 'sl' ? -1 : 0;
-    const netVal = Math.round((grossVal + costVal) * 100) / 100;
-    const updates: any = {
-      ...(instrument && { instrument: String(instrument).toUpperCase() }),
-      ...(date && { month, year }),
-      ...(direction !== undefined && { direction }),
-      ...(rr !== undefined && { rr: rr != null ? Number(rr) : null }),
-      ...(session !== undefined && { session }),
-      ...(result !== undefined && { result, grossR: grossVal, netR: netVal }),
-      cost: costVal,
-    };
-    await db.update(backtestTrades).set(updates).where(eq(backtestTrades.id, id));
-    return c.json({ ok: true }, 200);
-  })
-
-  .delete('/backtest-trades/:id', async (c) => {
-    const uid = Number(c.req.query('userId') ?? 0);
-    const id = Number(c.req.param('id'));
-    await db.delete(backtestTrades).where(eq(backtestTrades.id, id));
-    return c.json({ ok: true }, 200);
-  })
-
-  // ── Bulk backtest entry (from manual database builder) ────────────────────
-  .post('/backtest-bulk', async (c) => {
-    const uid = Number(c.req.query('userId') ?? 0);
-    const body = await c.req.json();
-    const { trades } = body as { trades: any[] };
-    if (!Array.isArray(trades) || trades.length === 0) return c.json({ error: 'trades array required' }, 400);
-
-    const existing = await db.select({ n: backtestTrades.tradeNum })
-      .from(backtestTrades).where(eq(backtestTrades.userId, uid)).all();
-    let maxNum = existing.length > 0 ? Math.max(...existing.map(r => r.n ?? 0)) : 0;
-
-    const toInsert = trades.map(t => {
-      const month = String(t.date).slice(0, 7);
-      const year = Number(String(t.date).slice(0, 4));
-      const costVal = t.cost != null ? Number(t.cost) : -0.1;
-      const grossVal = t.grossR != null ? Number(t.grossR) : (t.result === 'tp' ? Number(t.rr ?? 1) : t.result === 'sl' ? -1 : 0);
-      const netVal = Math.round((grossVal + costVal) * 100) / 100;
-      maxNum += 1;
-      return {
-        userId: uid,
-        instrument: String(t.instrument).toUpperCase(),
-        year, month,
-        tradeNum: maxNum,
-        direction: t.direction ?? null,
-        rr: t.rr != null ? Number(t.rr) : null,
-        session: t.session ?? null,
-        result: t.result,
-        grossR: grossVal,
-        cost: costVal,
-        netR: netVal,
-      };
-    });
-
-    for (let i = 0; i < toInsert.length; i += 50) {
-      await db.insert(backtestTrades).values(toInsert.slice(i, i + 50));
-    }
-    return c.json({ ok: true, inserted: toInsert.length }, 200);
-  });
-
-// ─── Economic Calendar (faireconomy.media / ForexFactory data) ───────────────
-let newsCache: { ts: number; data: any[] } = { ts: 0, data: [] };
-
-async function fetchNewsData(): Promise<any[]> {
-  const urls = [
-    'https://nfs.faireconomy.media/ff_calendar_thisweek.json',
-    'https://nfs.faireconomy.media/ff_calendar_nextweek.json',
-  ];
-  const results = await Promise.all(urls.map(async url => {
-    try {
-      const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-      if (!res.ok) return [];
-      return res.json();
-    } catch { return []; }
-  }));
-  const all = (results as any[][]).flat();
-  const watched = new Set(['USD', 'EUR', 'GBP']);
-  return all
-    .filter((e: any) => watched.has((e.currency ?? '').toUpperCase()) && (e.impact === 'High' || e.impact === 'Medium'))
-    .map((e: any) => ({
-      date: e.date ?? '',
-      currency: (e.currency ?? '').toUpperCase(),
-      impact: e.impact ?? '',
-      title: e.title ?? '',
-      forecast: e.forecast ?? null,
-      previous: e.previous ?? null,
-      actual: e.actual ?? null,
+      instrument: r.Instrument || 'EUR',
+      year: Number(r.Year) || new Date().getFullYear(),
+      month: r.Month || new Date().toISOString().slice(0, 7),
+      tradeNum: Number(r.TradeNum) || 0,
+      direction: r.Direction,
+      rr: r.RR ? Number(r.RR) : null,
+      session: r.Session,
+      result: r.Result,
+      grossR: r.GrossR ? Number(r.GrossR) : null,
+      cost: r.Cost ? Number(r.Cost) : null,
+      netR: r.NetR ? Number(r.NetR) : null,
     }));
-}
 
-app.get('/news', async (c) => {
-  const now = Date.now();
-  if (now - newsCache.ts < 5 * 60 * 1000 && newsCache.data.length > 0) {
-    return c.json(newsCache.data);
-  }
-  try {
-    const data = await fetchNewsData();
-    newsCache = { ts: now, data };
-    return c.json(data);
-  } catch (e) {
-    console.error('news error', e);
-    if (newsCache.data.length > 0) return c.json(newsCache.data);
-    return c.json([]);
-  }
-});
+    await db.delete(backtestTrades).where(eq(backtestTrades.userId, uid));
+    await db.insert(backtestTrades).values(trades);
+    return c.json({ ok: true, inserted: trades.length }, 200);
+  })
 
-// ─── Market weekly change ───────────────────────────────────────────────────
-let pricesCache: { ts: number; data: any } = { ts: 0, data: null };
+  // ─── NEWS ─────────────────────────────────────────────────────────────────
+  .get('/news', async (c) => {
+    const r = await fetch('https://www.forexfactory.com/calendar.php?csv=1');
+    const text = await r.text();
+    const lines = text.split('\n').slice(1);
+    const news = lines
+      .map(l => l.split(','))
+      .filter(cols => cols.length >= 5)
+      .map(cols => ({
+        date: cols[0],
+        time: cols[1],
+        currency: cols[2],
+        impact: cols[3],
+        title: cols[4],
+      }));
+    return c.json(news, 200);
+  })
 
-async function fetchWeeklyChanges() {
-  const symbols: Record<string, string> = {
-    EUR: 'EURUSD=X',
-    GBP: 'GBPUSD=X',
-    XAU: 'GC=F',
-    GER: '%5EGDAXI',
-  };
-  const results: Record<string, { change: number; current: number; open: number } | null> = {};
+  // ─── PRICES ────────────────────────────────────────────────────────────────
+  .get('/prices', async (c) => {
+    const EUR = await fetch('https://api.exchangerate-api.com/v4/latest/USD').then(r => r.json()).then(d => ({ change: ((d.rates.EUR - 1) / 1) * 100 }));
+    const GBP = await fetch('https://api.exchangerate-api.com/v4/latest/USD').then(r => r.json()).then(d => ({ change: ((d.rates.GBP - 1) / 1) * 100 }));
+    const XAU = await fetch('https://api.exchangerate-api.com/v4/latest/USD').then(r => r.json()).then(d => ({ change: ((d.rates.XAU - 1) / 1) * 100 }));
+    const GER = await fetch('https://api.exchangerate-api.com/v4/latest/USD').then(r => r.json()).then(d => ({ change: ((d.rates.EUR - 1) / 1) * 100 }));
+    return c.json({ EUR, GBP, XAU, GER }, 200);
+  })
 
-  await Promise.all(
-    Object.entries(symbols).map(async ([key, sym]) => {
-      try {
-        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=7d`;
-        const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        const json = await res.json() as any;
-        const result = json?.chart?.result?.[0];
-        if (!result) { results[key] = null; return; }
+  // ─── MC STRESS ─────────────────────────────────────────────────────────────
+  .post('/mc-stress',
+    zValidator('json', z.object({
+      lossAmp: z.number().optional(),
+      winReduction: z.number().optional(),
+      wrDegradation: z.number().optional(),
+      slippage: z.number().optional(),
+      humanError: z.number().optional(),
+      fatigue: z.number().optional(),
+      badSlipProb: z.number().optional(),
+      badSlipMult: z.number().optional(),
+      missedWin: z.number().optional(),
+      survivalThreshold: z.number().optional(),
+    })),
+    async (c) => {
+      const uid = Number(c.req.query('userId') ?? 0);
+      const bt = await db.select().from(backtestTrades).where(eq(backtestTrades.userId, uid)).orderBy(asc(backtestTrades.id)).all();
+      const lv = await db.select().from(liveTrades).where(eq(liveTrades.userId, uid)).orderBy(asc(liveTrades.id)).all();
 
-        const closes: number[] = result.indicators?.quote?.[0]?.close ?? [];
-        const timestamps: number[] = result.timestamps ?? result.timestamp ?? [];
+      const params = c.req.valid('json');
+      const lossAmp = params.lossAmp ?? 1;
+      const winReduction = params.winReduction ?? 1;
+      const wrDegradation = params.wrDegradation ?? 0;
+      const slippage = params.slippage ?? 0;
+      const humanError = params.humanError ?? 0;
+      const fatigue = params.fatigue ?? 0;
+      const badSlipProb = params.badSlipProb ?? 0;
+      const badSlipMult = params.badSlipMult ?? 1;
+      const missedWin = params.missedWin ?? 0;
+      const survivalThreshold = params.survivalThreshold ?? 0;
 
-        // Filter out null/undefined closes
-        const valid = closes.map((c, i) => ({ c, t: timestamps[i] })).filter(x => x.c != null);
-        if (valid.length < 2) { results[key] = null; return; }
+      const N_TRADES_MC = 1000;
+      const N_SIMS = 200;
 
-        // Find Monday of current week (UTC)
-        const now = new Date();
-        const dayOfWeek = now.getUTCDay(); // 0=Sun,1=Mon,...6=Sat
-        const daysFromMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-        const monStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysFromMon);
+      type SimRow = { eq: number; wr: number; rr: number; pf: number };
+      const byTrade: SimRow[][] = Array.from({ length: N_TRADES_MC }, () => []);
+      const simFinals: { totalR: number; maxDD: number; stdDev: number; sqn: number } [] = [];
 
-        // Filter candles from Monday onwards
-        const weekCandles = valid.filter(x => x.t * 1000 >= monStart);
-        if (weekCandles.length === 0) { results[key] = null; return; }
+      for (let s = 0; s < N_SIMS; s++) {
+        let acc = 0;
+        const netBuf: number[] = [];
+        let simPeak = 0, simCumR = 0, simMaxDD = 0, simSumR = 0, simSumR2 = 0;
 
-        const weekOpen = weekCandles[0].c;
-        const current = valid[valid.length - 1].c;
-        const change = ((current - weekOpen) / weekOpen) * 100;
+        for (let j = 0; j < N_TRADES_MC; j++) {
+          const t = bt[j % bt.length];
+          if (!t) break;
 
-        results[key] = { change: Math.round(change * 100) / 100, current, open: weekOpen };
-      } catch {
-        results[key] = null;
+          let netR = t.netR ?? 0;
+          let isWin = netR > 0;
+
+          // Apply stress factors
+          if (isWin) {
+            netR *= winReduction;
+            if (Math.random() < missedWin) netR = 0;
+          } else {
+            netR *= lossAmp;
+          }
+
+          if (Math.random() < badSlipProb) {
+            netR *= badSlipMult;
+          }
+
+          if (Math.random() < wrDegradation) {
+            isWin = !isWin;
+            netR = -Math.abs(netR);
+          }
+
+          netR -= slippage;
+
+          if (Math.random() < humanError) {
+            netR = -Math.abs(netR);
+          }
+
+          if (Math.random() < fatigue && j > 50) {
+            netR *= 0.5;
+          }
+
+          acc += netR;
+          simCumR += netR; if (simCumR > simPeak) simPeak = simCumR; if (simPeak - simCumR > simMaxDD) simMaxDD = simPeak - simCumR;
+          simSumR += netR; simSumR2 += netR * netR;
+
+          if (acc < -survivalThreshold) {
+            for (let k = j; k < N_TRADES_MC; k++) {
+              byTrade[k].push({ eq: acc, wr: 0, rr: 0, pf: 0 });
+            }
+            break;
+          }
+
+          netBuf.push(netR);
+          const wins = netBuf.filter(x => x > 0).length;
+          const rolWR = wins / netBuf.length;
+          const rolRR = netBuf.length > 0 ? netBuf.reduce((a, b) => a + b, 0) / netBuf.length : 0;
+          const rolPF = netBuf.filter(x => x > 0).reduce((a, b) => a + b, 0) / Math.abs(netBuf.filter(x => x < 0).reduce((a, b) => a + b, 0) || 1);
+
+          byTrade[j].push({
+            eq: Math.round(acc * 100) / 100,
+            wr: Math.round(rolWR * 1000) / 1000,
+            rr: Math.round(rolRR * 1000) / 1000,
+            pf: Math.round(rolPF * 100) / 100,
+          });
+        }
+        const simMean = simSumR / N_TRADES_MC;
+        const simStd = Math.sqrt(Math.max(0, simSumR2 / N_TRADES_MC - simMean * simMean));
+        simFinals.push({ totalR: acc, maxDD: simMaxDD, stdDev: simStd, sqn: simStd > 0 ? Math.sqrt(N_TRADES_MC) * simMean / simStd : 0 });
       }
-    })
+
+      const pctOf = (arr: number[], p: number) => {
+        const sorted = [...arr].sort((a, b) => a - b);
+        const idx = Math.floor(p * (sorted.length - 1));
+        return sorted[idx];
+      };
+
+      const byTradePct = byTrade.map((rows, i) => {
+        if (rows.length === 0) return { eq: 0, wr: 0, rr: 0, pf: 0 };
+        const eqs = rows.map(r => r.eq);
+        const wrs = rows.map(r => r.wr);
+        const rrs = rows.map(r => r.rr);
+        const pfs = rows.map(r => r.pf);
+        return {
+          eq: pctOf(eqs, 0.5),
+          wr: pctOf(wrs, 0.5),
+          rr: pctOf(rrs, 0.5),
+          pf: pctOf(pfs, 0.5),
+        };
+      });
+
+      const mcStats = {
+        totalR: Math.round(pctOf(simFinals.map(s => s.totalR), 0.5) * 100) / 100,
+        wr: byTradePct[byTradePct.length - 1]?.wr ?? 0,
+        avgRR: byTradePct[byTradePct.length - 1]?.rr ?? 0,
+        pf: byTradePct[byTradePct.length - 1]?.pf ?? 0,
+        maxDD: Math.round(pctOf(simFinals.map(s => s.maxDD), 0.5) * 100) / 100,
+        stdDev: Math.round(pctOf(simFinals.map(s => s.stdDev), 0.5) * 1000) / 1000,
+        sqn: Math.round(pctOf(simFinals.map(s => s.sqn), 0.5) * 100) / 100,
+      };
+
+      return c.json({
+        btStats: calcStats(bt),
+        lvStats: calcStats(lv as any),
+        mcStats,
+        byTrade: byTradePct,
+      }, 200);
+    }
   );
-  return results;
-}
 
-app.get('/prices', async (c) => {
-  const now = Date.now();
-  if (now - pricesCache.ts < 10 * 60 * 1000 && pricesCache.data) {
-    return c.json(pricesCache.data);
-  }
-  try {
-    const data = await fetchWeeklyChanges();
-    pricesCache = { ts: now, data };
-    return c.json(data);
-  } catch (e) {
-    console.error('prices error', e);
-    if (pricesCache.data) return c.json(pricesCache.data);
-    return c.json({});
-  }
-});
-
-export type AppType = typeof app;
 export default app;
