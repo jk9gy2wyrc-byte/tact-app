@@ -4,6 +4,7 @@ import { getSession } from "../lib/session";
 export default function Subscription() {
   const session = getSession();
   const isAdmin = session?.role === 'admin';
+  const userRole = session?.role ?? 'free';
 
   const [settings, setSettings] = useState({ buttonText: 'Contact Us', buttonUrl: '' });
   const [showEditModal, setShowEditModal] = useState(false);
@@ -21,6 +22,20 @@ export default function Subscription() {
   });
   const [showPlansModal, setShowPlansModal] = useState(false);
   const [editPlans, setEditPlans] = useState(plans);
+
+  const getRoleInfo = (role: string) => {
+    switch (role) {
+      case 'admin':
+        return { label: 'Розширені права', color: '#facc15', bg: '#facc1522', border: '#facc1544' };
+      case 'paid':
+        return { label: 'Підписка', color: '#7eb8f7', bg: '#7eb8f722', border: '#7eb8f744' };
+      case 'free':
+      default:
+        return { label: 'Безкоштовний', color: '#9ca3af', bg: '#9ca3af22', border: '#9ca3af44' };
+    }
+  };
+
+  const roleInfo = getRoleInfo(userRole);
 
   useEffect(() => {
     // Load from localStorage
@@ -73,6 +88,29 @@ export default function Subscription() {
   return (
     <div style={{ padding: '24px 28px', maxWidth: 800 }}>
       <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 24 }}>Subscription</div>
+
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 16, padding: 32, marginBottom: 24,
+      }}>
+        <div style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 12 }}>
+          Ваш поточний статус:
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{
+            fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 20,
+            background: roleInfo.bg, color: roleInfo.color,
+            border: `1px solid ${roleInfo.border}`,
+          }}>
+            {roleInfo.label}
+          </span>
+          {userRole === 'free' && (
+            <span style={{ fontSize: 13, color: 'var(--text2)' }}>
+              Оновіть до підписки для повного доступу
+            </span>
+          )}
+        </div>
+      </div>
 
       <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
