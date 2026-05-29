@@ -83,6 +83,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
+// ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 export default function BacktestAnalysis() {
   const isMobile = useMobile();
   const { data: accessData } = useQuery({ queryKey: ['access'], queryFn: checkAccess });
@@ -129,6 +130,7 @@ export default function BacktestAnalysis() {
     return `${inst} · All time`;
   }, [instrument, mode, selectedYear, selectedMonth]);
 
+  // ── compute everything from trades ──────────────────────────────────────────
   const sorted = useMemo(
     () => [...trades].sort((a: any, b: any) => (a.month ?? "").localeCompare(b.month ?? "")),
     [trades]
@@ -245,7 +247,8 @@ export default function BacktestAnalysis() {
 
   if (isLoading) return <div style={{ padding: 32, color: "var(--text2)" }}>Loading...</div>;
 
-  if (accessData && !accessData.hasAccess) {
+  // Check access - admin always has access
+  if (accessData && !accessData.hasAccess && accessData.reason !== 'admin') {
     return (
       <div style={{ padding: 48, textAlign: 'center' }}>
         <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
@@ -264,6 +267,7 @@ export default function BacktestAnalysis() {
     </div>
   );
 
+  // scrollable pill group for mobile
   const ScrollGroup = ({ children }: { children: React.ReactNode }) => (
     <div style={{
       display: "flex", gap: 3,
@@ -278,16 +282,19 @@ export default function BacktestAnalysis() {
 
   return (
     <div style={{ padding: isMobile ? "12px" : "24px 28px", display: "flex", flexDirection: "column", gap: isMobile ? 14 : 20, width: "100%", overflow: "hidden" }}>
+      {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
         <div style={{ fontSize: 18, fontWeight: 700 }}>BT Analysis</div>
         <span style={{ fontSize: 12, color: "var(--text2)" }}>{trades.length} trades</span>
       </div>
 
+      {/* Filters */}
       <div style={{
         display: "flex", flexDirection: "column", gap: 8,
         background: "var(--surface)", border: "1px solid var(--border)",
         borderRadius: 12, padding: isMobile ? "10px 12px" : "14px 16px",
       }}>
+        {/* Row 1: Instrument + View */}
         <div style={{ display: "flex", gap: isMobile ? 6 : 12, alignItems: "center", flexWrap: "wrap" }}>
           <ScrollGroup>
             {INSTRUMENTS.map(i => (
@@ -308,6 +315,7 @@ export default function BacktestAnalysis() {
           </ScrollGroup>
         </div>
 
+        {/* Row 2: Year selector */}
         <ScrollGroup>
           {mode === "year" && (
             <button style={btnStyle(selectedYear === "ALL")} onClick={() => { setSelectedYear("ALL"); setSelectedMonth("ALL"); }}>ALL</button>
@@ -320,6 +328,7 @@ export default function BacktestAnalysis() {
           ))}
         </ScrollGroup>
 
+        {/* Row 3: Month selector — wraps into multiple rows, never overflows */}
         {mode === "month" && (
           <div style={{
             display: "flex", flexWrap: "wrap", gap: 3,
@@ -340,6 +349,7 @@ export default function BacktestAnalysis() {
         <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 14 : 24 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text2)" }}>{analysisTitle}</div>
 
+          {/* Equity Curve */}
           <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
             <SectionTitle>Equity Curve (Net R)</SectionTitle>
             <ResponsiveContainer width="100%" height={isMobile ? 150 : 190}>
@@ -370,6 +380,7 @@ export default function BacktestAnalysis() {
             </ResponsiveContainer>
           </div>
 
+          {/* Distribution + Sessions */}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 14 : 20 }}>
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
               <SectionTitle>P&L Distribution (Net R)</SectionTitle>
@@ -420,6 +431,7 @@ export default function BacktestAnalysis() {
             </div>
           </div>
 
+          {/* Monthly Return */}
           {monthlyData.length > 2 && (
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
               <SectionTitle>Monthly Return (Net R)</SectionTitle>
@@ -452,6 +464,7 @@ export default function BacktestAnalysis() {
             </div>
           )}
 
+          {/* Stats */}
           {stats && (
             <div>
               <SectionTitle>Statistics</SectionTitle>
