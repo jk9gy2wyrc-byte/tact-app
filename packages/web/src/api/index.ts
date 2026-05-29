@@ -699,6 +699,117 @@ const app = new Hono()
     await db.delete(backtestTrades).where(eq(backtestTrades.userId, uid));
     return c.json({ ok: true }, 200);
   });
+// ─── Economic Calendar (faireconomy.media / ForexFactory data) ───────────────
+let newsCache: { ts: number; data: any[] } = { ts: 0, data: [] };
+
+async function fetchNewsData(): Promise<any[]> {
+  const urls = [
+    'https://nfs.faireconomy.media/ff_calendar_thisweek.json',
+    'https://nfs.faireconomy.media/ff_calendar_nextweek.json',
+  ];
+  const results = await Promise.all(urls.map(async url => {
+    try {
+      const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      if (!res.ok) return [];
+      return res.json();
+    } catch { return []; }
+  }));
+  const all = (results as any[][]).flat();
+  const watched = new Set(['USD', 'EUR', 'GBP']);
+  return all
+    .filter((e: any) => watched.has((e.currency ?? '').toUpperCase()) && (e.impact === 'High' || e.impact === 'Medium'))
+    .map((e: any) => ({
+      date: e.date ?? '',
+      currency: (e.currency ?? '').toUpperCase(),
+      impact: e.impact ?? '',
+      title: e.title ?? '',
+      forecast: e.forecast ?? null,
+      previous: e.previous ?? null,
+      actual: e.actual ?? null,
+    }));
+}
+
+app.get('/news', async (c) => {
+  const now = Date.now();
+  if (now - newsCache.ts < 5 * 60 * 1000 && newsCache.data.length > 0) {
+    return c.json(newsCache.data);
+  }
+  try {
+    const data = await fetchNewsData();
+    newsCache = { ts: now, data };
+    return c.json(data);
+  } catch (e) {
+    console.error('news error', e);
+    if (newsCache.data.length > 0) return c.json(newsCache.data);
+    return c.json([]);
+  }
+});
+
+// ─── Market weekly change ───────────────────────────────────────────────────
+let pricesCache: { ts: number; data: any } = { ts: 0, data: null };
+
+async function fetchWeeklyChanges() {
+  const symbols: Record<string, string> = {
+    EUR: 'EURUSD=X',
+    GBP: 'GBPUSD=X',
+    XAU: 'GC=F',
+    GER: '%5EGDAXI',
+  };
+  const results: Record<string, { change: number; current: number; open: number } | null> = {};
+
+  await Promise.all(
+    Object.entries(symbols).map(async ([key, sym]) => {
+      try {
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=7d`;
+        const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        const json = await res.json() as any;
+        const result = json?.chart?.result?.[0];
+        if (!result) { results[key] = null; return; }
+
+        const closes: number[] = result.indicators?.quote?.[0]?.close ?? [];
+        const timestamps: number[] = result.timestamps ?? result.timestamp ?? [];
+
+        const valid = closes.map((c, i) => ({ c, t: timestamps[i] })).filter(x => x.c != null);
+        if (valid.length < 2) { results[key] = null; return; }
+
+        const now = new Date();
+        const dayOfWeek = now.getUTCDay();
+        const daysFromMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        const monStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysFromMon);
+
+        const weekCandles = valid.filter(x => x.t * 1000 >= monStart);
+        if (weekCandles.length === 0) { results[key] = null; return; }
+
+        const weekOpen = weekCandles[0].c;
+        const current = valid[valid.length - 1].c;
+        const change = ((current - weekOpen) / weekOpen) * 100;
+
+        results[key] = { change: Math.round(change * 100) / 100, current, open: weekOpen };
+      } catch {
+        results[key] = null;
+      }
+    })
+  );
+  return results;
+}
+
+app.get('/prices', async (c) => {
+  const now = Date.now();
+  if (now - pricesCache.ts < 10 * 60 * 1000 && pricesCache.data) {
+    return c.json(pricesCache.data);
+  }
+  try {
+    const data = await fetchWeeklyChanges();
+    pricesCache = { ts: now, data };
+    return c.json(data);
+  } catch (e) {
+    console.error('prices error', e);
+    if (pricesCache.data) return c.json(pricesCache.data);
+    return c.json({});
+  }
+});
+
+export default app;
 
 // ─── Economic Calendar (faireconomy.media / ForexFactory data) ───────────────
 let newsCache: { ts: number; data: any[] } = { ts: 0, data: [] };
