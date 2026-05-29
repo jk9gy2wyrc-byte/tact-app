@@ -13,31 +13,30 @@ import { setSession, clearSession, getSession, type Session } from "./lib/sessio
 // ─── NAV (admin gets extra tab) ──────────────────────────────────────────────
 function buildNav(role: string) {
   const nav = [
-    { path: "/", label: "Dashboard", icon: "◻" },
-    { path: "/live", label: "Live Database", icon: "●" },
-    { path: "/live-analysis", label: "Live Analysis", icon: "▲" },
-    { path: "/backtest", label: "Backtest DB", icon: "▦" },
-    { path: "/backtest-analysis", label: "BT Analysis", icon: "▲" },
-    { path: "/charts", label: "Analysis & MC", icon: "↗" },
+    { path: "/", label: "Dashboard" },
+    { path: "/live", label: "Live Database" },
+    { path: "/live-analysis", label: "Live Analysis" },
+    { path: "/backtest", label: "Backtest DB" },
+    { path: "/backtest-analysis", label: "BT Analysis" },
+    { path: "/charts", label: "Analysis & MC" },
   ];
-  if (role === 'admin') nav.push({ path: "/users", label: "Users", icon: "👥" });
-  nav.push({ path: "/subscription", label: "Subscription", icon: "⚡" });
+  if (role === 'admin') nav.push({ path: "/users", label: "Users" });
+  nav.push({ path: "/subscription", label: "Subscription" });
   return nav;
 }
 
-function NavItem({ path, label, icon }: { path: string; label: string; icon?: string }) {
+function NavItem({ path, label }: { path: string; label: string }) {
   const [active] = useRoute(path === "/" ? "/" : path + "*");
   return (
     <Link href={path}>
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        padding: '10px 16px', borderRadius: 8,
-        background: active ? 'var(--surface2)' : 'transparent',
-        color: active ? 'var(--text)' : 'var(--text2)',
-        fontSize: 13, fontWeight: active ? 600 : 400,
+        display: 'flex', alignItems: 'center', padding: '9px 16px',
+        background: active ? '#1c2030' : 'transparent',
+        borderLeft: active ? '2px solid #4b5263' : '2px solid transparent',
         cursor: 'pointer', transition: 'background 0.15s',
+        color: active ? 'var(--text)' : 'var(--text2)',
+        fontSize: 13, borderRadius: '0 8px 8px 0', margin: '1px 8px 1px 0',
       }}>
-        {icon && <span style={{ fontSize: 16 }}>{icon}</span>}
         {label}
       </div>
     </Link>
@@ -158,10 +157,7 @@ export default function App() {
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const isMobile = useIsMobile();
 
-  // Seed admin on mount
   useEffect(() => { fetch('/api/auth/seed').catch(() => {}); }, []);
-
-  // Close drawer on nav (mobile)
   useEffect(() => { if (!isMobile) setDrawerOpen(false); }, [isMobile]);
 
   const handleAuth = (s: Session) => {
@@ -292,17 +288,14 @@ export default function App() {
           </button>
         )}
       </div>
-      <div style={{ padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {nav.map(item => (
-          <NavItem key={item.path} path={item.path} label={item.label} icon={item.icon} />
-        ))}
-      </div>
+      <nav style={{ paddingTop: 10, flex: 1 }} onClick={() => isMobile && setDrawerOpen(false)}>
+        {nav.map(n => <NavItem key={n.path} {...n} />)}
+      </nav>
     </>
   );
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)' }}>
-      {/* Mobile drawer */}
       {isMobile && drawerOpen && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)',
@@ -316,7 +309,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Desktop sidebar */}
       {!isMobile && (
         <div style={{
           width: 186, background: 'var(--surface)', borderRight: '1px solid var(--border)',
@@ -326,7 +318,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Mobile header */}
       {isMobile && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, height: 48,
@@ -343,7 +334,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Main */}
       <main style={{
         marginLeft: isMobile ? 0 : 186,
         marginTop: isMobile ? 48 : 0,
@@ -365,7 +355,6 @@ export default function App() {
         </Switch>
       </main>
 
-      {/* Edit profile modal */}
       {editProfileOpen && (
         <EditProfileModal
           session={session}
