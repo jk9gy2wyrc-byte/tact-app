@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { uidParam } from "../lib/session";
+import { uidParam, getSession } from "../lib/session";
 import { useMobile } from "../hooks/useMobile";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -8,6 +8,13 @@ import {
 
 async function fetchStats() {
   const r = await fetch(`/api/stats${uidParam()}`);
+  return r.json();
+}
+
+async function checkAccess() {
+  const session = getSession();
+  if (!session) return { hasAccess: false, reason: 'no_session' };
+  const r = await fetch(`/api/auth/access/${session.id}`);
   return r.json();
 }
 
@@ -25,10 +32,24 @@ function StatBox({ label, value, color }: { label: string; value: string | numbe
 
 export default function MCSim() {
   const isMobile = useMobile();
+  const { data: accessData } = useQuery({ queryKey: ['access'], queryFn: checkAccess });
   const { data, isLoading, error } = useQuery({ queryKey: ['stats'], queryFn: fetchStats });
 
   if (isLoading) return <div style={{ padding: 32, color: 'var(--text2)' }}>Завантаження...</div>;
   if (error || !data) return <div style={{ padding: 32, color: 'var(--red)' }}>Помилка</div>;
+
+  if (accessData && !accessData.hasAccess) {
+    return (
+      <div style={{ padding: 48, textAlign: 'center' }}>
+        <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
+          Access Restricted
+        </div>
+        <div style={{ fontSize: 16, color: 'var(--text2)' }}>
+          Manage your plan to get full access
+        </div>
+      </div>
+    );
+  }
 
   const d = data as any;
   const mcPathsSample: number[][] = d.mcPathsSample ?? [];
@@ -80,7 +101,6 @@ export default function MCSim() {
         </div>
       </div>
 
-      {/* Stats */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
         <StatBox label="Медіана (p50)" value={`+${fmt(finalMedian)}R`} />
         <StatBox label="p5 (нижня)" value={`${finalP5 >= 0 ? '+' : ''}${fmt(finalP5)}R`} color="#e8830a" />
@@ -91,7 +111,6 @@ export default function MCSim() {
         {finalLive !== null && <StatBox label="Live в p5–p95" value={liveInBand ? 'Так ✓' : 'Ні ✗'} color={liveInBand ? 'var(--green)' : 'var(--red)'} />}
       </div>
 
-      {/* Chart */}
       <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
         borderRadius: 16, padding: isMobile ? '16px 4px 12px 0' : '20px 8px 12px 0', marginBottom: 24,
@@ -132,7 +151,6 @@ export default function MCSim() {
         </div>
       </div>
 
-      {/* Info */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px', fontSize: 12, color: 'var(--text2)', lineHeight: 1.8 }}>
         <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 8, fontSize: 13 }}>Як читати</div>
         <div><b style={{ color: 'var(--text)' }}>Bootstrap MC</b> — кожна симуляція випадково тягне угоди з бектесту і будує equity curve. 1000 кривих = реальний розподіл.</div>
