@@ -21,6 +21,14 @@ const app = new Hono()
     if (!existing) {
       await db.insert(users).values({ login: 'whatif', password: '7777', role: 'admin' });
     }
+    // Ensure subscription settings exist
+    const subSettings = await db.select().from(subscriptionSettings).limit(1).get();
+    if (!subSettings) {
+      await db.insert(subscriptionSettings).values({
+        buttonText: 'Contact Us',
+        buttonLink: 'mailto:',
+      });
+    }
     return c.json({ ok: true }, 200);
   })
 
