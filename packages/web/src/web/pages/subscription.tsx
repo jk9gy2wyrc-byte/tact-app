@@ -1,9 +1,6 @@
 import { getSession } from "../lib/session";
 
 export default function Subscription() {
-  const session = getSession();
-  const isAdmin = session?.role === 'admin';
-
   return (
     <div style={{ padding: '24px 28px', maxWidth: 800 }}>
       <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 24 }}>Subscription</div>
@@ -30,11 +27,6 @@ export default function Subscription() {
           >
             Contact Us
           </a>
-          {isAdmin && (
-            <span style={{ fontSize: 12, color: 'var(--text2)' }}>
-              (Редагування буде доступно після міграції бази даних)
-            </span>
-          )}
         </div>
       </div>
     </div>
