@@ -7,6 +7,9 @@ export const users = sqliteTable("users", {
   login: text("login").notNull().unique(),
   password: text("password").notNull(),
   role: text("role").notNull().default("user"), // "admin" | "user"
+  notes: text("notes"), // admin notes about the user
+  accessExpiryDate: text("access_expiry_date"), // ISO date string when access expires
+  accessStatus: text("access_status").notNull().default("active"), // "active" | "suspended"
   createdAt: text("created_at").default(sql`(datetime('now'))`),
 });
 
