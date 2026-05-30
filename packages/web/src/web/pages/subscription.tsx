@@ -1,27 +1,44 @@
 import { useState, useEffect } from 'react';
 import { getSession } from "../lib/session";
+import {
+  DEFAULT_SUBSCRIPTION_SETTINGS,
+  type SubscriptionPlans,
+  type SubscriptionSettingsPayload,
+} from "../../shared/subscription";
+
+const clonePlans = (plans: SubscriptionPlans): SubscriptionPlans => ({
+  firstPurchase: { ...plans.firstPurchase },
+  monthlyPlans: plans.monthlyPlans.map(p => ({ ...p })),
+});
+
+const cloneConfig = (config: SubscriptionSettingsPayload): SubscriptionSettingsPayload => ({
+  buttonText: config.buttonText,
+  buttonUrl: config.buttonUrl,
+  plans: clonePlans(config.plans),
+});
+
+type SubscriptionApiResponse = SubscriptionSettingsPayload & { updatedAt?: string | null };
 
 export default function Subscription() {
   const session = getSession();
   const isAdmin = session?.role === 'admin';
   const userRole = session?.role ?? 'free';
 
-  const [settings, setSettings] = useState({ buttonText: 'Contact Us', buttonUrl: '' });
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editButtonText, setEditButtonText] = useState('');
-  const [editButtonUrl, setEditButtonUrl] = useState('');
+  const [config, setConfig] = useState<SubscriptionSettingsPayload>(() => cloneConfig(DEFAULT_SUBSCRIPTION_SETTINGS));
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [globalMessage, setGlobalMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const [plans, setPlans] = useState({
-    firstPurchase: { freeWeeks: 1, monthlyPrice: 10 },
-    monthlyPlans: [
-      { months: 1, price: 10 },
-      { months: 3, price: 25 },
-      { months: 6, price: 45 },
-      { months: 12, price: 80 },
-    ],
-  });
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editButtonText, setEditButtonText] = useState(DEFAULT_SUBSCRIPTION_SETTINGS.buttonText);
+  const [editButtonUrl, setEditButtonUrl] = useState(DEFAULT_SUBSCRIPTION_SETTINGS.buttonUrl);
+  const [editModalError, setEditModalError] = useState<string | null>(null);
+
   const [showPlansModal, setShowPlansModal] = useState(false);
-  const [editPlans, setEditPlans] = useState(plans);
+  const [editPlans, setEditPlans] = useState<SubscriptionPlans>(() => clonePlans(DEFAULT_SUBSCRIPTION_SETTINGS.plans));
+  const [plansModalError, setPlansModalError] = useState<string | null>(null);
 
   const getRoleInfo = (role: string) => {
     switch (role) {
@@ -38,56 +55,159 @@ export default function Subscription() {
   const roleInfo = getRoleInfo(userRole);
 
   useEffect(() => {
-    // Load from localStorage
-    const saved = localStorage.getItem('subscriptionSettings');
-    if (saved) {
-      setSettings(JSON.parse(saved));
-    }
-    const savedPlans = localStorage.getItem('subscriptionPlans');
-    if (savedPlans) {
-      setPlans(JSON.parse(savedPlans));
-    }
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch('/api/subscription/settings');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? 'Не вдалося отримати налаштування');
+        if (cancelled) return;
+        const next = cloneConfig(data as SubscriptionApiResponse);
+        setConfig(next);
+        setEditButtonText(next.buttonText);
+        setEditButtonUrl(next.buttonUrl);
+        setEditPlans(clonePlans(next.plans));
+        setUpdatedAt((data as SubscriptionApiResponse).updatedAt ?? null);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Помилка завантаження');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
   }, []);
 
+  const saveConfig = async (nextConfig: SubscriptionSettingsPayload) => {
+    if (!session || !isAdmin) throw new Error('Немає прав для редагування');
+    setSaving(true);
+    setGlobalMessage(null);
+    try {
+      const res = await fetch('/api/subscription/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          asLogin: session.login,
+          buttonText: nextConfig.buttonText,
+          buttonUrl: nextConfig.buttonUrl,
+          plans: nextConfig.plans,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Не вдалося зберегти');
+      const normalized = cloneConfig(data as SubscriptionApiResponse);
+      setConfig(normalized);
+      setEditButtonText(normalized.buttonText);
+      setEditButtonUrl(normalized.buttonUrl);
+      setEditPlans(clonePlans(normalized.plans));
+      setUpdatedAt((data as SubscriptionApiResponse).updatedAt ?? null);
+      setGlobalMessage('Налаштування збережено');
+      return normalized;
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleEdit = () => {
-    setEditButtonText(settings.buttonText);
-    setEditButtonUrl(settings.buttonUrl);
+    setEditModalError(null);
+    setEditButtonText(config.buttonText);
+    setEditButtonUrl(config.buttonUrl);
     setShowEditModal(true);
   };
 
-  const handleSave = () => {
-    const newSettings = { buttonText: editButtonText, buttonUrl: editButtonUrl };
-    setSettings(newSettings);
-    localStorage.setItem('subscriptionSettings', JSON.stringify(newSettings));
-    setShowEditModal(false);
+  const handleSaveButton = async () => {
+    setEditModalError(null);
+    try {
+      await saveConfig({
+        ...config,
+        buttonText: editButtonText.trim() || DEFAULT_SUBSCRIPTION_SETTINGS.buttonText,
+        buttonUrl: editButtonUrl.trim(),
+      });
+      setShowEditModal(false);
+    } catch (err) {
+      setEditModalError(err instanceof Error ? err.message : 'Помилка збереження');
+    }
   };
 
   const handleEditPlans = () => {
-    setEditPlans(JSON.parse(JSON.stringify(plans)));
+    setPlansModalError(null);
+    setEditPlans(clonePlans(config.plans));
     setShowPlansModal(true);
   };
 
-  const handleSavePlans = () => {
-    setPlans(editPlans);
-    localStorage.setItem('subscriptionPlans', JSON.stringify(editPlans));
-    setShowPlansModal(false);
+  const handleSavePlans = async () => {
+    setPlansModalError(null);
+    try {
+      await saveConfig({
+        ...config,
+        plans: clonePlans(editPlans),
+      });
+      setShowPlansModal(false);
+    } catch (err) {
+      setPlansModalError(err instanceof Error ? err.message : 'Помилка збереження планів');
+    }
   };
 
   const updatePlanPrice = (index: number, price: number) => {
-    const newPlans = { ...editPlans };
-    newPlans.monthlyPlans[index].price = price;
-    setEditPlans(newPlans);
+    setEditPlans(prev => {
+      const next = clonePlans(prev);
+      if (next.monthlyPlans[index]) next.monthlyPlans[index].price = Math.max(0, price);
+      return next;
+    });
   };
 
   const updatePlanMonths = (index: number, months: number) => {
-    const newPlans = { ...editPlans };
-    newPlans.monthlyPlans[index].months = months;
-    setEditPlans(newPlans);
+    setEditPlans(prev => {
+      const next = clonePlans(prev);
+      if (next.monthlyPlans[index]) next.monthlyPlans[index].months = Math.max(1, Math.floor(months));
+      return next;
+    });
   };
+
+  const updateFirstPurchase = (key: 'freeWeeks' | 'monthlyPrice', value: number) => {
+    setEditPlans(prev => ({
+      firstPurchase: {
+        ...prev.firstPurchase,
+        [key]: key === 'freeWeeks' ? Math.max(0, Math.floor(value)) : Math.max(0, value),
+      },
+      monthlyPlans: prev.monthlyPlans.map(p => ({ ...p })),
+    }));
+  };
+
+  const contactDisabled = !config.buttonUrl?.trim();
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 800 }}>
       <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 24 }}>Subscription</div>
+
+      {error && (
+        <div style={{
+          background: '#fecaca22', border: '1px solid #f87171', color: '#f87171',
+          borderRadius: 8, padding: '12px 16px', marginBottom: 16, fontSize: 13,
+        }}>
+          {error}
+        </div>
+      )}
+
+      {globalMessage && !error && (
+        <div style={{
+          background: '#4ade8033', border: '1px solid #4ade80', color: '#22c55e',
+          borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12,
+        }}>
+          {globalMessage}
+          {updatedAt && (
+            <span style={{ marginLeft: 8, color: 'var(--text2)' }}>
+              (оновлено {new Date(updatedAt).toLocaleString('uk-UA')})
+            </span>
+          )}
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>Завантаження налаштувань...</div>
+      )}
 
       <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
@@ -121,18 +241,21 @@ export default function Subscription() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <a
-            href={settings.buttonUrl}
+            href={contactDisabled ? undefined : config.buttonUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => contactDisabled && e.preventDefault()}
             style={{
               display: 'inline-block',
-              background: 'var(--primary)', color: '#fff',
+              background: contactDisabled ? 'var(--surface2)' : 'var(--primary)',
+              color: contactDisabled ? 'var(--text2)' : '#fff',
               padding: '12px 24px', borderRadius: 10,
               fontSize: 14, fontWeight: 600, textDecoration: 'none',
-              cursor: 'pointer',
+              cursor: contactDisabled ? 'not-allowed' : 'pointer',
+              opacity: contactDisabled ? 0.6 : 1,
             }}
           >
-            {settings.buttonText}
+            {config.buttonText}
           </a>
           {isAdmin && (
             <button
@@ -250,6 +373,9 @@ export default function Subscription() {
                 }}
               />
             </div>
+            {editModalError && (
+              <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 12 }}>{editModalError}</div>
+            )}
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setShowEditModal(false)}
@@ -262,14 +388,16 @@ export default function Subscription() {
                 Cancel
               </button>
               <button
-                onClick={handleSave}
+                onClick={handleSaveButton}
+                disabled={saving}
                 style={{
                   padding: '10px 20px', borderRadius: 8, border: 'none',
                   background: 'var(--primary)', color: '#fff',
-                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                  fontSize: 14, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer',
+                  opacity: saving ? 0.7 : 1,
                 }}
               >
-                Save
+                {saving ? 'Saving...' : 'Save'}
               </button>
             </div>
           </div>
@@ -303,11 +431,7 @@ export default function Subscription() {
                   <input
                     type="number"
                     value={editPlans.firstPurchase.freeWeeks}
-                    onChange={(e) => {
-                      const newPlans = { ...editPlans };
-                      newPlans.firstPurchase.freeWeeks = Number(e.target.value);
-                      setEditPlans(newPlans);
-                    }}
+                    onChange={(e) => updateFirstPurchase('freeWeeks', Number(e.target.value))}
                     style={{
                       width: '100%', padding: '8px 10px', borderRadius: 6,
                       border: '1px solid var(--border)', background: 'var(--bg)',
@@ -322,11 +446,7 @@ export default function Subscription() {
                   <input
                     type="number"
                     value={editPlans.firstPurchase.monthlyPrice}
-                    onChange={(e) => {
-                      const newPlans = { ...editPlans };
-                      newPlans.firstPurchase.monthlyPrice = Number(e.target.value);
-                      setEditPlans(newPlans);
-                    }}
+                    onChange={(e) => updateFirstPurchase('monthlyPrice', Number(e.target.value))}
                     style={{
                       width: '100%', padding: '8px 10px', borderRadius: 6,
                       border: '1px solid var(--border)', background: 'var(--bg)',
@@ -390,13 +510,15 @@ export default function Subscription() {
               </button>
               <button
                 onClick={handleSavePlans}
+                disabled={saving}
                 style={{
                   padding: '10px 20px', borderRadius: 8, border: 'none',
                   background: 'var(--primary)', color: '#fff',
-                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                  fontSize: 14, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer',
+                  opacity: saving ? 0.7 : 1,
                 }}
               >
-                Save
+                {saving ? 'Saving...' : 'Save'}
               </button>
             </div>
           </div>
