@@ -1,5 +1,28 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+type RoleOptionValue = 'admin' | 'paid' | 'free-trial' | 'free';
+
+const ROLE_OPTIONS: { value: RoleOptionValue; label: string }[] = [
+  { value: 'admin', label: 'Адмін' },
+  { value: 'paid', label: 'Платний' },
+  { value: 'free-trial', label: 'Фрі тріал' },
+  { value: 'free', label: 'Безкоштовний' },
+];
+
+const ROLE_BADGES: Record<RoleOptionValue, { bg: string; border: string; text: string }> = {
+  admin: { bg: '#facc1522', border: '#facc1544', text: '#facc15' },
+  paid: { bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.4)', text: '#7eb8f7' },
+  'free-trial': { bg: 'rgba(250,204,21,0.12)', border: 'rgba(250,204,21,0.3)', text: '#facc15' },
+  free: { bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.35)', text: '#94a3b8' },
+};
+
+const mapBackendRoleToVisual = (role: string): RoleOptionValue => {
+  if (role === 'admin') return 'admin';
+  if (role === 'paid') return 'paid';
+  if (role === 'free-trial' || role === 'trial') return 'free-trial';
+  return 'free';
+};
 
 interface UserRow {
   id: number;
@@ -12,6 +35,8 @@ interface UserRow {
 export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
   const qc = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [roleMenuOpen, setRoleMenuOpen] = useState<number | null>(null);
+  const [draftRoles, setDraftRoles] = useState<Record<number, RoleOptionValue>>({});
 
   const { data, isLoading, error } = useQuery<UserRow[]>({
     queryKey: ['admin-users'],
@@ -34,6 +59,29 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
     },
   });
 
+  const users: UserRow[] = data ?? [];
+
+  useEffect(() => {
+    const close = () => setRoleMenuOpen(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, []);
+
+  useEffect(() => {
+    if (!users.length) return;
+    setDraftRoles((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      users.forEach((u) => {
+        if (next[u.id] == null) {
+          next[u.id] = mapBackendRoleToVisual(u.role);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [users]);
+
 
   const fmt = (dt: string | null) => {
     if (!dt) return '—';
@@ -43,9 +91,8 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
     } catch { return dt; }
   };
 
-  const users = data ?? [];
-  const admins = users.filter(u => u.role === 'admin');
-  const regulars = users.filter(u => u.role !== 'admin');
+  const admins = users.filter((u) => u.role === 'admin');
+  const regulars = users.filter((u) => u.role !== 'admin');
 
   return (
     <div style={{ padding: '24px 28px' }}>
@@ -70,7 +117,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
               { label: 'Всього акаунтів', value: users.length, color: 'var(--text)' },
               { label: 'Адміни', value: admins.length, color: '#facc15' },
               { label: 'Звичайні юзери', value: regulars.length, color: 'var(--text2)' },
-              { label: 'Нових за сьогодні', value: users.filter(u => {
+              { label: 'Нових за сьогодні', value: users.filter((u) => {
                 if (!u.createdAt) return false;
                 const today = new Date().toISOString().slice(0, 10);
                 return u.createdAt.startsWith(today);
@@ -135,20 +182,74 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                       }}>{u.password}</code>
                     </td>
                     <td style={{ padding: '10px 16px' }}>
-                      <select
-                        value={u.role}
-                        disabled
-                        style={{
-                          fontSize: 10, padding: '2px 8px', borderRadius: 6,
-                          border: '1px solid var(--border)', background: 'var(--surface2)',
-                          color: 'var(--text)', outline: 'none', cursor: 'default',
-                        }}
-                      >
-                        <option value="admin">admin</option>
-                        <option value="user">user</option>
-                        <option value="free">free</option>
-                        <option value="paid">paid</option>
-                      </select>
+                      <div style={{ position: 'relative', display: 'inline-flex' }}>
+                        {(() => {
+                          const visualRole = (draftRoles[u.id] ?? mapBackendRoleToVisual(u.role)) as RoleOptionValue;
+                          const meta = ROLE_BADGES[visualRole];
+                          const label = ROLE_OPTIONS.find(opt => opt.value === visualRole)?.label ?? '—';
+                          return (
+                            <>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRoleMenuOpen(prev => prev === u.id ? null : u.id);
+                                }}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 8,
+                                  padding: '6px 12px', borderRadius: 10,
+                                  background: meta.bg, border: `1px solid ${meta.border}`,
+                                  color: meta.text, fontSize: 12, fontWeight: 600,
+                                  cursor: 'pointer', minWidth: 160,
+                                  justifyContent: 'space-between', boxShadow: 'none',
+                                }}
+                              >
+                                <span>{label}</span>
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"
+                                  style={{ transform: roleMenuOpen === u.id ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                                  <path d="M3 4.5L6 7.5L9 4.5" stroke={meta.text} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              </button>
+                              {roleMenuOpen === u.id && (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{
+                                    position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+                                    background: 'var(--surface)', border: '1px solid var(--border)',
+                                    borderRadius: 12, boxShadow: '0 15px 30px rgba(0,0,0,0.4)',
+                                    minWidth: 180, zIndex: 5, padding: 6,
+                                  }}
+                                >
+                                  {ROLE_OPTIONS.map((opt) => {
+                                    const active = opt.value === visualRole;
+                                    return (
+                                      <button
+                                        key={opt.value}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setDraftRoles((prev) => ({ ...prev, [u.id]: opt.value }));
+                                          setRoleMenuOpen(null);
+                                        }}
+                                        style={{
+                                          width: '100%', textAlign: 'left', border: 'none', background: active ? 'var(--surface2)' : 'transparent',
+                                          color: active ? 'var(--text)' : 'var(--text2)', borderRadius: 8,
+                                          padding: '8px 10px', fontSize: 12, fontWeight: active ? 600 : 500,
+                                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
+                                        }}
+                                      >
+                                        {opt.label}
+                                        {active && <span style={{ fontSize: 18, color: '#4ade80' }}>•</span>}
+                                      </button>
+                                    );
+                                  })}
+                                  <div style={{ fontSize: 10, color: 'var(--text3)', padding: '6px 8px 0', borderTop: '1px solid var(--border)', marginTop: 6 }}>
+                                    * Поки що без збереження
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
                     </td>
                     <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)', fontFamily: 'monospace' }}>
                       {fmt(u.createdAt)}
