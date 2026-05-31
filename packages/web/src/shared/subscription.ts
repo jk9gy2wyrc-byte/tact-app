@@ -1,13 +1,22 @@
-export type SubscriptionPlanTier = { months: number; price: number };
+export type SubscriptionPlanTier = {
+  months: number;
+  price: number;
+};
+
 export type SubscriptionPlans = {
-  firstPurchase: { freeWeeks: number; monthlyPrice: number };
+  firstPurchase: {
+    freeWeeks: number;
+    monthlyPrice: number;
+  };
   monthlyPlans: SubscriptionPlanTier[];
 };
+
 export type SubscriptionSettingsPayload = {
   buttonText: string;
   buttonUrl: string;
   plans: SubscriptionPlans;
 };
+
 export const DEFAULT_SUBSCRIPTION_PLANS: SubscriptionPlans = {
   firstPurchase: { freeWeeks: 1, monthlyPrice: 10 },
   monthlyPlans: [
@@ -17,6 +26,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: SubscriptionPlans = {
     { months: 12, price: 80 },
   ],
 };
+
 export const DEFAULT_SUBSCRIPTION_SETTINGS: SubscriptionSettingsPayload = {
   buttonText: "Contact Us",
   buttonUrl: "",
