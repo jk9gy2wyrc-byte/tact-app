@@ -177,6 +177,7 @@ export default function Subscription() {
   };
 
   const contactDisabled = !config.buttonUrl?.trim();
+  const plans = config.plans;
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 800 }}>
