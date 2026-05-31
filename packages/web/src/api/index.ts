@@ -35,6 +35,23 @@ type SubscriptionSettingsResponse = {
   updatedAt: string | null;
 };
 
+let subscriptionTableReady: Promise<void> | null = null;
+
+const ensureSubscriptionTable = async () => {
+  if (!subscriptionTableReady) {
+    subscriptionTableReady = db.run(sql`
+      CREATE TABLE IF NOT EXISTS subscription_settings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        button_text TEXT NOT NULL DEFAULT 'Contact Us',
+        button_url TEXT NOT NULL DEFAULT '',
+        plans_json TEXT NOT NULL DEFAULT '{}',
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `).then(() => {});
+  }
+  return subscriptionTableReady;
+};
+
 const parsePlans = (raw?: string | null): z.infer<typeof subscriptionPlansSchema> => {
   if (!raw) return DEFAULT_SUBSCRIPTION_SETTINGS.plans;
   try {
@@ -53,6 +70,7 @@ const mapSubscriptionRow = (row: SubscriptionSettingsRow): SubscriptionSettingsR
 });
 
 const ensureSubscriptionRow = async (): Promise<SubscriptionSettingsRow> => {
+  await ensureSubscriptionTable();
   const existing = await db.select().from(subscriptionSettings).limit(1).get();
   if (existing) return existing;
   const [created] = await db.insert(subscriptionSettings).values({
