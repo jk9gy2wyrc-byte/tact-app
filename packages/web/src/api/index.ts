@@ -868,15 +868,19 @@ async function fetchNewsData(): Promise<any[]> {
   const watched = new Set(['USD', 'EUR', 'GBP']);
   return all
     .filter((e: any) => watched.has((e.currency ?? '').toUpperCase()) && (e.impact === 'High' || e.impact === 'Medium'))
-    .map((e: any) => ({
-      date: e.date ?? '',
-      currency: (e.currency ?? '').toUpperCase(),
-      impact: e.impact ?? '',
-      title: e.title ?? '',
-      forecast: e.forecast ?? null,
-      previous: e.previous ?? null,
-      actual: e.actual ?? null,
-    }));
+    .map((e: any) => {
+      const impact = (e.impact ?? '').toLowerCase();
+      return {
+        date: e.date ?? '',
+        time: e.time ?? '',
+        currency: (e.currency ?? '').toUpperCase(),
+        impact: impact === 'high' ? 'red' : 'orange',
+        title: e.title ?? '',
+        forecast: e.forecast ?? null,
+        previous: e.previous ?? null,
+        actual: e.actual ?? null,
+      };
+    });
 }
 
 app.get('/news', async (c) => {
