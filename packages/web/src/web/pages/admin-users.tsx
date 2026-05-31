@@ -4,16 +4,16 @@ import { useState, useEffect } from "react";
 type RoleOptionValue = 'admin' | 'paid' | 'free-trial' | 'free';
 
 const ROLE_OPTIONS: { value: RoleOptionValue; label: string }[] = [
-  { value: 'admin', label: 'Адмін' },
-  { value: 'paid', label: 'Платний' },
-  { value: 'free-trial', label: 'Фрі тріал' },
-  { value: 'free', label: 'Безкоштовний' },
+  { value: 'admin', label: 'Expanded rights' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'free-trial', label: 'Free trial' },
+  { value: 'free', label: 'Free' },
 ];
 
 const ROLE_BADGES: Record<RoleOptionValue, { bg: string; border: string; text: string }> = {
   admin: { bg: '#facc1522', border: '#facc1544', text: '#facc15' },
-  paid: { bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.4)', text: '#7eb8f7' },
-  'free-trial': { bg: 'rgba(250,204,21,0.12)', border: 'rgba(250,204,21,0.3)', text: '#facc15' },
+  paid: { bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.35)', text: '#94a3b8' },
+  'free-trial': { bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.35)', text: '#94a3b8' },
   free: { bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.35)', text: '#94a3b8' },
 };
 
@@ -97,7 +97,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
   return (
     <div style={{ padding: '24px 28px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-        <div style={{ fontSize: 18, fontWeight: 700 }}>👥 Users</div>
+        <div style={{ fontSize: 18, fontWeight: 700 }}>Users</div>
         <div style={{
           background: '#facc1522', color: '#facc15', fontSize: 10, fontWeight: 700,
           padding: '2px 10px', borderRadius: 20, border: '1px solid #facc1544',
@@ -179,6 +179,18 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                           const visualRole = (draftRoles[u.id] ?? mapBackendRoleToVisual(u.role)) as RoleOptionValue;
                           const meta = ROLE_BADGES[visualRole];
                           const label = ROLE_OPTIONS.find(opt => opt.value === visualRole)?.label ?? '—';
+                          const isSelfAdmin = u.login === currentLogin && visualRole === 'admin';
+                          if (isSelfAdmin) {
+                            return (
+                              <div style={{
+                                padding: '6px 12px', borderRadius: 10,
+                                background: meta.bg, border: `1px solid ${meta.border}`,
+                                color: meta.text, fontSize: 12, fontWeight: 600,
+                              }}>
+                                {label}
+                              </div>
+                            );
+                          }
                           return (
                             <>
                               <button
