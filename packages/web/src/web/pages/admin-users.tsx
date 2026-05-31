@@ -135,7 +135,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
 
           <div style={{
             background: 'var(--surface)', border: '1px solid var(--border)',
-            borderRadius: 12, overflow: 'hidden',
+            borderRadius: 12, overflow: 'visible',
           }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -144,7 +144,9 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                   <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Логін</th>
                   <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Пароль</th>
                   <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Роль</th>
-                  <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Дата реєстрації</th>
+                  <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>
+                    Дата реєстрації <span style={{ color: 'var(--text3)', fontSize: 10 }}>· UTC+3</span>
+                  </th>
                   <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}></th>
                 </tr>
               </thead>
@@ -158,16 +160,6 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                     <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)' }}>{i + 1}</td>
                     <td style={{ padding: '10px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{
-                          width: 28, height: 28, borderRadius: '50%',
-                          background: u.role === 'admin' ? '#facc1522' : '#4b526322',
-                          border: `1px solid ${u.role === 'admin' ? '#facc1544' : '#4b526344'}`,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 11, fontWeight: 700,
-                          color: u.role === 'admin' ? '#facc15' : 'var(--blue)',
-                        }}>
-                          {u.login[0]?.toUpperCase()}
-                        </div>
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{u.login}</span>
                         {u.login === currentLogin && (
                           <span style={{ fontSize: 9, color: '#4ade80', background: '#4ade8022', padding: '1px 6px', borderRadius: 10 }}>ТИ</span>
