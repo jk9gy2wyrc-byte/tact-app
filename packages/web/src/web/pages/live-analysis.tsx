@@ -487,6 +487,7 @@ export default function LiveAnalysis() {
           </div>
         </div>
       </div>
+      </div>
     </AccessWrapper>
   );
 }
