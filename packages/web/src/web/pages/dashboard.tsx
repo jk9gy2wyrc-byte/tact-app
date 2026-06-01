@@ -132,7 +132,7 @@ function NewsWidget() {
               {hasLive && (
                 <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 5px', fontWeight: 700 }}>LIVE</span>
               )}
-            </div>
+              </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               {items.map((item, i) => {
                 if (!item.dt) return null;
@@ -385,7 +385,7 @@ export default function Dashboard() {
   return (
     <AccessWrapper blocked={trialBlocked}>
       <div style={{ padding: p, maxWidth: 1200, width: '100%', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>Dashboard</div>
         <span style={{ fontSize: 11, color: 'var(--text2)' }}>updates every 10s</span>
         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text2)' }}>
@@ -393,45 +393,45 @@ export default function Dashboard() {
         </span>
       </div>
 
-      {/* FOREX NEWS */}
-      <Section title="Upcoming High-Impact News · USD / EUR / GBP">
-        <NewsWidget />
-      </Section>
+        {/* FOREX NEWS */}
+        <Section title="Upcoming High-Impact News · USD / EUR / GBP">
+          <NewsWidget />
+        </Section>
 
-      {/* WEEKLY CHANGES */}
-      <Section title="Weekly Change">
-        <WeeklyChanges />
-      </Section>
+        {/* WEEKLY CHANGES */}
+        <Section title="Weekly Change">
+          <WeeklyChanges />
+        </Section>
 
-      {/* LIVE — current month */}
-      <Section title={`Live — ${currentMonth}`}>
-        {currentMonthStats ? (
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {/* LIVE — current month */}
+        <Section title={`Live — ${currentMonth}`}>
+          {currentMonthStats ? (
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <StatCard label="Total R" value={fmt(currentMonthStats.totalR)} color={currentMonthStats.totalR >= 0 ? 'var(--green)' : 'var(--red)'} sub={`${currentMonthStats.n} trades`} />
             <StatCard label="Win Rate" value={pct(currentMonthStats.wr)} />
             <StatCard label="Avg RR" value={fmt(currentMonthStats.avgRR)} />
             <StatCard label="Profit Factor" value={currentMonthStats.pf > 99 ? '∞' : fmt(currentMonthStats.pf)} />
             <StatCard label="Max DD" value={fmt(currentMonthStats.maxDD)} color="var(--red)" />
           </div>
-        ) : (
-          <div style={{ color: 'var(--text2)', fontSize: 13, padding: '12px 0' }}>No trades this month yet.</div>
-        )}
-      </Section>
+            ) : (
+              <div style={{ color: 'var(--text2)', fontSize: 13, padding: '12px 0' }}>No trades this month yet.</div>
+            )}
+        </Section>
 
-      {/* LIVE — all-time */}
-      <Section title="Live — All Time">
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {/* LIVE — all-time */}
+        <Section title="Live — All Time">
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <StatCard label="Total R" value={fmt(lv.totalR)} color={lv.totalR >= 0 ? 'var(--green)' : 'var(--red)'} sub={`${lv.n} trades`} />
           <StatCard label="Win Rate" value={pct(lv.wr)} />
           <StatCard label="Avg RR" value={fmt(lv.avgRR)} />
           <StatCard label="Profit Factor" value={lv.pf > 99 ? '∞' : fmt(lv.pf)} />
           <StatCard label="Max DD" value={fmt(lv.maxDD)} color="var(--red)" />
-        </div>
-      </Section>
+          </div>
+        </Section>
 
-      {/* BT ALL */}
-      <Section title="Backtest — All">
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {/* BT ALL */}
+        <Section title="Backtest — All">
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <StatCard label="Total R" value={fmt(bt.totalR)} color={bt.totalR >= 0 ? 'var(--green)' : 'var(--red)'} sub={`${bt.n} trades`} />
           <StatCard label="Win Rate" value={pct(bt.wr)} />
           <StatCard label="Avg RR" value={fmt(bt.avgRR)} />
@@ -440,11 +440,11 @@ export default function Dashboard() {
         </div>
       </Section>
 
-      {/* BT BY INSTRUMENT + LIVE BY MONTH — stack on mobile */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
-        {/* BT by instrument */}
-        <Section title="Backtest by Instrument">
-          <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
+        {/* BT BY INSTRUMENT + LIVE BY MONTH — stack on mobile */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
+          {/* BT by instrument */}
+          <Section title="Backtest by Instrument">
+            <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
             {INSTRUMENTS.map(inst => (
               <button key={inst}
                 className={btTab === inst ? 'btn-primary' : 'btn-ghost'}
@@ -455,8 +455,8 @@ export default function Dashboard() {
             ))}
           </div>
 
-          {btByInst[btTab] && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+            {btByInst[btTab] && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
               {[
                 { label: 'Trades', val: btByInst[btTab].n },
                 { label: 'Total R', val: fmt(btByInst[btTab].totalR), color: btByInst[btTab].totalR >= 0 ? 'var(--green)' : 'var(--red)' },
@@ -469,10 +469,10 @@ export default function Dashboard() {
                   <div className="mono" style={{ fontSize: 15, color: (s as any).color ?? 'var(--text)' }}>{s.val}</div>
                 </div>
               ))}
-            </div>
-          )}
+              </div>
+            )}
 
-          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%' }}>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%' }}>
             <table style={{ minWidth: isMobile ? 260 : 340 }}>
               <thead>
                 <tr><th>Year</th><th>Trades</th><th>Total R</th><th>WR</th><th>Avg RR</th><th>SQN</th></tr>
@@ -495,10 +495,10 @@ export default function Dashboard() {
             </table>
           </div>
 
-          <div style={{ marginTop: 14, fontSize: 11, color: 'var(--text2)', borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-            All instruments
-          </div>
-          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <div style={{ marginTop: 14, fontSize: 11, color: 'var(--text2)', borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+              All instruments
+            </div>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table style={{ minWidth: isMobile ? 220 : 300 }}>
               <thead>
                 <tr><th>Instrument</th><th>Trades</th><th>Total R</th><th>WR</th><th>SQN</th></tr>
@@ -518,12 +518,12 @@ export default function Dashboard() {
                 )}
               </tbody>
             </table>
-          </div>
-        </Section>
+            </div>
+          </Section>
 
-        {/* LIVE BY MONTH */}
-        <Section title="Live by Month">
-          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          {/* LIVE BY MONTH */}
+          <Section title="Live by Month">
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table style={{ minWidth: isMobile ? 220 : 300 }}>
               <thead>
                 <tr><th>Month</th><th>Trades</th><th>Total R</th><th>WR</th><th>Avg RR</th></tr>
@@ -547,10 +547,10 @@ export default function Dashboard() {
                 )}
               </tbody>
             </table>
-          </div>
+            </div>
 
-          {prevMonthStats && currentMonthStats && (
-            <div style={{ marginTop: 14, padding: 12, background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border)', fontSize: 12 }}>
+            {prevMonthStats && currentMonthStats && (
+              <div style={{ marginTop: 14, padding: 12, background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border)', fontSize: 12 }}>
               <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 8 }}>
                 vs prev month ({prevMonth})
               </div>
@@ -572,11 +572,11 @@ export default function Dashboard() {
                   );
                 })}
               </div>
-            </div>
-          )}
-        </Section>
+              </div>
+            )}
+          </Section>
+        </div>
       </div>
-    </div>
     </AccessWrapper>
   );
 }
