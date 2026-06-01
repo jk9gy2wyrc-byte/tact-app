@@ -2,6 +2,8 @@ import { useState, useCallback, useRef } from "react";
 import { useMobile } from "../hooks/useMobile";
 import { useQuery } from "@tanstack/react-query";
 import { uidParam } from "../lib/session";
+import AccessWrapper from "../components/AccessWrapper";
+import { fetchAccess } from "../lib/access";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
@@ -344,6 +346,7 @@ const defaultStress = {
 
 export default function Charts() {
   const isMobile = useMobile();
+  const { data: accessData } = useQuery({ queryKey: ['access'], queryFn: fetchAccess, staleTime: 60_000 });
   const { data, isLoading, error } = useQuery({ queryKey: ['stats'], queryFn: fetchStats });
 
   // ── Equity view mode ───────────────────────────────────────────────────────
@@ -418,6 +421,23 @@ export default function Charts() {
   const isModified = JSON.stringify(stressParams) !== JSON.stringify(defaultStress);
 
   if (isLoading) return <div style={{ padding: 32, color: 'var(--text2)' }}>Завантаження...</div>;
+
+  const trialBlocked = Boolean(accessData && !accessData.hasAccess && accessData.reason === 'trial_expired');
+  const otherDenied = Boolean(accessData && !accessData.hasAccess && accessData.reason !== 'trial_expired' && accessData.reason !== 'admin');
+
+  if (otherDenied) {
+    return (
+      <div style={{ padding: 48, textAlign: 'center' }}>
+        <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
+          Access Restricted
+        </div>
+        <div style={{ fontSize: 16, color: 'var(--text2)' }}>
+          Manage your plan to get full access
+        </div>
+      </div>
+    );
+  }
+
   if (error || !data) return <div style={{ padding: 32, color: 'var(--red)' }}>Помилка</div>;
 
   const d = data as any;
@@ -547,7 +567,8 @@ export default function Charts() {
   const btLinearExpected = btAvgRPerTrade != null ? btAvgRPerTrade * lvEq.length : null;
 
   return (
-    <div style={{ padding: isMobile ? '12px 10px' : '24px 28px', overflowX: 'hidden', boxSizing: 'border-box', width: '100%' }}>
+    <AccessWrapper blocked={trialBlocked}>
+      <div style={{ padding: isMobile ? '12px 10px' : '24px 28px', overflowX: 'hidden', boxSizing: 'border-box', width: '100%' }}>
       <div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 600, marginBottom: isMobile ? 12 : 20 }}>Analysis & MC</div>
 
       {/* LEGEND */}
@@ -1326,5 +1347,6 @@ export default function Charts() {
           </div>
       </div>
     </div>
+    </AccessWrapper>
   );
 }
