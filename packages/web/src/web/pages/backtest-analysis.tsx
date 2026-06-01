@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useMobile } from "../hooks/useMobile";
 import { uidParam, getSession } from "../lib/session";
+import AccessWrapper from "../components/AccessWrapper";
+import { fetchAccess } from "../lib/access";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
   BarChart, Bar, Cell, CartesianGrid, LabelList,
@@ -9,13 +11,6 @@ import {
 
 async function fetchBT() {
   const r = await fetch(`/api/backtest-trades${uidParam()}`);
-  return r.json();
-}
-
-async function checkAccess() {
-  const session = getSession();
-  if (!session) return { hasAccess: false, reason: 'no_session' };
-  const r = await fetch(`/api/auth/access/${session.id}`);
   return r.json();
 }
 
@@ -86,7 +81,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 export default function BacktestAnalysis() {
   const isMobile = useMobile();
-  const { data: accessData } = useQuery({ queryKey: ['access'], queryFn: checkAccess });
+  const { data: accessData } = useQuery({ queryKey: ['access'], queryFn: fetchAccess, staleTime: 60_000 });
   const { data: rawTrades = [], isLoading } = useQuery({ queryKey: ["backtest-trades"], queryFn: fetchBT });
   const all = rawTrades as any[];
 
@@ -247,8 +242,11 @@ export default function BacktestAnalysis() {
 
   if (isLoading) return <div style={{ padding: 32, color: "var(--text2)" }}>Loading...</div>;
 
+  const trialBlocked = Boolean(accessData && !accessData.hasAccess && accessData.reason === 'trial_expired');
+  const otherDenied = Boolean(accessData && !accessData.hasAccess && accessData.reason !== 'trial_expired' && accessData.reason !== 'admin');
+
   // Check access - admin always has access
-  if (accessData && !accessData.hasAccess && accessData.reason !== 'admin') {
+  if (otherDenied) {
     return (
       <div style={{ padding: 48, textAlign: 'center' }}>
         <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
@@ -281,7 +279,8 @@ export default function BacktestAnalysis() {
   );
 
   return (
-    <div style={{ padding: isMobile ? "12px" : "24px 28px", display: "flex", flexDirection: "column", gap: isMobile ? 14 : 20, width: "100%", overflow: "hidden" }}>
+    <AccessWrapper blocked={trialBlocked}>
+      <div style={{ padding: isMobile ? "12px" : "24px 28px", display: "flex", flexDirection: "column", gap: isMobile ? 14 : 20, width: "100%", overflow: "hidden" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
         <div style={{ fontSize: 18, fontWeight: 700 }}>BT Analysis</div>
@@ -518,6 +517,6 @@ export default function BacktestAnalysis() {
           )}
         </div>
       )}
-    </div>
+    </AccessWrapper>
   );
 }
