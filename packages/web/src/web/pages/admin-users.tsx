@@ -59,6 +59,20 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
     },
   });
 
+  const updateRoleMutation = useMutation({
+    mutationFn: async ({ id, role }: { id: number; role: RoleOptionValue }) => {
+      const res = await fetch(`/api/admin/users/${id}?asLogin=${encodeURIComponent(currentLogin)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      });
+      if (!res.ok) throw new Error('Update role failed');
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-users'] });
+    },
+  });
+
   const users: UserRow[] = data ?? [];
 
   useEffect(() => {
@@ -231,6 +245,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setDraftRoles((prev) => ({ ...prev, [u.id]: opt.value }));
+                                          updateRoleMutation.mutate({ id: u.id, role: opt.value });
                                           setRoleMenuOpen(null);
                                         }}
                                         style={{
@@ -245,8 +260,9 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                                       </button>
                                     );
                                   })}
-                                  <div style={{ fontSize: 10, color: 'var(--text3)', padding: '6px 8px 0', borderTop: '1px solid var(--border)', marginTop: 6 }}>
-                                    * Поки що без збереження
+                                  <div style={{ fontSize: 10, color: '#4ade80', padding: '6px 8px 0', borderTop: '1px solid var(--border)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <span style={{ display: 'inline-block', width: 4, height: 4, borderRadius: '50%', background: '#4ade80' }}></span>
+                                    <span>Зберігається автоматично</span>
                                   </div>
                                 </div>
                               )}
