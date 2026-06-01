@@ -96,7 +96,6 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
     });
   }, [users]);
 
-
   const fmt = (dt: string | null) => {
     if (!dt) return '—';
     try {
@@ -134,7 +133,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
               { label: 'Нових за сьогодні', value: users.filter((u) => {
                 if (!u.createdAt) return false;
                 const today = new Date().toISOString().slice(0, 10);
-                return u.createdAt.startsWith(today);
+                return u.createdAt.starts_with(today);
               }).length, color: '#4ade80' },
             ].map(c => (
               <div key={c.label} style={{
