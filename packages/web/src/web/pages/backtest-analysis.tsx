@@ -281,18 +281,17 @@ export default function BacktestAnalysis() {
   return (
     <AccessWrapper blocked={trialBlocked}>
       <div style={{ padding: isMobile ? "12px" : "24px 28px", display: "flex", flexDirection: "column", gap: isMobile ? 14 : 20, width: "100%", overflow: "hidden" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-        <div style={{ fontSize: 18, fontWeight: 700 }}>BT Analysis</div>
-        <span style={{ fontSize: 12, color: "var(--text2)" }}>{trades.length} trades</span>
-      </div>
-
-      {/* Filters */}
-      <div style={{
-        display: "flex", flexDirection: "column", gap: 8,
-        background: "var(--surface)", border: "1px solid var(--border)",
-        borderRadius: 12, padding: isMobile ? "10px 12px" : "14px 16px",
-      }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>BT Analysis</div>
+          <span style={{ fontSize: 12, color: "var(--text2)" }}>{trades.length} trades</span>
+        </div>
+        {/* Filters */}
+        <div style={{
+          display: "flex", flexDirection: "column", gap: 8,
+          background: "var(--surface)", border: "1px solid var(--border)",
+          borderRadius: 12, padding: isMobile ? "10px 12px" : "14px 16px",
+        }}>
         {/* Row 1: Instrument + View */}
         <div style={{ display: "flex", gap: isMobile ? 6 : 12, alignItems: "center", flexWrap: "wrap" }}>
           <ScrollGroup>
@@ -340,25 +339,25 @@ export default function BacktestAnalysis() {
             ))}
           </div>
         )}
-      </div>
+        </div>
 
-      {!trades.length ? (
-        <div style={{ padding: 40, color: "var(--text2)", textAlign: "center" }}>No trades in this selection.</div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 14 : 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text2)" }}>{analysisTitle}</div>
+        {!trades.length ? (
+          <div style={{ padding: 40, color: "var(--text2)", textAlign: "center" }}>No trades in this selection.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 14 : 24 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text2)" }}>{analysisTitle}</div>
 
-          {/* Equity Curve */}
-          <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
-            <SectionTitle>Equity Curve (Net R)</SectionTitle>
-            <ResponsiveContainer width="100%" height={isMobile ? 150 : 190}>
-              <LineChart data={equity} margin={{ top: 12, right: isMobile ? 50 : 70, bottom: 0, left: 0 }}>
+            {/* Equity Curve */}
+            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
+              <SectionTitle>Equity Curve (Net R)</SectionTitle>
+              <ResponsiveContainer width="100%" height={isMobile ? 150 : 190}>
+                <LineChart data={equity} margin={{ top: 12, right: isMobile ? 50 : 70, bottom: 0, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
                 <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#8b9098" }} interval={Math.max(Math.floor(equity.length / (isMobile ? 5 : 8)), 0)} />
                 <YAxis tick={{ fontSize: 9, fill: "#8b9098" }} width={30} />
                 <Tooltip content={<ChartTooltip />} />
                 <ReferenceLine y={0} stroke="#444" strokeDasharray="3 3" />
-                <Line type="monotone" dataKey="net" name="Cum Net R" stroke="#7eb8f7" strokeWidth={1.5} dot={false} isAnimationActive={false}>
+                  <Line type="monotone" dataKey="net" name="Cum Net R" stroke="#7eb8f7" strokeWidth={1.5} dot={false} isAnimationActive={false}>
                   <LabelList
                     dataKey="net"
                     position="right"
@@ -374,14 +373,14 @@ export default function BacktestAnalysis() {
                       );
                     }}
                   />
-                </Line>
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+                  </Line>
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
 
-          {/* Distribution + Sessions */}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 14 : 20 }}>
-            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
+            {/* Distribution + Sessions */}
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 14 : 20 }}>
+              <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
               <SectionTitle>P&L Distribution (Net R)</SectionTitle>
               <div style={{ fontSize: 10, color: "#888", marginBottom: 6 }}>
                 AVG: <span style={{ color: colorNet(stats?.avgNet ?? 0) }}>{(stats?.avgNet ?? 0) >= 0 ? "+" : ""}{(stats?.avgNet ?? 0).toFixed(3)}R</span>
@@ -400,9 +399,9 @@ export default function BacktestAnalysis() {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-            </div>
+              </div>
 
-            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
+              <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
               <SectionTitle>P&L by Session (Net R)</SectionTitle>
               <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: isMobile ? 160 : 220, overflowY: "auto" }}>
                 {sessions.map(m => {
@@ -427,12 +426,12 @@ export default function BacktestAnalysis() {
                   );
                 })}
               </div>
+              </div>
             </div>
-          </div>
 
-          {/* Monthly Return */}
-          {monthlyData.length > 2 && (
-            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
+            {/* Monthly Return */}
+            {monthlyData.length > 2 && (
+              <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
               <SectionTitle>Monthly Return (Net R)</SectionTitle>
               <ResponsiveContainer width="100%" height={isMobile ? 140 : 170}>
                 <BarChart data={monthlyData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
@@ -460,12 +459,12 @@ export default function BacktestAnalysis() {
                   ))}
                 </div>
               )}
-            </div>
-          )}
+              </div>
+            )}
 
-          {/* Stats */}
-          {stats && (
-            <div>
+            {/* Stats */}
+            {stats && (
+              <div>
               <SectionTitle>Statistics</SectionTitle>
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(auto-fill, minmax(130px, 1fr))", gap: isMobile ? 8 : 10 }}>
                 <Stat label="Total Trades" value={stats.total} />
@@ -483,8 +482,8 @@ export default function BacktestAnalysis() {
                 <Stat label="TP / SL / BE" value={`${stats.tpCount} / ${stats.slCount} / ${stats.beCount}`} />
                 {stats.fakeCount > 0 && <Stat label="Fakes" value={stats.fakeCount} color="#a0a8b8" />}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: isMobile ? 8 : 10, marginTop: isMobile ? 8 : 10 }}>
-                <div style={{
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: isMobile ? 8 : 10, marginTop: isMobile ? 8 : 10 }}>
+                  <div style={{
                   background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10,
                   padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center",
                 }}>
@@ -497,8 +496,8 @@ export default function BacktestAnalysis() {
                   <div style={{ fontSize: isMobile ? 11 : 14, fontFamily: "monospace", color: colorNet(stats.longsNet) }}>
                     {stats.longsNet >= 0 ? "+" : ""}{stats.longsNet.toFixed(2)}R
                   </div>
-                </div>
-                <div style={{
+                  </div>
+                  <div style={{
                   background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10,
                   padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center",
                 }}>
@@ -511,12 +510,14 @@ export default function BacktestAnalysis() {
                   <div style={{ fontSize: isMobile ? 11 : 14, fontFamily: "monospace", color: colorNet(stats.shortsNet) }}>
                     {stats.shortsNet >= 0 ? "+" : ""}{stats.shortsNet.toFixed(2)}R
                   </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
+      </div>
     </AccessWrapper>
   );
 }
