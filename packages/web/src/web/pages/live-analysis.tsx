@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useMobile } from "../hooks/useMobile";
 import { uidParam, getSession } from "../lib/session";
+import AccessWrapper from "../components/AccessWrapper";
+import { fetchAccess } from "../lib/access";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
   BarChart, Bar, Cell, CartesianGrid, LabelList,
@@ -9,13 +11,6 @@ import {
 
 async function fetchLive() {
   const r = await fetch(`/api/live-trades${uidParam()}`);
-  return r.json();
-}
-
-async function checkAccess() {
-  const session = getSession();
-  if (!session) return { hasAccess: false, reason: 'no_session' };
-  const r = await fetch(`/api/auth/access/${session.id}`);
   return r.json();
 }
 
@@ -86,15 +81,18 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function LiveAnalysis() {
   const isMobile = useMobile();
-  const { data: accessData } = useQuery({ queryKey: ['access'], queryFn: checkAccess });
+  const { data: accessData } = useQuery({ queryKey: ['access'], queryFn: fetchAccess, staleTime: 60_000 });
   const { data: rawTrades = [], isLoading } = useQuery({ queryKey: ["live-trades"], queryFn: fetchLive });
   const allTrades: any[] = rawTrades as any[];
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
 
   if (isLoading) return <div style={{ padding: 32, color: "var(--text2)" }}>Loading...</div>;
 
+  const trialBlocked = Boolean(accessData && !accessData.hasAccess && accessData.reason === 'trial_expired');
+  const otherDenied = Boolean(accessData && !accessData.hasAccess && accessData.reason !== 'trial_expired' && accessData.reason !== 'admin');
+
   // Check access - admin always has access
-  if (accessData && !accessData.hasAccess && accessData.reason !== 'admin') {
+  if (otherDenied) {
     return (
       <div style={{ padding: 48, textAlign: 'center' }}>
         <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
@@ -225,7 +223,8 @@ export default function LiveAnalysis() {
   const colorNet = (v: number) => v > 0 ? "#7eb8f7" : v < 0 ? "#f0a070" : "#a0a8b8";
 
   return (
-    <div style={{ padding: isMobile ? "16px" : "24px 28px", display: "flex", flexDirection: "column", gap: 28 }}>
+    <AccessWrapper blocked={trialBlocked}>
+      <div style={{ padding: isMobile ? "16px" : "24px 28px", display: "flex", flexDirection: "column", gap: 28 }}>
       {/* ── HEADER + MONTH SELECTOR ── */}
       <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexDirection: isMobile ? "column" : "row", gap: 12 }}>
         <div style={{ fontSize: 18, fontWeight: 700 }}>Live Analysis</div>
@@ -488,6 +487,6 @@ export default function LiveAnalysis() {
           </div>
         </div>
       </div>
-    </div>
+    </AccessWrapper>
   );
 }
