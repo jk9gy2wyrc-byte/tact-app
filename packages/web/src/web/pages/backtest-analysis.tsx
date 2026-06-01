@@ -510,10 +510,9 @@ export default function BacktestAnalysis() {
                   <div style={{ fontSize: isMobile ? 11 : 14, fontFamily: "monospace", color: colorNet(stats.shortsNet) }}>
                     {stats.shortsNet >= 0 ? "+" : ""}{stats.shortsNet.toFixed(2)}R
                   </div>
-                    </div>
-                  </div>
                 </div>
               </div>
+            </div>
             )}
           </div>
         )}
