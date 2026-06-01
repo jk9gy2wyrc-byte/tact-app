@@ -8,6 +8,23 @@ import { eq, desc, asc, sql } from "drizzle-orm";
 import * as XLSX from "xlsx";
 import { DEFAULT_SUBSCRIPTION_SETTINGS } from "../shared/subscription";
 
+type UserRoleName = 'admin' | 'free' | 'paid' | 'free-trial';
+
+const normalizeRole = (role: string | null | undefined): UserRoleName => {
+  if (role === 'admin') return 'admin';
+  if (role === 'paid') return 'paid';
+  if (role === 'free-trial' || role === 'trial') return 'free-trial';
+  return 'free';
+};
+
+const parseDbDate = (value?: string | null): number | null => {
+  if (!value) return null;
+  const isoLike = value.includes('T') ? value : value.replace(' ', 'T');
+  const withZone = isoLike.endsWith('Z') ? isoLike : `${isoLike}Z`;
+  const ms = Date.parse(withZone);
+  return Number.isNaN(ms) ? null : ms;
+};
+
 const subscriptionPlansSchema = z.object({
   firstPurchase: z.object({
     freeWeeks: z.number().int().min(0).max(12),
@@ -106,7 +123,13 @@ const app = new Hono()
       if (!user || user.password !== password) {
         return c.json({ error: 'Невірний логін або пароль' }, 401);
       }
-      return c.json({ id: user.id, login: user.login, role: user.role }, 200);
+      const role = normalizeRole(user.role);
+      return c.json({
+        id: user.id,
+        login: user.login,
+        role,
+        createdAt: user.createdAt ?? null,
+      }, 200);
     }
   )
 
@@ -119,11 +142,75 @@ const app = new Hono()
       const [newUser] = await db.insert(users).values({
         login,
         password,
-        role: 'user',
+        role: 'free-trial',
       }).returning();
-      return c.json({ id: newUser.id, login: newUser.login, role: 'user' }, 200);
+      return c.json({
+        id: newUser.id,
+        login: newUser.login,
+        role: normalizeRole(newUser.role),
+        createdAt: newUser.createdAt ?? null,
+      }, 200);
     }
   )
+
+  .post('/auth/update',
+    zValidator('json', z.object({ id: z.number(), login: z.string().min(3).max(32), password: z.string().min(4).optional() })),
+    async (c) => {
+      const { id, login, password } = c.req.valid('json');
+      const user = await db.select().from(users).where(eq(users.id, id)).get();
+      if (!user) return c.json({ error: 'Користувача не знайдено' }, 404);
+      if (login !== user.login) {
+        const existing = await db.select().from(users).where(eq(users.login, login)).get();
+        if (existing) return c.json({ error: 'Логін вже зайнятий' }, 409);
+      }
+      const updateData: { login?: string; password?: string } = {};
+      if (login !== user.login) updateData.login = login;
+      if (password) updateData.password = password;
+      if (Object.keys(updateData).length === 0) {
+        return c.json({ error: 'Нічого не змінено' }, 400);
+      }
+      const [updated] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();
+      return c.json({
+        id: updated.id,
+        login: updated.login,
+        role: normalizeRole(updated.role),
+        createdAt: updated.createdAt ?? null,
+      }, 200);
+    }
+  )
+
+  .get('/auth/access/:id', async (c) => {
+    const id = Number(c.req.param('id'));
+    if (!Number.isFinite(id)) return c.json({ hasAccess: false, reason: 'invalid_id' }, 400);
+    const user = await db.select().from(users).where(eq(users.id, id)).get();
+    if (!user) return c.json({ hasAccess: false, reason: 'not_found' }, 404);
+
+    const role = normalizeRole(user.role);
+    if (role === 'admin') return c.json({ hasAccess: true, reason: 'admin' }, 200);
+    if (role === 'paid' || role === 'free') return c.json({ hasAccess: true, reason: 'full' }, 200);
+
+    const row = await ensureSubscriptionRow();
+    const plans = parsePlans(row.plansJson);
+    const freeWeeks = plans.firstPurchase.freeWeeks ?? DEFAULT_SUBSCRIPTION_SETTINGS.plans.firstPurchase.freeWeeks;
+    const createdAtMs = parseDbDate(user.createdAt);
+    if (!createdAtMs) {
+      return c.json({ hasAccess: true, reason: 'trial' }, 200);
+    }
+    const msPerWeek = 7 * 24 * 3600 * 1000;
+    const expiresAt = createdAtMs + freeWeeks * msPerWeek;
+    if (Date.now() <= expiresAt) {
+      return c.json({
+        hasAccess: true,
+        reason: 'trial',
+        trialEndsAt: new Date(expiresAt).toISOString(),
+      }, 200);
+    }
+    return c.json({
+      hasAccess: false,
+      reason: 'trial_expired',
+      trialEndedAt: new Date(expiresAt).toISOString(),
+    }, 200);
+  })
 
   // ─── ADMIN: list all users ────────────────────────────────────────────────
   .get('/admin/users', async (c) => {
@@ -142,6 +229,23 @@ const app = new Hono()
     await db.delete(users).where(eq(users.id, id));
     return c.json({ ok: true }, 200);
   })
+
+  .put('/admin/users/:id',
+    zValidator('json', z.object({ role: z.enum(['admin', 'paid', 'free-trial', 'free']) })),
+    async (c) => {
+      const asLogin = c.req.query('asLogin');
+      const caller = await db.select().from(users).where(eq(users.login, asLogin ?? '')).get();
+      if (!caller || caller.role !== 'admin') return c.json({ error: 'Forbidden' }, 403);
+
+      const id = Number(c.req.param('id'));
+      const { role } = c.req.valid('json');
+
+      const [updated] = await db.update(users).set({ role }).where(eq(users.id, id)).returning();
+      if (!updated) return c.json({ error: 'User not found' }, 404);
+
+      return c.json({ ok: true, user: updated }, 200);
+    }
+  )
 
   // ─── SUBSCRIPTION SETTINGS ──────────────────────────────────────────────────
   .get('/subscription/settings', async (c) => {
