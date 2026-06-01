@@ -2,16 +2,11 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { uidParam, getSession } from "../lib/session";
 import { useMobile } from "../hooks/useMobile";
+import AccessWrapper from "../components/AccessWrapper";
+import { fetchAccess } from "../lib/access";
 
 async function fetchStats() {
   const r = await fetch(`/api/stats${uidParam()}`);
-  return r.json();
-}
-
-async function checkAccess() {
-  const session = getSession();
-  if (!session) return { hasAccess: false, reason: 'no_session' };
-  const r = await fetch(`/api/auth/access/${session.id}`);
   return r.json();
 }
 
@@ -340,7 +335,30 @@ export default function Dashboard() {
   const { data: liveTrades = [] } = useQuery({ queryKey: ['live-trades'], queryFn: fetchLive, refetchInterval: 10000 });
   const [btTab, setBtTab] = useState('EUR');
 
+  const session = getSession();
+  const { data: accessData } = useQuery({
+    queryKey: ['access'],
+    queryFn: fetchAccess,
+    enabled: Boolean(session),
+    staleTime: 60_000,
+  });
+
+  const trialBlocked = Boolean(accessData && !accessData.hasAccess && accessData.reason === 'trial_expired');
+  const otherDenied = Boolean(accessData && !accessData.hasAccess && accessData.reason !== 'trial_expired' && accessData.reason !== 'admin');
+
   if (isLoading) return <div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>;
+  if (otherDenied) {
+    return (
+      <div style={{ padding: 48, textAlign: 'center' }}>
+        <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
+          Access Restricted
+        </div>
+        <div style={{ fontSize: 16, color: 'var(--text2)' }}>
+          Manage your plan to get full access
+        </div>
+      </div>
+    );
+  }
   if (error || !data) return <div style={{ padding: 32, color: 'var(--red)' }}>Error loading stats</div>;
 
   const bt = (data as any).btStats;
@@ -365,7 +383,8 @@ export default function Dashboard() {
   const p = isMobile ? '16px' : '24px 28px';
 
   return (
-    <div style={{ padding: p, maxWidth: 1200, width: '100%', overflow: 'hidden' }}>
+    <AccessWrapper blocked={trialBlocked}>
+      <div style={{ padding: p, maxWidth: 1200, width: '100%', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>Dashboard</div>
         <span style={{ fontSize: 11, color: 'var(--text2)' }}>updates every 10s</span>
@@ -558,5 +577,6 @@ export default function Dashboard() {
         </Section>
       </div>
     </div>
+    </AccessWrapper>
   );
 }
