@@ -974,7 +974,7 @@ export default function Charts() {
                   accent="#38bdf8"
                 />
                 <StressSlider
-                  label="└ Bad Slip Mult"
+                  label="Bad Slip Mult"
                   description="Сила удару при поганому виконанні. 1.4× = збиток −1R стає −1.4R"
                   value={stressParams.badSlipMult}
                   min={1} max={3} step={0.1}
