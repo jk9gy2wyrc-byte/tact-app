@@ -112,6 +112,24 @@ function EditModal({ trade, onClose, onSave, isPending }: {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) { const f = item.getAsFile(); if (f) files.push(f); }
+      }
+      if (files.length) {
+        const dt = new DataTransfer();
+        files.forEach(f => dt.items.add(f));
+        addPhotos(dt.files);
+      }
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, []);
+
   const setField = (field: string, val: string) => setForm(f => ({ ...f, [field]: val }));
   const preview = calcRValues(form.result, form.rr, form.cost);
 
@@ -325,6 +343,12 @@ function TradeCard({ t, onEdit, onDelete }: { t: any; onEdit: () => void; onDele
           ))}
         </div>
       )}
+      {previewImg && (
+        <div onClick={() => setPreviewImg(null)} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <img src={previewImg} style={{ maxWidth: '100%', maxHeight: '90vh', borderRadius: 10, objectFit: 'contain' }} onClick={e => e.stopPropagation()} />
+          <button onClick={() => setPreviewImg(null)} style={{ position: 'fixed', top: 16, right: 16, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 22, width: 36, height: 36, borderRadius: 8, cursor: 'pointer' }}>×</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -345,6 +369,7 @@ export default function LiveTrades() {
   const [aiError, setAiError] = useState('');
   const [aiParsing, setAiParsing] = useState(false);
   const [aiSaving, setAiSaving] = useState(false);
+  const [previewImg, setPreviewImg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const addMutation = useMutation({
@@ -779,8 +804,12 @@ export default function LiveTrades() {
                               <td>
                                 {tLinks.length > 0 ? (
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                    {tLinks.map((lk: Attachment, i: number) => (
-                                      <a key={i} href={lk.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--text2)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                                    {tLinks.map((lk: Attachment, i: number) => lk.type === 'image' ? (
+                                      <button key={i} onClick={e => { e.stopPropagation(); setPreviewImg(lk.url); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text2)', textAlign: 'left', padding: 0, whiteSpace: 'nowrap' }}>
+                                        🖼 {lk.label.length > 20 ? lk.label.slice(0, 20) + '…' : lk.label}
+                                      </button>
+                                    ) : (
+                                      <a key={i} href={lk.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 11, color: 'var(--text2)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
                                         🔗 {lk.label.length > 20 ? lk.label.slice(0, 20) + '…' : lk.label}
                                       </a>
                                     ))}
