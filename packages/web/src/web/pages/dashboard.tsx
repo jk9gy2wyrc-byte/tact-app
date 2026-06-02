@@ -208,22 +208,31 @@ const ALL_ASSETS: Record<string, {
 };
 
 const DEFAULT_SELECTED = ['EUR', 'GBP', 'XAU', 'GER'];
-const LS_KEY = 'tact_selected_assets';
 
 function useSelectedAssets() {
-  const [selected, setSelected] = useState<string[]>(() => {
-    try {
-      const s = localStorage.getItem(LS_KEY);
-      if (s) return JSON.parse(s);
-    } catch {}
-    return DEFAULT_SELECTED;
-  });
+  const [selected, setSelected] = useState<string[]>(DEFAULT_SELECTED);
+
+  useEffect(() => {
+    fetch(`/api/prefs/selectedAssets${uidParam()}`)
+      .then(r => r.json())
+      .then((d: { value: string | null }) => {
+        if (d.value) {
+          try { setSelected(JSON.parse(d.value)); } catch {}
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const toggle = (key: string) => {
     setSelected(prev => {
       const next = prev.includes(key)
         ? prev.length > 1 ? prev.filter(k => k !== key) : prev
         : [...prev, key];
-      try { localStorage.setItem(LS_KEY, JSON.stringify(next)); } catch {}
+      fetch(`/api/prefs/selectedAssets${uidParam()}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: JSON.stringify(next) }),
+      }).catch(() => {});
       return next;
     });
   };

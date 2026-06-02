@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { db } from "./database";
-import { backtestTrades, emailCodes, liveTrades, subscriptionSettings, users } from "./database/schema";
+import { backtestTrades, emailCodes, liveTrades, subscriptionSettings, userPrefs, users } from "./database/schema";
 import { eq, desc, asc, sql, lt } from "drizzle-orm";
 import * as XLSX from "xlsx";
 import { DEFAULT_SUBSCRIPTION_SETTINGS } from "../shared/subscription";
@@ -89,6 +89,24 @@ const ensureSubscriptionTable = async () => {
     `).then(() => {});
   }
   return subscriptionTableReady;
+};
+
+let userPrefsTableReady: Promise<void> | null = null;
+
+const ensureUserPrefsTable = async () => {
+  if (!userPrefsTableReady) {
+    userPrefsTableReady = db.run(sql`
+      CREATE TABLE IF NOT EXISTS user_prefs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        key TEXT NOT NULL,
+        value TEXT NOT NULL,
+        updated_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(user_id, key)
+      )
+    `).then(() => {});
+  }
+  return userPrefsTableReady;
 };
 
 const parsePlans = (raw?: string | null): z.infer<typeof subscriptionPlansSchema> => {
@@ -1254,6 +1272,29 @@ Example: [{"date":"2024-05-13","direction":"long","result":"tp","rr":3.5,"sessio
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }
+});
+
+app.get('/prefs/:key', async (c) => {
+  await ensureUserPrefsTable();
+  const uid = Number(c.req.query('userId') ?? 0);
+  const key = c.req.param('key');
+  const row = await db.select({ value: userPrefs.value }).from(userPrefs)
+    .where(sql`${userPrefs.userId} = ${uid} AND ${userPrefs.key} = ${key}`)
+    .get();
+  return c.json({ value: row?.value ?? null });
+});
+
+app.put('/prefs/:key', async (c) => {
+  await ensureUserPrefsTable();
+  const uid = Number(c.req.query('userId') ?? 0);
+  const key = c.req.param('key');
+  const body = await c.req.json<{ value: string }>();
+  await db.run(sql`
+    INSERT INTO user_prefs (user_id, key, value, updated_at)
+    VALUES (${uid}, ${key}, ${body.value}, datetime('now'))
+    ON CONFLICT(user_id, key) DO UPDATE SET value=excluded.value, updated_at=datetime('now')
+  `);
+  return c.json({ ok: true });
 });
 
 export type AppType = typeof app;

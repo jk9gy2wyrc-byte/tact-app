@@ -55,6 +55,14 @@ export const liveTrades = sqliteTable("live_trades", {
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
 
+export const userPrefs = sqliteTable("user_prefs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id").notNull(),
+  key: text("key").notNull(),
+  value: text("value").notNull(),
+  updatedAt: text("updated_at").default(sql`(datetime('now'))`),
+});
+
 export const subscriptionSettings = sqliteTable("subscription_settings", {
   id: integer("id").primaryKey({ autoIncrement: true }).default(1),
   buttonText: text("button_text").notNull().default("Contact Us"),

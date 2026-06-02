@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useMobile } from "../hooks/useMobile";
 import { useQuery } from "@tanstack/react-query";
 import { uidParam } from "../lib/session";
@@ -367,10 +367,20 @@ export default function Charts() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveComboName, setSaveComboName] = useState('');
   const [savedCombosOpen, setSavedCombosOpen] = useState(false);
-  const [savedCombos, setSavedCombos] = useState<Array<{id: string; name: string; params: typeof defaultStress}>>(() => {
-    try { return JSON.parse(localStorage.getItem('stressCombos') || '[]'); } catch { return []; }
-  });
+  const [savedCombos, setSavedCombos] = useState<Array<{id: string; name: string; params: typeof defaultStress}>>([]);
   const [stressDescOpen, setStressDescOpen] = useState<Set<string>>(new Set());
+
+  // Load saved combos from DB on mount
+  useEffect(() => {
+    fetch(`/api/prefs/stressCombos${uidParam()}`)
+      .then(r => r.json())
+      .then((d: { value: string | null }) => {
+        if (d.value) {
+          try { setSavedCombos(JSON.parse(d.value)); } catch {}
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const setSP = useCallback((key: keyof typeof defaultStress, val: number) => {
     setStressParams(p => {
@@ -405,16 +415,24 @@ export default function Charts() {
     } catch (_) {}
     setStressLoading(false);
   };
+  const persistCombos = useCallback((combos: Array<{id: string; name: string; params: typeof defaultStress}>) => {
+    fetch(`/api/prefs/stressCombos${uidParam()}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: JSON.stringify(combos) }),
+    }).catch(() => {});
+  }, []);
+
   const deleteCombo = (id: string) => {
     const updated = savedCombos.filter(c => c.id !== id);
     setSavedCombos(updated);
-    localStorage.setItem('stressCombos', JSON.stringify(updated));
+    persistCombos(updated);
   };
   const saveCombo = () => {
     const combo = { id: Date.now().toString(), name: saveComboName.trim() || 'Без назви', params: { ...stressParams } };
     const updated = [...savedCombos, combo];
     setSavedCombos(updated);
-    localStorage.setItem('stressCombos', JSON.stringify(updated));
+    persistCombos(updated);
     setSaveOpen(false);
     setSaveComboName('');
   };
@@ -1038,7 +1056,7 @@ export default function Charts() {
                             {(Object.entries(combo.params) as [string, number][]).filter(([k, v]) => v !== (defaultStress as any)[k]).map(([k, v]) => `${k}: ${v}`).join(' · ') || 'всі за замовчуванням'}
                           </div>
                         </div>
-                        <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, color: '#7eb8f7', border: '1px solid #1e3a5f' }} onClick={() => loadCombo(combo)}>▶ Застосувати</button>
+                        <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, color: '#7eb8f7', border: '1px solid #1e3a5f' }} onClick={() => loadCombo(combo)}>Застосувати</button>
                         <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, color: '#f87171' }} onClick={() => deleteCombo(combo.id)}>✕</button>
                       </div>
                     ))}
