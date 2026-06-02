@@ -1192,7 +1192,22 @@ export default function Charts() {
                       <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, fontWeight: 600 }}>Загальні метрики</div>
                       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20, alignItems: 'flex-start' }}>
                         {normalCards.map(card => {
-                          const isOpen = stressDescOpen.has('nm_' + card.label);
+                          const isOpen    = stressDescOpen.has('nm_' + card.label);
+                          const isDevOpen = stressDescOpen.has('nd_' + card.label);
+                          const lv  = card.lvV;
+                          const bt  = card.btV;
+                          const mc  = card.mcV ?? null;
+                          const st  = card.stressV ?? null;
+                          const hasLv = lv != null && (lvStats?.n ?? 0) > 0;
+                          const fmtPct = (a: number, b: number) => {
+                            if (b === 0) return '—';
+                            const p = (a - b) / Math.abs(b) * 100;
+                            return `${p >= 0 ? '+' : ''}${p.toFixed(1)}%`;
+                          };
+                          const devColor = (a: number, b: number) => {
+                            if (b === 0) return 'var(--text2)';
+                            return (a - b) >= 0 ? '#4ade80' : '#f87171';
+                          };
                           return (
                             <div key={card.label} style={{
                               background: 'var(--surface2)', border: '1px solid var(--border)',
@@ -1200,11 +1215,51 @@ export default function Charts() {
                             }}>
                               <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{card.label}</div>
                               <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                                {card.btV != null && <div style={{ fontSize: 13, fontWeight: 700, color: card.color(card.btV), fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, color: 'var(--text2)', marginRight: 2 }}>BT</span>{card.fmt(card.btV)}</div>}
-                                {card.lvV != null && (lvStats?.n ?? 0) > 0 && <div style={{ fontSize: 13, fontWeight: 700, color: card.color(card.lvV), fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, color: '#60a5fa', marginRight: 2 }}>LV</span>{card.fmt(card.lvV)}</div>}
-                                {card.mcV != null && <div style={{ fontSize: 11, color: '#a78bfa', fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, marginRight: 2 }}>MC</span>{card.fmt(card.mcV)}</div>}
-                                {card.stressV != null && <div style={{ fontSize: 11, color: '#fb923c', fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, marginRight: 2 }}>ST</span>{card.fmt(card.stressV)}</div>}
+                                {bt != null && <div style={{ fontSize: 13, fontWeight: 700, color: card.color(bt), fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, color: 'var(--text2)', marginRight: 2 }}>BT</span>{card.fmt(bt)}</div>}
+                                {hasLv && lv != null && <div style={{ fontSize: 13, fontWeight: 700, color: card.color(lv), fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, color: '#60a5fa', marginRight: 2 }}>LV</span>{card.fmt(lv)}</div>}
+                                {mc != null && <div style={{ fontSize: 11, color: '#a78bfa', fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, marginRight: 2 }}>MC</span>{card.fmt(mc)}</div>}
+                                {st != null && <div style={{ fontSize: 11, color: '#fb923c', fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, marginRight: 2 }}>ST</span>{card.fmt(st)}</div>}
                               </div>
+                              {/* Deviation button — shown only when we have LV data */}
+                              {hasLv && lv != null && (
+                                <>
+                                  <button
+                                    onClick={() => setStressDescOpen(prev => {
+                                      const next = new Set(prev);
+                                      const key = 'nd_' + card.label;
+                                      if (next.has(key)) next.delete(key); else next.add(key);
+                                      return next;
+                                    })}
+                                    style={{ marginTop: 6, fontSize: 10, color: 'var(--text2)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 4 }}
+                                  >
+                                    {isDevOpen ? '▲' : '▼'} Відхилення
+                                  </button>
+                                  {isDevOpen && (
+                                    <div style={{ marginTop: 6, fontSize: 11, lineHeight: 1.7, background: 'var(--surface)', borderRadius: 6, padding: '8px 10px' }}>
+                                      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                                        {bt != null && (
+                                          <div>
+                                            <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>LV vs BT</div>
+                                            <div className="mono" style={{ color: devColor(lv, bt), fontWeight: 700 }}>{fmtPct(lv, bt)}</div>
+                                          </div>
+                                        )}
+                                        {mc != null && (
+                                          <div>
+                                            <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>LV vs MC</div>
+                                            <div className="mono" style={{ color: devColor(lv, mc), fontWeight: 700 }}>{fmtPct(lv, mc)}</div>
+                                          </div>
+                                        )}
+                                        {st != null && (
+                                          <div>
+                                            <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>LV vs ST</div>
+                                            <div className="mono" style={{ color: devColor(lv, st), fontWeight: 700 }}>{fmtPct(lv, st)}</div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              )}
                               <button
                                 onClick={() => setStressDescOpen(prev => {
                                   const next = new Set(prev);
