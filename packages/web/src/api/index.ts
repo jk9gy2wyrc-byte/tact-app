@@ -996,10 +996,8 @@ async function fetchNewsData(): Promise<any[]> {
     .filter((e: any) => e.impact === 'High' || e.impact === 'Medium')
     .map((e: any) => {
       const impact = (e.impact ?? '').toLowerCase();
-      // FF now uses ISO date string and "country" field
-      const dateStr = e.date ?? '';
       return {
-        isoDate: dateStr,
+        isoDate: e.date ?? '',
         currency: (e.country ?? e.currency ?? '').toUpperCase(),
         impact: impact === 'high' ? 'red' : 'orange',
         title: e.title ?? '',
@@ -1039,7 +1037,6 @@ async function fetchWeeklyChanges() {
     ETH: 'ETH-USD',
     XAG: 'SI=F',
     NAS: '%5EIXIC',
-    US100: 'NQ=F',
   };
   const results: Record<string, { change: number; current: number; open: number } | null> = {};
 

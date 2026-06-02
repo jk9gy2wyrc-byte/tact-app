@@ -25,12 +25,131 @@ async function fetchPrices() {
   return r.json();
 }
 
-// ── All available assets ────────────────────────────────────────────────────
+// ── News helpers ──────────────────────────────────────────────────────────────
+
+function parseFFIsoDate(isoStr: string): Date | null {
+  if (!isoStr) return null;
+  try { return new Date(isoStr); } catch { return null; }
+}
+
+function nowUTC3(): Date {
+  return new Date(Date.now() + 3 * 3600_000);
+}
+function todayStartUTC3(): Date {
+  const n = nowUTC3();
+  return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()));
+}
+function windowEndUTC3(): Date {
+  return new Date(todayStartUTC3().getTime() + 2 * 86400_000 + 86399_999);
+}
+
+function NewsWidget({ selectedAssets }: { selectedAssets: string[] }) {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, [tick]);
+
+  const { data: news = [], isLoading, isError } = useQuery({
+    queryKey: ['news'],
+    queryFn: fetchNews,
+    refetchInterval: 5 * 60 * 1000,
+    staleTime: 4 * 60 * 1000,
+  });
+
+  if (isLoading) return <div style={{ color: 'var(--text2)', fontSize: 12, padding: '8px 0' }}>Loading...</div>;
+  if (isError) return <div style={{ color: 'var(--red)', fontSize: 12 }}>Failed to load news.</div>;
+
+  const relevantCurrencies = new Set<string>();
+  for (const key of selectedAssets) {
+    for (const c of (ALL_ASSETS[key]?.ffCurrencies ?? [])) {
+      relevantCurrencies.add(c);
+    }
+  }
+
+  const nowLocal = nowUTC3();
+  const windowEnd = windowEndUTC3();
+  const nowMs = nowLocal.getTime();
+
+  const enriched = (news as any[])
+    .map(item => ({ ...item, dt: parseFFIsoDate(item.isoDate) }))
+    .filter(item => {
+      if (!item.dt) return false;
+      if (!relevantCurrencies.has(item.currency)) return false;
+      return item.dt >= new Date(nowMs - 15 * 60_000) && item.dt <= windowEnd;
+    })
+    .sort((a, b) => a.dt!.getTime() - b.dt!.getTime());
+
+  if (!enriched.length) return (
+    <div style={{ color: 'var(--text2)', fontSize: 12, padding: '8px 0' }}>No upcoming high-impact news this week.</div>
+  );
+
+  const grouped: Record<string, typeof enriched> = {};
+  for (const item of enriched) {
+    const key = item.dt!.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(item);
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {Object.entries(grouped).map(([dayLabel, items]) => {
+        const hasLive = items.some(it => it.dt && Math.abs(it.dt.getTime() - nowMs) <= 15 * 60_000);
+        return (
+          <div key={dayLabel}>
+            <div style={{
+              fontSize: 10, color: 'var(--text2)', fontWeight: 600,
+              textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5,
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              {dayLabel}
+              {hasLive && <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 5px', fontWeight: 700 }}>LIVE</span>}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {items.map((item, i) => {
+                if (!item.dt) return null;
+                const diffMin = (item.dt.getTime() - nowMs) / 60_000;
+                const isLive = Math.abs(diffMin) <= 15;
+                const isSoon = diffMin > 0 && diffMin <= 120;
+                let rowBg = '#1a1d24', rowBorder = '#2a2d36';
+                if (isLive) { rowBg = 'rgba(22,163,74,0.13)'; rowBorder = 'rgba(22,163,74,0.5)'; }
+                else if (isSoon) { rowBg = 'rgba(234,179,8,0.07)'; rowBorder = 'rgba(234,179,8,0.25)'; }
+                // Display time in UTC+3
+                const utc3 = new Date(item.dt.getTime() + 3 * 3600_000);
+                const localTime = `${utc3.getUTCHours().toString().padStart(2,'0')}:${utc3.getUTCMinutes().toString().padStart(2,'0')}`;
+                return (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '6px 10px', borderRadius: 7,
+                    background: rowBg, border: `1px solid ${rowBorder}`,
+                    transition: 'background 0.3s',
+                  }}>
+                    <div style={{
+                      width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                      background: item.impact === 'red' ? '#ef4444' : '#f97316',
+                      boxShadow: item.impact === 'red' ? '0 0 5px #ef4444aa' : '0 0 5px #f97316aa',
+                    }} />
+                    <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#9ca3af', minWidth: 28 }}>{item.currency}</span>
+                    <span style={{ fontSize: 10, fontFamily: 'monospace', minWidth: 42, color: isLive ? '#4ade80' : isSoon ? '#facc15' : '#6b7280', fontWeight: isLive || isSoon ? 700 : 400 }}>{localTime}</span>
+                    <span style={{ fontSize: 12, flex: 1, color: isLive ? '#f1f5f9' : isSoon ? '#e2e8f0' : '#94a3b8', fontWeight: isLive ? 600 : 400 }}>{item.title}</span>
+                    {isLive && <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 6px', fontWeight: 700, flexShrink: 0 }}>NOW</span>}
+                    {isSoon && !isLive && <span style={{ fontSize: 9, color: '#facc15', fontFamily: 'monospace', flexShrink: 0 }}>{diffMin < 60 ? `${Math.round(diffMin)}m` : `${Math.floor(diffMin/60)}h${Math.round(diffMin%60)}m`}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const ALL_ASSETS: Record<string, {
   label: string;
   symbol: React.ReactNode;
-  ffCurrencies: string[]; // FF "country" codes relevant to this asset
-  priceKey: string;       // key in /api/prices response
+  ffCurrencies: string[];
+  priceKey: string;
 }> = {
   EUR: {
     label: 'EUR/USD',
@@ -81,16 +200,10 @@ const ALL_ASSETS: Record<string, {
     priceKey: 'XAG',
   },
   NAS: {
-    label: 'NASDAQ',
+    label: 'NAS100',
     symbol: <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', fontFamily: 'monospace' }}>NAS</span>,
     ffCurrencies: ['USD'],
     priceKey: 'NAS',
-  },
-  US100: {
-    label: 'US100 Fut',
-    symbol: <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text2)', fontFamily: 'monospace' }}>NQ</span>,
-    ffCurrencies: ['USD'],
-    priceKey: 'US100',
   },
 };
 
@@ -105,7 +218,6 @@ function useSelectedAssets() {
     } catch {}
     return DEFAULT_SELECTED;
   });
-
   const toggle = (key: string) => {
     setSelected(prev => {
       const next = prev.includes(key)
@@ -115,35 +227,12 @@ function useSelectedAssets() {
       return next;
     });
   };
-
   return { selected, toggle };
-}
-
-// ── News helpers ─────────────────────────────────────────────────────────────
-
-/** FF now returns ISO date string. Convert to local UTC+3 Date. */
-function parseFFIsoDate(isoStr: string): Date | null {
-  if (!isoStr) return null;
-  try {
-    return new Date(isoStr);
-  } catch { return null; }
-}
-
-function nowUTC3(): Date {
-  return new Date(Date.now() + 3 * 3600_000);
-}
-function todayStartUTC3(): Date {
-  const n = nowUTC3();
-  return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()));
-}
-function windowEndUTC3(): Date {
-  return new Date(todayStartUTC3().getTime() + 2 * 86400_000 + 86399_999);
 }
 
 function AssetDropdown({ selected, toggle }: { selected: string[]; toggle: (k: string) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -151,7 +240,6 @@ function AssetDropdown({ selected, toggle }: { selected: string[]; toggle: (k: s
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
-
   return (
     <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
       <button
@@ -186,8 +274,7 @@ function AssetDropdown({ selected, toggle }: { selected: string[]; toggle: (k: s
                   background: isOn ? 'rgba(99,102,241,0.15)' : 'transparent',
                   border: isOn ? '1px solid rgba(99,102,241,0.4)' : '1px solid transparent',
                   color: isOn ? 'var(--text)' : 'var(--text2)',
-                  fontSize: 12, textAlign: 'left',
-                  transition: 'all 0.15s',
+                  fontSize: 12, textAlign: 'left', transition: 'all 0.15s',
                 }}
               >
                 <span style={{
@@ -196,147 +283,13 @@ function AssetDropdown({ selected, toggle }: { selected: string[]; toggle: (k: s
                   border: '1px solid var(--border)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0, fontSize: 10,
-                }}>
-                  {isOn ? '✓' : ''}
-                </span>
+                }}>{isOn ? '✓' : ''}</span>
                 <span style={{ flex: 1 }}>{meta.label}</span>
               </button>
             );
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-function NewsWidget({ selectedAssets }: { selectedAssets: string[] }) {
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 30_000);
-    return () => clearInterval(id);
-  }, [tick]);
-
-  const { data: news = [], isLoading, isError } = useQuery({
-    queryKey: ['news'],
-    queryFn: fetchNews,
-    refetchInterval: 5 * 60 * 1000,
-    staleTime: 4 * 60 * 1000,
-  });
-
-  if (isLoading) return <div style={{ color: 'var(--text2)', fontSize: 12, padding: '8px 0' }}>Loading...</div>;
-  if (isError) return <div style={{ color: 'var(--red)', fontSize: 12 }}>Failed to load news.</div>;
-
-  // Collect FF currencies relevant to selected assets
-  const relevantCurrencies = new Set<string>();
-  for (const key of selectedAssets) {
-    for (const c of (ALL_ASSETS[key]?.ffCurrencies ?? [])) {
-      relevantCurrencies.add(c);
-    }
-  }
-
-  const nowLocal = nowUTC3();
-  const windowEnd = windowEndUTC3();
-  const nowMs = nowLocal.getTime();
-
-  // Parse + filter
-  const enriched = (news as any[])
-    .map(item => {
-      const dt = parseFFIsoDate(item.isoDate);
-      return { ...item, dt };
-    })
-    .filter(item => {
-      if (!item.dt) return false;
-      if (!relevantCurrencies.has(item.currency)) return false;
-      const cutoff = new Date(nowMs - 15 * 60_000);
-      return item.dt >= cutoff && item.dt <= windowEnd;
-    })
-    .sort((a, b) => a.dt!.getTime() - b.dt!.getTime());
-
-  if (!enriched.length) return (
-    <div style={{ color: 'var(--text2)', fontSize: 12, padding: '8px 0' }}>No upcoming high-impact news this week.</div>
-  );
-
-  // Group by calendar day (UTC+3)
-  const grouped: Record<string, typeof enriched> = {};
-  for (const item of enriched) {
-    const d = item.dt!;
-    const key = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(item);
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {Object.entries(grouped).map(([dayLabel, items]) => {
-        const hasLive = items.some(it => it.dt && Math.abs(it.dt.getTime() - nowMs) <= 15 * 60_000);
-        return (
-          <div key={dayLabel}>
-            <div style={{
-              fontSize: 10, color: 'var(--text2)', fontWeight: 600,
-              textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5,
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}>
-              {dayLabel}
-              {hasLive && (
-                <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 5px', fontWeight: 700 }}>LIVE</span>
-              )}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {items.map((item, i) => {
-                if (!item.dt) return null;
-                const diffMin = (item.dt.getTime() - nowMs) / 60_000;
-                const isLive = Math.abs(diffMin) <= 15;
-                const isSoon = diffMin > 0 && diffMin <= 120;
-
-                let rowBg = '#1a1d24';
-                let rowBorder = '#2a2d36';
-                if (isLive) { rowBg = 'rgba(22,163,74,0.13)'; rowBorder = 'rgba(22,163,74,0.5)'; }
-                else if (isSoon) { rowBg = 'rgba(234,179,8,0.07)'; rowBorder = 'rgba(234,179,8,0.25)'; }
-
-                // Format time as UTC+3 (FF times are in EDT/EST, stored as ISO with offset)
-                // new Date(isoStr) gives correct UTC, display as UTC+3
-                const utcMs = item.dt.getTime();
-                const utc3 = new Date(utcMs + 3 * 3600_000);
-                const localTime = `${utc3.getUTCHours().toString().padStart(2, '0')}:${utc3.getUTCMinutes().toString().padStart(2, '0')}`;
-
-                return (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '6px 10px', borderRadius: 7,
-                    background: rowBg, border: `1px solid ${rowBorder}`,
-                    transition: 'background 0.3s',
-                  }}>
-                    <div style={{
-                      width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-                      background: item.impact === 'red' ? '#ef4444' : '#f97316',
-                      boxShadow: item.impact === 'red' ? '0 0 5px #ef4444aa' : '0 0 5px #f97316aa',
-                    }} />
-                    <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#9ca3af', minWidth: 28 }}>
-                      {item.currency}
-                    </span>
-                    <span style={{
-                      fontSize: 10, fontFamily: 'monospace', minWidth: 42,
-                      color: isLive ? '#4ade80' : isSoon ? '#facc15' : '#6b7280',
-                      fontWeight: isLive || isSoon ? 700 : 400,
-                    }}>{localTime}</span>
-                    <span style={{
-                      fontSize: 12, flex: 1,
-                      color: isLive ? '#f1f5f9' : isSoon ? '#e2e8f0' : '#94a3b8',
-                      fontWeight: isLive ? 600 : 400,
-                    }}>{item.title}</span>
-                    {isLive && <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 6px', fontWeight: 700, flexShrink: 0 }}>NOW</span>}
-                    {isSoon && !isLive && (
-                      <span style={{ fontSize: 9, color: '#facc15', fontFamily: 'monospace', flexShrink: 0 }}>
-                        {diffMin < 60 ? `${Math.round(diffMin)}m` : `${Math.floor(diffMin / 60)}h${Math.round(diffMin % 60)}m`}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -348,7 +301,6 @@ function WeeklyChanges({ selected, toggle }: { selected: string[]; toggle: (k: s
     refetchInterval: 10 * 60 * 1000,
     staleTime: 9 * 60 * 1000,
   });
-
   const now = new Date();
   const dayOfWeek = now.getUTCDay();
   const daysFromMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
@@ -356,7 +308,6 @@ function WeeklyChanges({ selected, toggle }: { selected: string[]; toggle: (k: s
   const monName = monDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
   const todayName = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
   const weekLabel = daysFromMon === 0 ? todayName : `${monName} – ${todayName}`;
-
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
@@ -372,7 +323,6 @@ function WeeklyChanges({ selected, toggle }: { selected: string[]; toggle: (k: s
           const isPos = change !== null && change >= 0;
           const color = change === null ? 'var(--text2)' : 'var(--text)';
           const arrow = change === null ? '' : isPos ? '▲' : '▼';
-
           return (
             <div key={key} style={{
               display: 'flex', alignItems: 'center', gap: 10,
@@ -383,11 +333,8 @@ function WeeklyChanges({ selected, toggle }: { selected: string[]; toggle: (k: s
               <div style={{
                 width: 32, height: 32, borderRadius: 8,
                 background: 'var(--surface2)', border: '1px solid var(--border)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0,
-              }}>
-                {meta.symbol}
-              </div>
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>{meta.symbol}</div>
               <div>
                 <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 2 }}>{meta.label}</div>
                 <div style={{ fontSize: 16, fontWeight: 600, fontFamily: 'monospace', color }}>
