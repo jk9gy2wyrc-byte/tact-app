@@ -287,6 +287,43 @@ function MetricChart({
 }
 
 // ── Stress factor slider ───────────────────────────────────────────────────
+// Collapsible 4-tab detail block for additional stress factors
+function FactorDetails({ items }: {
+  items: { label: string; content: string }[];
+}) {
+  const [open, setOpen] = useState<string | null>(null);
+  return (
+    <div style={{ marginTop: 4, marginBottom: 4, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {items.map(item => (
+        <div key={item.label} style={{ flex: '1 1 auto' }}>
+          <button
+            onClick={() => setOpen(o => o === item.label ? null : item.label)}
+            style={{
+              fontSize: 10, color: open === item.label ? 'var(--text)' : 'var(--text2)',
+              background: open === item.label ? 'var(--surface)' : 'none',
+              border: '1px solid var(--border)', borderRadius: 6,
+              cursor: 'pointer', padding: '3px 8px', whiteSpace: 'nowrap',
+              display: 'flex', alignItems: 'center', gap: 3,
+            }}
+          >
+            {open === item.label ? '▲' : '▼'} {item.label}
+          </button>
+          {open === item.label && (
+            <div style={{
+              marginTop: 4, padding: '8px 10px',
+              background: 'var(--surface)', borderRadius: 6,
+              border: '1px solid var(--border)', fontSize: 11,
+              color: 'var(--text2)', lineHeight: 1.6,
+            }}>
+              {item.content}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function StressSlider({
   label, description, value, min, max, step, onChange, format,
   accent = '#f87171',
@@ -944,7 +981,7 @@ export default function Charts() {
               {/* RIGHT COLUMN */}
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
-                  Психологічні фактори
+                  Додаткові фактори
                 </div>
                 <StressSlider
                   label="Human Error"
@@ -955,6 +992,12 @@ export default function Charts() {
                   onChange={v => setSP('humanError', v)}
                   accent="#f87171"
                 />
+                <FactorDetails items={[
+                  { label: 'Що моделює', content: 'Повний провал дисципліни або критична технічна помилка.' },
+                  { label: 'Сценарій', content: 'Випадково відкрив позицію на весь депозит, забув поставити стоп і пішов спати, прокинувся і закрив стоп в −30%, почався тільт: зайшов 5 раз проти правил.' },
+                  { label: 'Як працює', content: 'Із заданою імовірністю симулятор випадково вибирає одну угоду (навіть прибуткову) і примусово перетворює її результат в −1R (або більше, в залежності від slippage).' },
+                  { label: 'Вплив', content: 'Критичне. Навіть одна така помилка в місяць (0.01–0.02) може повністю знищити високий SQN ідеальної стратегії. SQN (System Quality Number).' },
+                ]} />
                 <StressSlider
                   label="Fatigue Decay"
                   description="Психологічна втома — злякався відкату, вийшов раніше. Кожен прибутковий трейд зменшується на X%"
@@ -964,6 +1007,12 @@ export default function Charts() {
                   onChange={v => setSP('fatigue', v)}
                   accent="#fb923c"
                 />
+                <FactorDetails items={[
+                  { label: 'Що моделює', content: 'Психологічну "втому", страх відкату і ранні виходи з позиції.' },
+                  { label: 'Сценарій', content: 'Ціна пішла в мою сторону, але я злякався відкату і закрив +2R замість планових +3R, надто довго сидів в беззбитку, перегорів і вийшов.' },
+                  { label: 'Як працює', content: 'Кожна прибуткова угода зменшується на цей відсоток. (Наприклад було +2R → стало +1.8R). Збиткові угоди не міняються (збитки ми завжди тримаємо до стопу).' },
+                  { label: 'Вплив', content: 'Плавно і непомітно "з\'їдає" маточікування стратегії на дистанції. Робить рівно те, що робить людина в лайві.' },
+                ]} />
                 <StressSlider
                   label="Bad Slip Prob"
                   description="Ймовірність що стоп спрацює по гіршій ціні (гепи, новини). 0.15 = 15% збиткових угод матимуть погане виконання"
@@ -982,6 +1031,12 @@ export default function Charts() {
                   onChange={v => setSP('badSlipMult', v)}
                   accent="#38bdf899"
                 />
+                <FactorDetails items={[
+                  { label: 'Що моделює', content: 'Різкі рухи ринку, slippage, гепи на відкритті, новинні шпильки.' },
+                  { label: 'Сценарій', content: 'Мій стоп стояв на 1.1000, проте через вихід NFP, ціна пролетіла через стоп і мене закрило на рівні 1.0990, тобто по гіршій ціні.' },
+                  { label: 'Як працює', content: '• Bad Slip Prob: Імовірність події (як часто відбувається?). Наприклад, 0.15 = в 15% випадків стоп спрацює погано.\n• Bad Slip Mult: Сила удару (наскільки гірше?). Наприклад 1.4 = збиток буде не −100$, а −140$.' },
+                  { label: 'Вплив', content: 'Понижає стабільність кривої капіталу, додає глибокі просадки, які важко відновити.' },
+                ]} />
                 <StressSlider
                   label="Missed Win"
                   description="Пропустив прибуткову угоду (спав, боявся натиснути після збитків). Прибуток стає 0R"
@@ -991,6 +1046,12 @@ export default function Charts() {
                   onChange={v => setSP('missedWin', v)}
                   accent="#4ade80"
                 />
+                <FactorDetails items={[
+                  { label: 'Що моделює', content: 'Життя трейдера. Сон. Їжу. Страх входу після збитку (фомо/страх).' },
+                  { label: 'Сценарій', content: '"Торгова модель була ідеальна в 9 ранку, але я спав" або "Був у монітора але боявся відкрити позицію кнопку після серії збиткових угод".' },
+                  { label: 'Як працює', content: 'Бере тільки прибуткову угоду і із заданою імовірністю обнуляє її результат (робить 0R). Ніби ви просто спостерігали за цією позицією зі сторони.' },
+                  { label: 'Вплив', content: 'Найсильніший з усіх факторів. Ви втрачаєте прибуток але продовжуєте отримувати збитки (збиткові угоди пропускаються не так часто, так як мені потрібна симуляція максимально наближена до реальності).' },
+                ]} />
               </div>
             </div>
 
