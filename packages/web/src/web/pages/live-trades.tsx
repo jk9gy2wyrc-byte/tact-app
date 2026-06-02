@@ -337,6 +337,7 @@ export default function LiveTrades() {
   const [editTrade, setEditTrade] = useState<any | null>(null);
   const [error, setError] = useState('');
   const [showUpload, setShowUpload] = useState(false);
+  const [showUploadWarning, setShowUploadWarning] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [fileResult, setFileResult] = useState<{ ok?: boolean; inserted?: number; error?: string } | null>(null);
   const [aiRows, setAiRows] = useState<any[] | null>(null);
@@ -544,15 +545,31 @@ export default function LiveTrades() {
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div style={{ fontSize: 18, fontWeight: 600 }}>Live Database</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 12, color: 'var(--text2)' }}>{allTrades.length} trades</span>
-          <button type="button" className={showUpload ? 'btn-primary' : 'btn-ghost'}
-            onClick={() => { setShowUpload(v => !v); setFileResult(null); }}
-            style={{ padding: '6px 14px', fontSize: 12 }}>
-            ↑ Upload File
-          </button>
-        </div>
+        <span style={{ fontSize: 12, color: 'var(--text2)' }}>{allTrades.length} trades</span>
       </div>
+
+      {showUploadWarning && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '28px 28px 24px', maxWidth: 420, width: '90%', position: 'relative' }}>
+            <button onClick={() => setShowUploadWarning(false)} style={{ position: 'absolute', top: 12, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 16, lineHeight: 1, padding: 4 }}>✕</button>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, color: 'var(--text)', paddingRight: 20 }}>
+              Підтримувані формати
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, marginBottom: 10 }}>
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Скріншот</strong> — вставити через <kbd style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px', fontSize: 11 }}>Ctrl+V</kbd> або drag&drop<br />
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>.xlsx файл</strong> — лист з "live" в назві<br />
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span>Скріншот обробляє <strong>Gemini AI</strong> — перевір дані перед збереженням
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 20 }}>
+              (Попередження: завжди перевіряйте правильність заповнених даних самотужки для уникнення помилок)
+            </div>
+            <button className="btn-primary" style={{ width: '100%', padding: '10px', fontSize: 13, fontWeight: 600 }}
+              onClick={() => { setShowUploadWarning(false); setShowUpload(true); setFileResult(null); }}>
+              Ознайомився
+            </button>
+          </div>
+        </div>
+      )}
 
       {showUpload && (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
@@ -644,7 +661,14 @@ export default function LiveTrades() {
 
       {/* ADD FORM */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 24 }}>
-        <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 12, fontWeight: 600 }}>Add New Trade</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>Add New Trade</div>
+          <button type="button" className={showUpload ? 'btn-primary' : 'btn-ghost'}
+            onClick={() => { setShowUploadWarning(true); setFileResult(null); }}
+            style={{ padding: '5px 12px', fontSize: 12 }}>
+            ↑ Upload File
+          </button>
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, auto)', gap: 10, alignItems: 'end' }}>
             <div>
