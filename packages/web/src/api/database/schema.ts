@@ -6,6 +6,15 @@ export const users = sqliteTable("users", {
   login: text("login").notNull().unique(),
   password: text("password").notNull(),
   role: text("role").notNull().default("user"),
+  email: text("email"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+});
+
+export const emailCodes = sqliteTable("email_codes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  email: text("email").notNull(),
+  code: text("code").notNull(),
+  expiresAt: integer("expires_at").notNull(), // unix ms
   createdAt: text("created_at").default(sql`(datetime('now'))`),
 });
 

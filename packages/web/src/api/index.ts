@@ -3,10 +3,11 @@ import { cors } from "hono/cors";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { db } from "./database";
-import { backtestTrades, liveTrades, subscriptionSettings, users } from "./database/schema";
-import { eq, desc, asc, sql } from "drizzle-orm";
+import { backtestTrades, emailCodes, liveTrades, subscriptionSettings, users } from "./database/schema";
+import { eq, desc, asc, sql, lt } from "drizzle-orm";
 import * as XLSX from "xlsx";
 import { DEFAULT_SUBSCRIPTION_SETTINGS } from "../shared/subscription";
+import { Resend } from "resend";
 
 type UserRoleName = 'admin' | 'free' | 'paid' | 'free-trial' | 'no-access';
 
@@ -51,6 +52,26 @@ type SubscriptionSettingsResponse = {
   buttonUrl: string;
   plans: z.infer<typeof subscriptionPlansSchema>;
   updatedAt: string | null;
+};
+
+let emailTablesReady: Promise<void> | null = null;
+
+const ensureEmailTables = async () => {
+  if (!emailTablesReady) {
+    emailTablesReady = Promise.all([
+      db.run(sql`ALTER TABLE users ADD COLUMN email TEXT`).catch(() => {}),
+      db.run(sql`
+        CREATE TABLE IF NOT EXISTS email_codes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          email TEXT NOT NULL,
+          code TEXT NOT NULL,
+          expires_at INTEGER NOT NULL,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `),
+    ]).then(() => {});
+  }
+  return emailTablesReady;
 };
 
 let subscriptionTableReady: Promise<void> | null = null;
@@ -145,6 +166,84 @@ const app = new Hono()
         password,
         role: 'free-trial',
       }).returning();
+      return c.json({
+        id: newUser.id,
+        login: newUser.login,
+        role: normalizeRole(newUser.role),
+        createdAt: newUser.createdAt ?? null,
+      }, 200);
+    }
+  )
+
+  // ─── EMAIL VERIFICATION: send code ───────────────────────────────────────
+  .post('/auth/send-code',
+    zValidator('json', z.object({ email: z.string().email() })),
+    async (c) => {
+      await ensureEmailTables();
+      const { email } = c.req.valid('json');
+      // check email not already used
+      const existing = await db.select().from(users).where(eq(users.email, email)).get();
+      if (existing) return c.json({ error: 'Ця пошта вже зареєстрована' }, 409);
+      // cleanup old codes for this email
+      await db.delete(emailCodes).where(eq(emailCodes.email, email));
+      // generate 4-digit code
+      const code = String(Math.floor(1000 + Math.random() * 9000));
+      const expiresAt = Date.now() + 10 * 60 * 1000; // 10 хвилин
+      await db.insert(emailCodes).values({ email, code, expiresAt });
+      // send email
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      try {
+        await resend.emails.send({
+          from: 'TSCT <onboarding@resend.dev>',
+          to: email,
+          subject: 'Код підтвердження TSCT',
+          html: `
+            <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:32px;background:#0d0f11;color:#e2e8f0;border-radius:16px">
+              <div style="font-size:20px;font-weight:700;margin-bottom:16px">TSCT</div>
+              <p style="color:#94a3b8;margin-bottom:24px">Ваш код підтвердження для реєстрації:</p>
+              <div style="font-size:40px;font-weight:700;letter-spacing:12px;text-align:center;padding:20px;background:#1a1d2a;border-radius:12px;color:#fff">${code}</div>
+              <p style="color:#94a3b8;font-size:12px;margin-top:20px">Код дійсний 10 хвилин. Якщо ви не реєструвались — проігноруйте цей лист.</p>
+            </div>
+          `,
+        });
+      } catch (e) {
+        return c.json({ error: 'Не вдалося надіслати лист. Перевірте адресу.' }, 500);
+      }
+      return c.json({ ok: true }, 200);
+    }
+  )
+
+  // ─── EMAIL VERIFICATION: verify code + register ──────────────────────────
+  .post('/auth/register-email',
+    zValidator('json', z.object({
+      email: z.string().email(),
+      code: z.string().length(4),
+      password: z.string().min(4),
+    })),
+    async (c) => {
+      await ensureEmailTables();
+      const { email, code, password } = c.req.valid('json');
+      // cleanup expired codes
+      await db.delete(emailCodes).where(lt(emailCodes.expiresAt, Date.now()));
+      const record = await db.select().from(emailCodes)
+        .where(eq(emailCodes.email, email)).get();
+      if (!record) return c.json({ error: 'Код не знайдено або вже використано' }, 400);
+      if (record.expiresAt < Date.now()) {
+        await db.delete(emailCodes).where(eq(emailCodes.email, email));
+        return c.json({ error: 'Код прострочений. Запросіть новий.' }, 400);
+      }
+      if (record.code !== code) return c.json({ error: 'Невірний код' }, 400);
+      // check email still free
+      const emailUsed = await db.select().from(users).where(eq(users.email, email)).get();
+      if (emailUsed) return c.json({ error: 'Ця пошта вже зареєстрована' }, 409);
+      // register
+      const [newUser] = await db.insert(users).values({
+        login: email,
+        password,
+        email,
+        role: 'free-trial',
+      }).returning();
+      await db.delete(emailCodes).where(eq(emailCodes.email, email));
       return c.json({
         id: newUser.id,
         login: newUser.login,
