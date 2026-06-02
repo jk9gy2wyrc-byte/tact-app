@@ -291,24 +291,30 @@ function MetricChart({
 function FactorDetails({ items }: {
   items: { label: string; content: string }[];
 }) {
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const toggle = (label: string) =>
+    setOpen(prev => {
+      const next = new Set(prev);
+      next.has(label) ? next.delete(label) : next.add(label);
+      return next;
+    });
   return (
     <div style={{ marginTop: 4, marginBottom: 4, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
       {items.map(item => (
         <div key={item.label} style={{ flex: '1 1 auto' }}>
           <button
-            onClick={() => setOpen(o => o === item.label ? null : item.label)}
+            onClick={() => toggle(item.label)}
             style={{
-              fontSize: 10, color: open === item.label ? 'var(--text)' : 'var(--text2)',
-              background: open === item.label ? 'var(--surface)' : 'none',
+              fontSize: 10, color: open.has(item.label) ? 'var(--text)' : 'var(--text2)',
+              background: open.has(item.label) ? 'var(--surface)' : 'none',
               border: '1px solid var(--border)', borderRadius: 6,
               cursor: 'pointer', padding: '3px 8px', whiteSpace: 'nowrap',
               display: 'flex', alignItems: 'center', gap: 3,
             }}
           >
-            {open === item.label ? '▲' : '▼'} {item.label}
+            {open.has(item.label) ? '▲' : '▼'} {item.label}
           </button>
-          {open === item.label && (
+          {open.has(item.label) && (
             <div style={{
               marginTop: 4, padding: '8px 10px',
               background: 'var(--surface)', borderRadius: 6,
