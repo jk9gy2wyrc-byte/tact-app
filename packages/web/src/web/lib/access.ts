@@ -3,25 +3,16 @@ import { getSession } from "./session";
 export interface AccessResult {
   hasAccess: boolean;
   reason: string;
+  role?: string;
+  trialEndsAt?: string;
+  trialEndedAt?: string;
 }
 
 export async function fetchAccess(): Promise<AccessResult> {
   const session = getSession();
   if (!session) return { hasAccess: false, reason: "not_logged_in" };
 
-  const role = session.role ?? "";
-
-  // Blocked by admin
-  if (role === "no-access") {
-    return { hasAccess: false, reason: "no_access" };
-  }
-
-  // Admin and paid always have access
-  if (["admin", "paid", "free"].includes(role)) {
-    return { hasAccess: true, reason: "admin" };
-  }
-
-  // Trial — check via API
+  // Always check API — localStorage role may be stale after admin changes it
   try {
     const res = await fetch(`/api/auth/access/${session.id}`);
     if (!res.ok) return { hasAccess: false, reason: "error" };

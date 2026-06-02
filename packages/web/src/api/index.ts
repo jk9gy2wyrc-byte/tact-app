@@ -187,16 +187,16 @@ const app = new Hono()
     if (!user) return c.json({ hasAccess: false, reason: 'not_found' }, 404);
 
     const role = normalizeRole(user.role);
-    if (role === 'admin') return c.json({ hasAccess: true, reason: 'admin' }, 200);
-    if (role === 'paid' || role === 'free') return c.json({ hasAccess: true, reason: 'full' }, 200);
-    if (role === 'no-access') return c.json({ hasAccess: false, reason: 'no_access' }, 200);
+    if (role === 'admin') return c.json({ hasAccess: true, reason: 'admin', role }, 200);
+    if (role === 'paid' || role === 'free') return c.json({ hasAccess: true, reason: 'full', role }, 200);
+    if (role === 'no-access') return c.json({ hasAccess: false, reason: 'no_access', role }, 200);
 
     const row = await ensureSubscriptionRow();
     const plans = parsePlans(row.plansJson);
     const freeWeeks = plans.firstPurchase.freeWeeks ?? DEFAULT_SUBSCRIPTION_SETTINGS.plans.firstPurchase.freeWeeks;
     const createdAtMs = parseDbDate(user.createdAt);
     if (!createdAtMs) {
-      return c.json({ hasAccess: true, reason: 'trial' }, 200);
+      return c.json({ hasAccess: true, reason: 'trial', role }, 200);
     }
     const msPerWeek = 7 * 24 * 3600 * 1000;
     const expiresAt = createdAtMs + freeWeeks * msPerWeek;
@@ -204,12 +204,14 @@ const app = new Hono()
       return c.json({
         hasAccess: true,
         reason: 'trial',
+        role,
         trialEndsAt: new Date(expiresAt).toISOString(),
       }, 200);
     }
     return c.json({
       hasAccess: false,
       reason: 'trial_expired',
+      role,
       trialEndedAt: new Date(expiresAt).toISOString(),
     }, 200);
   })

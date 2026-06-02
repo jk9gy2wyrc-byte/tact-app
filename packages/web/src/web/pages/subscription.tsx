@@ -29,9 +29,11 @@ export default function Subscription() {
   const { data: accessData } = useQuery({
     queryKey: ['access'],
     queryFn: fetchAccess,
-    staleTime: 60_000,
-    enabled: userRole === 'free-trial' || userRole === 'no-access',
+    staleTime: 30_000,
   });
+
+  // Use role from API (always fresh from DB), fallback to localStorage
+  const effectiveRole = accessData?.role ?? userRole;
 
   const [config, setConfig] = useState<SubscriptionSettingsPayload>(() => cloneConfig(DEFAULT_SUBSCRIPTION_SETTINGS));
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
@@ -49,8 +51,8 @@ export default function Subscription() {
   const [editPlans, setEditPlans] = useState<SubscriptionPlans>(() => clonePlans(DEFAULT_SUBSCRIPTION_SETTINGS.plans));
   const [plansModalError, setPlansModalError] = useState<string | null>(null);
 
-  const getRoleInfo = (role: string) => {
-    switch (role) {
+  const getRoleInfo = () => {
+    switch (effectiveRole) {
       case 'admin':
         return { label: 'Expanded rights', color: '#facc15', bg: '#facc1522', border: '#facc1544' };
       case 'paid':
@@ -60,8 +62,7 @@ export default function Subscription() {
       case 'no-access':
         return { label: 'Unsubscribed', color: '#9ca3af', bg: '#9ca3af22', border: '#9ca3af44' };
       case 'free-trial': {
-        const hasAccess = accessData?.hasAccess ?? true;
-        if (hasAccess) {
+        if (accessData?.hasAccess) {
           return { label: 'Free trial', color: '#7eb8f7', bg: '#7eb8f722', border: '#7eb8f744' };
         }
         return { label: 'Unsubscribed', color: '#9ca3af', bg: '#9ca3af22', border: '#9ca3af44' };
@@ -71,7 +72,7 @@ export default function Subscription() {
     }
   };
 
-  const roleInfo = getRoleInfo(userRole);
+  const roleInfo = getRoleInfo();
 
   useEffect(() => {
     let cancelled = false;
@@ -244,9 +245,9 @@ export default function Subscription() {
           }}>
             {roleInfo.label}
           </span>
-          {userRole === 'free' && (
+          {(effectiveRole === 'no-access' || (effectiveRole === 'free-trial' && !accessData?.hasAccess)) && (
             <span style={{ fontSize: 13, color: 'var(--text2)' }}>
-              Оновіть до підписки для повного доступу
+              Subscribe to get full access
             </span>
           )}
         </div>
