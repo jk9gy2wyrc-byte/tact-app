@@ -946,42 +946,50 @@ export default function Charts() {
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
                   Фактори збитків
                 </div>
-                <StressSlider
-                  label="Loss Amplification"
-                  description="Збільшити розмір кожного збитку. 1.0 = без змін, 1.2 = збитки на 20% більші (−1R → −1.2R)"
-                  value={stressParams.lossAmp}
-                  min={1} max={2} step={0.05}
-                  format={v => `×${v.toFixed(2)}`}
-                  onChange={v => setSP('lossAmp', v)}
-                  accent="#f87171"
-                />
-                <StressSlider
-                  label="Win Reduction"
-                  description="Зменшити розмір кожного виграшу. 1.0 = без змін, 0.8 = виграші на 20% менші (+2.2R → +1.76R)"
-                  value={stressParams.winReduction}
-                  min={0.4} max={1} step={0.05}
-                  format={v => `×${v.toFixed(2)}`}
-                  onChange={v => setSP('winReduction', v)}
-                  accent="#fb923c"
-                />
-                <StressSlider
-                  label="WR Degradation"
-                  description="Конвертувати % випадкових TP в SL. 0 = без змін, 0.1 = 10% виграшів стають програшами"
-                  value={stressParams.wrDegradation}
-                  min={0} max={0.4} step={0.01}
-                  format={v => `${(v * 100).toFixed(0)}%`}
-                  onChange={v => setSP('wrDegradation', v)}
-                  accent="#facc15"
-                />
-                <StressSlider
-                  label="Execution Slippage"
-                  description="Додатковий cost per trade в R (slippage, re-quotes). 0.05 = −0.05R з кожного трейду"
-                  value={stressParams.slippage}
-                  min={0} max={0.3} step={0.01}
-                  format={v => `−${v.toFixed(2)}R`}
-                  onChange={v => setSP('slippage', v)}
-                  accent="#a78bfa"
-                />
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
+                  <StressSlider
+                    label="Loss Amplification"
+                    description="Збільшити розмір кожного збитку. 1.0 = без змін, 1.2 = збитки на 20% більші (−1R → −1.2R)"
+                    value={stressParams.lossAmp}
+                    min={1} max={2} step={0.05}
+                    format={v => `×${v.toFixed(2)}`}
+                    onChange={v => setSP('lossAmp', v)}
+                    accent="#f87171"
+                  />
+                </div>
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
+                  <StressSlider
+                    label="Win Reduction"
+                    description="Зменшити розмір кожного виграшу. 1.0 = без змін, 0.8 = виграші на 20% менші (+2.2R → +1.76R)"
+                    value={stressParams.winReduction}
+                    min={0.4} max={1} step={0.05}
+                    format={v => `×${v.toFixed(2)}`}
+                    onChange={v => setSP('winReduction', v)}
+                    accent="#fb923c"
+                  />
+                </div>
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
+                  <StressSlider
+                    label="WR Degradation"
+                    description="Конвертувати % випадкових TP в SL. 0 = без змін, 0.1 = 10% виграшів стають програшами"
+                    value={stressParams.wrDegradation}
+                    min={0} max={0.4} step={0.01}
+                    format={v => `${(v * 100).toFixed(0)}%`}
+                    onChange={v => setSP('wrDegradation', v)}
+                    accent="#facc15"
+                  />
+                </div>
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
+                  <StressSlider
+                    label="Execution Slippage"
+                    description="Додатковий cost per trade в R (slippage, re-quotes). 0.05 = −0.05R з кожного трейду"
+                    value={stressParams.slippage}
+                    min={0} max={0.3} step={0.01}
+                    format={v => `−${v.toFixed(2)}R`}
+                    onChange={v => setSP('slippage', v)}
+                    accent="#a78bfa"
+                  />
+                </div>
               </div>
 
               {/* RIGHT COLUMN */}
