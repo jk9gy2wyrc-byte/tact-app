@@ -1199,14 +1199,16 @@ export default function Charts() {
                           const mc  = card.mcV ?? null;
                           const st  = card.stressV ?? null;
                           const hasLv = lv != null && (lvStats?.n ?? 0) > 0;
-                          const fmtPct = (a: number, b: number) => {
-                            if (b === 0) return '—';
-                            const p = (a - b) / Math.abs(b) * 100;
+                          const hasSimulation = mc != null || st != null;
+                          const fmtPct = (sim: number, ref: number) => {
+                            if (ref === 0) return '—';
+                            const p = (sim - ref) / Math.abs(ref) * 100;
                             return `${p >= 0 ? '+' : ''}${p.toFixed(1)}%`;
                           };
-                          const devColor = (a: number, b: number) => {
-                            if (b === 0) return 'var(--text2)';
-                            return (a - b) >= 0 ? '#4ade80' : '#f87171';
+                          // neutral color: simulation vs reference — no "good/bad" judgment
+                          const devColor = (sim: number, ref: number) => {
+                            if (ref === 0) return 'var(--text2)';
+                            return (sim - ref) >= 0 ? '#4ade80' : '#f87171';
                           };
                           return (
                             <div key={card.label} style={{
@@ -1220,8 +1222,8 @@ export default function Charts() {
                                 {mc != null && <div style={{ fontSize: 11, color: '#a78bfa', fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, marginRight: 2 }}>MC</span>{card.fmt(mc)}</div>}
                                 {st != null && <div style={{ fontSize: 11, color: '#fb923c', fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, marginRight: 2 }}>ST</span>{card.fmt(st)}</div>}
                               </div>
-                              {/* Deviation button — shown only when we have LV data */}
-                              {hasLv && lv != null && (
+                              {/* Deviation button — shown when MC or ST simulation exists */}
+                              {hasSimulation && (
                                 <>
                                   <button
                                     onClick={() => setStressDescOpen(prev => {
@@ -1235,27 +1237,47 @@ export default function Charts() {
                                     {isDevOpen ? '▲' : '▼'} Відхилення
                                   </button>
                                   {isDevOpen && (
-                                    <div style={{ marginTop: 6, fontSize: 11, lineHeight: 1.7, background: 'var(--surface)', borderRadius: 6, padding: '8px 10px' }}>
-                                      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                                        {bt != null && (
-                                          <div>
-                                            <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>LV vs BT</div>
-                                            <div className="mono" style={{ color: devColor(lv, bt), fontWeight: 700 }}>{fmtPct(lv, bt)}</div>
+                                    <div style={{ marginTop: 6, fontSize: 11, lineHeight: 1.8, background: 'var(--surface)', borderRadius: 6, padding: '8px 10px' }}>
+                                      {/* MC симуляція */}
+                                      {mc != null && (
+                                        <div style={{ marginBottom: bt != null || (hasLv && lv != null) ? 8 : 0 }}>
+                                          <div style={{ fontSize: 9, color: '#a78bfa', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4, letterSpacing: 0.4 }}>MC симуляція</div>
+                                          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                                            {bt != null && (
+                                              <div>
+                                                <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 1 }}>vs BT</div>
+                                                <div className="mono" style={{ color: devColor(mc, bt), fontWeight: 700 }}>{fmtPct(mc, bt)}</div>
+                                              </div>
+                                            )}
+                                            {hasLv && lv != null && (
+                                              <div>
+                                                <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 1 }}>vs LV</div>
+                                                <div className="mono" style={{ color: devColor(mc, lv), fontWeight: 700 }}>{fmtPct(mc, lv)}</div>
+                                              </div>
+                                            )}
                                           </div>
-                                        )}
-                                        {mc != null && (
-                                          <div>
-                                            <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>LV vs MC</div>
-                                            <div className="mono" style={{ color: devColor(lv, mc), fontWeight: 700 }}>{fmtPct(lv, mc)}</div>
+                                        </div>
+                                      )}
+                                      {/* Stress симуляція */}
+                                      {st != null && (
+                                        <div>
+                                          <div style={{ fontSize: 9, color: '#fb923c', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4, letterSpacing: 0.4 }}>Stress симуляція</div>
+                                          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                                            {bt != null && (
+                                              <div>
+                                                <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 1 }}>vs BT</div>
+                                                <div className="mono" style={{ color: devColor(st, bt), fontWeight: 700 }}>{fmtPct(st, bt)}</div>
+                                              </div>
+                                            )}
+                                            {hasLv && lv != null && (
+                                              <div>
+                                                <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 1 }}>vs LV</div>
+                                                <div className="mono" style={{ color: devColor(st, lv), fontWeight: 700 }}>{fmtPct(st, lv)}</div>
+                                              </div>
+                                            )}
                                           </div>
-                                        )}
-                                        {st != null && (
-                                          <div>
-                                            <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>LV vs ST</div>
-                                            <div className="mono" style={{ color: devColor(lv, st), fontWeight: 700 }}>{fmtPct(lv, st)}</div>
-                                          </div>
-                                        )}
-                                      </div>
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                 </>
