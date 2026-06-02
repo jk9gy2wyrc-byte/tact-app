@@ -991,15 +991,16 @@ async function fetchNewsData(): Promise<any[]> {
     } catch { return []; }
   }));
   const all = (results as any[][]).flat();
-  const watched = new Set(['USD', 'EUR', 'GBP']);
+  // Return all High/Medium — client filters by selected assets
   return all
-    .filter((e: any) => watched.has((e.currency ?? '').toUpperCase()) && (e.impact === 'High' || e.impact === 'Medium'))
+    .filter((e: any) => e.impact === 'High' || e.impact === 'Medium')
     .map((e: any) => {
       const impact = (e.impact ?? '').toLowerCase();
+      // FF now uses ISO date string and "country" field
+      const dateStr = e.date ?? '';
       return {
-        date: e.date ?? '',
-        time: e.time ?? '',
-        currency: (e.currency ?? '').toUpperCase(),
+        isoDate: dateStr,
+        currency: (e.country ?? e.currency ?? '').toUpperCase(),
         impact: impact === 'high' ? 'red' : 'orange',
         title: e.title ?? '',
         forecast: e.forecast ?? null,
@@ -1034,6 +1035,11 @@ async function fetchWeeklyChanges() {
     GBP: 'GBPUSD=X',
     XAU: 'GC=F',
     GER: '%5EGDAXI',
+    BTC: 'BTC-USD',
+    ETH: 'ETH-USD',
+    XAG: 'SI=F',
+    NAS: '%5EIXIC',
+    US100: 'NQ=F',
   };
   const results: Record<string, { change: number; current: number; open: number } | null> = {};
 
