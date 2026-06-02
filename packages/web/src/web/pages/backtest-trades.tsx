@@ -842,13 +842,70 @@ export default function BacktestTrades() {
                   {Object.entries(byYear).sort(([a], [b]) => b.localeCompare(a)).map(([yr, byMonth]) => {
                     const yrTrades = Object.values(byMonth).flat();
                     const yrStats = calcGroup(yrTrades);
+                    const yrKey = `ALL__${inst}__${yr}`;
+                    const yrOpen = expandedMonths.has(yrKey);
                     return (
-                      <div key={yr} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      <div key={yr} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                        {/* Year header — clickable */}
+                        <div onClick={() => toggleMonth(yrKey)} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '8px 12px', cursor: 'pointer', userSelect: 'none' }}>
+                          <span style={{ fontSize: 11, color: 'var(--text2)' }}>{yrOpen ? '▾' : '▸'}</span>
                           <span style={{ fontWeight: 600, fontSize: 13 }}>{yr}</span>
                           <span style={{ fontSize: 11, color: 'var(--text2)' }}>{yrStats.n} trades · WR {yrStats.wr}</span>
                           <span style={{ fontSize: 11 }}>Net: <span className={`mono ${yrStats.totalR >= 0 ? 'pos' : 'neg'}`}>{yrStats.totalR.toFixed(2)}R</span></span>
                         </div>
+                        {/* Months inside year */}
+                        {yrOpen && (
+                          <div style={{ padding: '0 10px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {Object.entries(byMonth).sort(([a], [b]) => b.localeCompare(a)).map(([month, mTrades]) => {
+                              const mStats = calcGroup(mTrades);
+                              const mKey = `ALL__${inst}__${yr}__${month}`;
+                              const isOpen = expandedMonths.has(mKey);
+                              return (
+                                <div key={month} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+                                  <div onClick={() => toggleMonth(mKey)} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '7px 10px', cursor: 'pointer', userSelect: 'none' }}>
+                                    <span style={{ fontSize: 11, color: 'var(--text2)' }}>{isOpen ? '▾' : '▸'}</span>
+                                    <span style={{ fontWeight: 600, fontSize: 12 }}>{month}</span>
+                                    <span style={{ fontSize: 11, color: 'var(--text2)' }}>{mStats.n} trades · WR {mStats.wr}</span>
+                                    <span style={{ fontSize: 11 }}>Net: <span className={`mono ${mStats.totalR >= 0 ? 'pos' : 'neg'}`}>{mStats.totalR.toFixed(2)}R</span></span>
+                                  </div>
+                                  {isOpen && (
+                                    isMobile ? (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 10px 10px' }}>
+                                        {mTrades.map((t: any) => (
+                                          <TradeCard key={t.id} t={t} onEdit={() => setEditTrade(t)} onDelete={() => { if (confirm('Delete?')) deleteMutation.mutate(t.id); }} />
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div style={{ borderTop: '1px solid var(--border)' }}>
+                                        <table style={{ minWidth: 420 }}>
+                                          <thead>
+                                            <tr><th>#</th><th>Date</th><th>Dir</th><th>RR</th><th>Session</th><th>Result</th><th>Gross R</th><th>Cost</th><th>Net R</th><th style={{ width: 40 }}></th></tr>
+                                          </thead>
+                                          <tbody>
+                                            {mTrades.map((t: any) => (
+                                              <tr key={t.id} onClick={() => setEditTrade(t)} style={{ cursor: 'pointer' }}>
+                                                <td className="mono" style={{ color: 'var(--text2)', fontSize: 11 }}>{t.tradeNum}</td>
+                                                <td className="mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmtDate(t.month)}</td>
+                                                <td><span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: t.direction === 'long' ? '#1a3a2a' : '#3a1a1a', color: t.direction === 'long' ? '#4ade80' : '#f87171' }}>{t.direction ? capitalize(t.direction) : '—'}</span></td>
+                                                <td className="mono">{fmt(t.rr)}</td>
+                                                <td>{t.session ? <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 500, background: '#2a2d33', color: 'var(--text2)' }}>{capitalize(t.session)}</span> : '—'}</td>
+                                                <td><span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: t.result === 'tp' ? '#1a3228' : t.result === 'sl' ? '#2d1a1a' : '#2d2a1a', color: t.result === 'tp' ? '#26a69a' : t.result === 'sl' ? '#ef5350' : '#f59e0b' }}>{t.result?.toUpperCase()}</span></td>
+                                                <td className={`mono ${(t.grossR ?? 0) >= 0 ? 'pos' : 'neg'}`}>{fmt(t.grossR)}</td>
+                                                <td className="mono neg">{fmt(t.cost)}</td>
+                                                <td className={`mono ${(t.netR ?? 0) > 0 ? 'pos' : (t.netR ?? 0) < 0 ? 'neg' : 'be'}`}>{fmt(t.netR)}</td>
+                                                <td><button style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6, background: '#2a2d33', border: '1px solid var(--border)', color: 'var(--text2)', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); if (confirm('Delete?')) deleteMutation.mutate(t.id); }}>×</button></td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
