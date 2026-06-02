@@ -756,10 +756,11 @@ export default function LiveTrades() {
             const wr = group.trades.length ? Math.round(tpCount / group.trades.length * 100) : 0;
             const pnlTrades = group.trades.filter((t: any) => t.profitDollars != null);
             const groupPnl = pnlTrades.length > 0 ? pnlTrades.reduce((s: number, t: any) => s + (t.profitDollars ?? 0), 0) : null;
+            const isOpen = expandedMonths.has(group.key);
             return (
-              <div key={group.key}>
-                <div onClick={() => toggleMonth(group.key)} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: expandedMonths.has(group.key) ? 8 : 0, padding: '6px 4px', borderBottom: '1px solid var(--border)', cursor: 'pointer', userSelect: 'none' }}>
-                  <span style={{ fontSize: 11, color: 'var(--text2)' }}>{expandedMonths.has(group.key) ? '▾' : '▸'}</span>
+              <div key={group.key} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                <div onClick={() => toggleMonth(group.key)} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '10px 14px', cursor: 'pointer', userSelect: 'none', background: 'var(--surface2)' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text2)' }}>{isOpen ? '▾' : '▸'}</span>
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{group.label}</div>
                   <span style={{ fontSize: 11, color: 'var(--text2)' }}>{group.trades.length} trades · WR {wr}%</span>
                   <span style={{ fontSize: 11 }}>Gross: <span className={`mono ${groupGross >= 0 ? 'pos' : 'neg'}`}>{groupGross.toFixed(2)}R</span></span>
@@ -768,8 +769,8 @@ export default function LiveTrades() {
                     <span style={{ fontSize: 11 }}>PnL: <span className={`mono ${groupPnl > 0 ? 'pos' : groupPnl < 0 ? 'neg' : 'be'}`} style={{ fontWeight: 600 }}>{groupPnl >= 0 ? '+' : ''}{groupPnl.toFixed(2)}$</span></span>
                   )}
                 </div>
-                {expandedMonths.has(group.key) && (isMobile ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {isOpen && (isMobile ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 10px' }}>
                     {group.trades.map((t: any) => {
                       const tw = { ...t, __monthSeq: monthSeqMap.get(t.id) };
                       return (
@@ -778,7 +779,7 @@ export default function LiveTrades() {
                     })}
                   </div>
                 ) : (
-                  <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                  <div style={{ borderTop: '1px solid var(--border)' }}>
                     <table>
                       <thead>
                         <tr>
