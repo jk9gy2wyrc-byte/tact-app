@@ -754,6 +754,8 @@ export default function LiveTrades() {
             const groupGross = group.trades.reduce((s, t) => s + (t.grossR ?? 0), 0);
             const tpCount = group.trades.filter(t => t.result === 'tp').length;
             const wr = group.trades.length ? Math.round(tpCount / group.trades.length * 100) : 0;
+            const pnlTrades = group.trades.filter((t: any) => t.profitDollars != null);
+            const groupPnl = pnlTrades.length > 0 ? pnlTrades.reduce((s: number, t: any) => s + (t.profitDollars ?? 0), 0) : null;
             return (
               <div key={group.key}>
                 <div onClick={() => toggleMonth(group.key)} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: expandedMonths.has(group.key) ? 8 : 0, padding: '6px 4px', borderBottom: '1px solid var(--border)', cursor: 'pointer', userSelect: 'none' }}>
@@ -762,6 +764,9 @@ export default function LiveTrades() {
                   <span style={{ fontSize: 11, color: 'var(--text2)' }}>{group.trades.length} trades · WR {wr}%</span>
                   <span style={{ fontSize: 11 }}>Gross: <span className={`mono ${groupGross >= 0 ? 'pos' : 'neg'}`}>{groupGross.toFixed(2)}R</span></span>
                   <span style={{ fontSize: 11 }}>Net: <span className={`mono ${groupNet > 0 ? 'pos' : groupNet < 0 ? 'neg' : 'be'}`}>{groupNet.toFixed(2)}R</span></span>
+                  {groupPnl != null && (
+                    <span style={{ fontSize: 11 }}>PnL: <span className={`mono ${groupPnl > 0 ? 'pos' : groupPnl < 0 ? 'neg' : 'be'}`} style={{ fontWeight: 600 }}>{groupPnl >= 0 ? '+' : ''}{groupPnl.toFixed(2)}$</span></span>
+                  )}
                 </div>
                 {expandedMonths.has(group.key) && (isMobile ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

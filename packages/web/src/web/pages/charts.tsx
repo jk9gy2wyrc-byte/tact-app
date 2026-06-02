@@ -89,7 +89,7 @@ function downsample(arr: number[], maxPts: number): { idx: number; val: number }
   const step = Math.max(1, Math.floor(arr.length / maxPts));
   const result: { idx: number; val: number }[] = [];
   for (let i = step - 1; i < arr.length; i += step) {
-    result.push({ idx: i + 1, val: arr[i] });
+    result.push({ idx: i + 1, val: arr[i]! });
   }
   return result;
 }
@@ -370,6 +370,7 @@ export default function Charts() {
   const [savedCombos, setSavedCombos] = useState<Array<{id: string; name: string; params: typeof defaultStress}>>(() => {
     try { return JSON.parse(localStorage.getItem('stressCombos') || '[]'); } catch { return []; }
   });
+  const [stressDescOpen, setStressDescOpen] = useState<Set<string>>(new Set());
 
   const setSP = useCallback((key: keyof typeof defaultStress, val: number) => {
     setStressParams(p => {
@@ -461,17 +462,17 @@ export default function Charts() {
   const N_PTS = 500;
   const interpArr = (arr: number[], t: number): number | null => {
     if (arr.length === 0) return null;
-    if (arr.length === 1) return arr[0];
+    if (arr.length === 1) return arr[0] ?? null;
     const fi = Math.max(0, Math.min(t * (arr.length - 1), arr.length - 1));
     const lo = Math.floor(fi), hi = Math.min(Math.ceil(fi), arr.length - 1);
-    return arr[lo] + (arr[hi] - arr[lo]) * (fi - lo);
+    return arr[lo]! + (arr[hi]! - arr[lo]!) * (fi - lo);
   };
   const interpMC = (arr: number[], i: number, total: number) => {
     if (arr.length === 0) return null;
-    if (arr.length === 1) return arr[0];
+    if (arr.length === 1) return arr[0] ?? null;
     const t = total > 1 ? (i / (total - 1)) * (arr.length - 1) : 0;
     const lo = Math.floor(t), hi = Math.min(Math.ceil(t), arr.length - 1);
-    return arr[lo] + (arr[hi] - arr[lo]) * (t - lo);
+    return arr[lo]! + (arr[hi]! - arr[lo]!) * (t - lo);
   };
   const eqData: any[] = [];
   if (equityViewMode === 'normalized') {
@@ -521,7 +522,7 @@ export default function Charts() {
       const t = i / (btLen - 1 || 1);
       const fi = t * (arr.length - 1);
       const lo = Math.floor(fi), hi = Math.ceil(fi);
-      return arr[lo] + (arr[hi] - arr[lo]) * (fi - lo);
+      return arr[lo]! + (arr[hi]! - arr[lo]!) * (fi - lo);
     });
     return { med: map(mc.med), p5: map(mc.p5), p95: map(mc.p95) };
   };
@@ -1049,49 +1050,162 @@ export default function Charts() {
             {/* Results */}
             {stressData && (
               <>
-                {/* KPI cards */}
-                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+                {/* KPI cards — Stress */}
+                <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, fontWeight: 600 }}>Stress симуляція</div>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
                   {[
                     {
                       label: 'Survival Rate',
                       value: `${stressData.survivalRate}%`,
                       sub: `< ${stressParams.survivalThreshold}R DD`,
                       color: stressData.survivalRate >= 90 ? '#4ade80' : stressData.survivalRate >= 70 ? '#facc15' : '#f87171',
-                      desc: '% симуляцій що пережили без blown account',
+                      desc: '% симуляцій що пережили без blown account. Якщо нижче 90% — стратегія ризикована при стресових умовах.',
                     },
                     {
                       label: 'Stress Max DD (med)',
                       value: `${stressData.stressMaxDD.med}R`,
                       sub: `p95: ${stressData.stressMaxDD.p95}R`,
                       color: '#fb923c',
-                      desc: 'Медіанна просадка в стресових умовах',
+                      desc: 'Медіанна максимальна просадка в стресових умовах. p95 — гірший сценарій (5% симуляцій були гіршими).',
                     },
                     {
                       label: 'Stress SQN (med)',
                       value: stressData.stressSQN.med.toFixed(2),
                       sub: `p5: ${stressData.stressSQN.p5.toFixed(2)}`,
                       color: stressData.stressSQN.med >= 2 ? '#4ade80' : stressData.stressSQN.med >= 1 ? '#facc15' : '#f87171',
-                      desc: 'SQN > 2 = стратегія виживає в стресі',
+                      desc: 'System Quality Number під стресом. SQN > 2 = стратегія стабільна. < 1 = деградація якості.',
                     },
                     {
                       label: 'Stress Final Eq (med)',
                       value: `${stressData.stressFinalEq.med}R`,
                       sub: `p5: ${stressData.stressFinalEq.p5}R`,
                       color: stressData.stressFinalEq.med > 0 ? '#4ade80' : '#f87171',
-                      desc: 'Фінальний результат при стресовому сценарії',
+                      desc: 'Медіанний фінальний результат при стресовому сценарії. p5 — консервативний прогноз.',
                     },
-                  ].map(card => (
-                    <div key={card.label} style={{
-                      background: 'var(--surface2)', border: '1px solid var(--border)',
-                      borderRadius: 10, padding: '12px 16px', minWidth: 140, flex: 1,
-                    }}>
-                      <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{card.label}</div>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: card.color, fontVariantNumeric: 'tabular-nums' }}>{card.value}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>{card.sub}</div>
-                      <div style={{ fontSize: 9, color: '#555', marginTop: 4 }}>{card.desc}</div>
-                    </div>
-                  ))}
+                  ].map(card => {
+                    const isOpen = stressDescOpen.has(card.label);
+                    return (
+                      <div key={card.label} style={{
+                        background: 'var(--surface2)', border: '1px solid var(--border)',
+                        borderRadius: 10, padding: '12px 16px', minWidth: 140, flex: 1,
+                      }}>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{card.label}</div>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: card.color, fontVariantNumeric: 'tabular-nums' }}>{card.value}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>{card.sub}</div>
+                        <button
+                          onClick={() => setStressDescOpen(prev => {
+                            const next = new Set(prev);
+                            if (next.has(card.label)) next.delete(card.label); else next.add(card.label);
+                            return next;
+                          })}
+                          style={{ marginTop: 6, fontSize: 10, color: 'var(--text2)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                          {isOpen ? '▲' : '▼'} Пояснення
+                        </button>
+                        {isOpen && (
+                          <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text2)', lineHeight: 1.5, background: 'var(--surface)', borderRadius: 6, padding: '8px 10px' }}>
+                            {card.desc}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+
+                {/* KPI cards — Normal MC metrics */}
+                {(btStats || lvStats) && (() => {
+                  type NCard = { label: string; btV: number | null; lvV: number | null; mcV: number | null | undefined; fmt: (v: number) => string; color: (v: number) => string; desc: string };
+                  const normalCards: NCard[] = [
+                    {
+                      label: 'Total R',
+                      btV: btStats?.totalR ?? null, lvV: lvStats?.totalR ?? null, mcV: mcStats?.totalR ?? null,
+                      fmt: (v: number) => v.toFixed(2) + 'R',
+                      color: (v: number) => v >= 0 ? '#4ade80' : '#f87171',
+                      desc: 'Сумарний результат в R. Бектест = очікування стратегії, Live = реальне виконання, MC = медіанний прогноз.',
+                    },
+                    {
+                      label: 'Win Rate',
+                      btV: btStats?.wr ?? null, lvV: lvStats?.wr ?? null, mcV: mcStats?.wr ?? null,
+                      fmt: (v: number) => (v * 100).toFixed(1) + '%',
+                      color: (v: number) => v >= 0.5 ? '#4ade80' : v >= 0.4 ? '#facc15' : '#f87171',
+                      desc: 'Відсоток виграшних угод (TP). Разом з Avg RR визначає Profit Factor стратегії.',
+                    },
+                    {
+                      label: 'Avg RR',
+                      btV: btStats?.avgRR ?? null, lvV: lvStats?.avgRR ?? null, mcV: mcStats?.avgRR ?? null,
+                      fmt: (v: number) => v.toFixed(3),
+                      color: (v: number) => v >= 1.5 ? '#4ade80' : v >= 1 ? '#facc15' : '#f87171',
+                      desc: 'Середнє R/R виграшних угод. Вище = краще. RR < 1 при WR < 60% — слабка стратегія.',
+                    },
+                    {
+                      label: 'Profit Factor',
+                      btV: btStats?.pf ?? null, lvV: lvStats?.pf ?? null, mcV: mcStats?.pf ?? null,
+                      fmt: (v: number) => v > 99 ? '∞' : v.toFixed(2),
+                      color: (v: number) => v >= 1.5 ? '#4ade80' : v >= 1 ? '#facc15' : '#f87171',
+                      desc: 'Сума виграшів / сума програшів. PF > 1.5 = хороша стратегія, > 2 = відмінна.',
+                    },
+                    {
+                      label: 'Max DD',
+                      btV: btStats?.maxDD ?? null, lvV: lvStats?.maxDD ?? null, mcV: mcStats?.maxDD ?? null,
+                      fmt: (v: number) => v.toFixed(2) + 'R',
+                      color: (v: number) => Math.abs(v) <= 5 ? '#4ade80' : Math.abs(v) <= 10 ? '#facc15' : '#f87171',
+                      desc: 'Максимальна просадка від піку до дна. Показує найгірший послідовний збиток в серії угод.',
+                    },
+                    {
+                      label: 'Std Dev',
+                      btV: btStats?.stdDev ?? null, lvV: lvStats?.stdDev ?? null, mcV: mcStats?.stdDev ?? null,
+                      fmt: (v: number) => v.toFixed(3),
+                      color: (_v: number) => '#facc15',
+                      desc: 'Стандартне відхилення результатів. Низьке = стабільні результати, високе = велика варіативність.',
+                    },
+                    {
+                      label: 'SQN',
+                      btV: btStats?.sqn ?? null, lvV: lvStats?.sqn ?? null, mcV: mcStats?.sqn ?? null,
+                      fmt: (v: number) => v.toFixed(2),
+                      color: (v: number) => v >= 2 ? '#4ade80' : v >= 1 ? '#facc15' : '#f87171',
+                      desc: 'System Quality Number = (Avg R / Std Dev) × √N. > 2 = добра система, > 3 = відмінна, < 1 = ненадійна.',
+                    },
+                  ];
+                  return (
+                    <>
+                      <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, fontWeight: 600 }}>Загальні метрики</div>
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
+                        {normalCards.map(card => {
+                          const isOpen = stressDescOpen.has('nm_' + card.label);
+                          return (
+                            <div key={card.label} style={{
+                              background: 'var(--surface2)', border: '1px solid var(--border)',
+                              borderRadius: 10, padding: '10px 14px', minWidth: 110, flex: 1,
+                            }}>
+                              <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{card.label}</div>
+                              <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                                {card.btV != null && <div style={{ fontSize: 13, fontWeight: 700, color: card.color(card.btV), fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, color: 'var(--text2)', marginRight: 2 }}>BT</span>{card.fmt(card.btV)}</div>}
+                                {card.lvV != null && (lvStats?.n ?? 0) > 0 && <div style={{ fontSize: 13, fontWeight: 700, color: card.color(card.lvV), fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, color: '#60a5fa', marginRight: 2 }}>LV</span>{card.fmt(card.lvV)}</div>}
+                                {card.mcV != null && <div style={{ fontSize: 11, color: '#a78bfa', fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, marginRight: 2 }}>MC</span>{card.fmt(card.mcV)}</div>}
+                              </div>
+                              <button
+                                onClick={() => setStressDescOpen(prev => {
+                                  const next = new Set(prev);
+                                  const key = 'nm_' + card.label;
+                                  if (next.has(key)) next.delete(key); else next.add(key);
+                                  return next;
+                                })}
+                                style={{ marginTop: 6, fontSize: 10, color: 'var(--text2)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 4 }}
+                              >
+                                {isOpen ? '▲' : '▼'} Пояснення
+                              </button>
+                              {isOpen && (
+                                <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text2)', lineHeight: 1.5, background: 'var(--surface)', borderRadius: 6, padding: '8px 10px' }}>
+                                  {card.desc}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  );
+                })()}
 
                 {/* Live deviation in Stress */}
                 {lastLvEq != null && lastBTEq != null && (
