@@ -578,12 +578,14 @@ export default function LiveTrades() {
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '28px 28px 24px', maxWidth: 420, width: '90%', position: 'relative' }}>
             <button onClick={() => setShowUploadWarning(false)} style={{ position: 'absolute', top: 12, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 16, lineHeight: 1, padding: 4 }}>✕</button>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, color: 'var(--text)', paddingRight: 20 }}>
-              Підтримувані формати
+              Обов'язкові поля для позицій
             </div>
             <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, marginBottom: 10 }}>
-              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Скріншот</strong> — вставити через <kbd style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px', fontSize: 11 }}>Ctrl+V</kbd> або drag&drop<br />
-              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>.xlsx файл</strong> — лист з "live" в назві<br />
-              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span>Скріншот обробляє <strong>AI</strong> — перевір дані перед збереженням
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Дата</strong> — формат <code>MM.YYYY</code> або <code>DD.MM.YYYY</code><br />
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Напрямок</strong> (Buy / Sell)<br />
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>RR</strong> (Risk-to-Reward)<br />
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Сесія</strong><br />
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Результат</strong> (Win / Loss / BE)
             </div>
             <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 20 }}>
               (Попередження: завжди перевіряйте правильність заповнених даних самотужки для уникнення помилок)
