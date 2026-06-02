@@ -376,6 +376,11 @@ export default function BacktestTrades() {
   const [showUploadWarning, setShowUploadWarning] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [fileResult, setFileResult] = useState<{ ok?: boolean; inserted?: number; error?: string } | null>(null);
+  const [aiRows, setAiRows] = useState<any[] | null>(null);
+  const [aiChecked, setAiChecked] = useState<boolean[]>([]);
+  const [aiError, setAiError] = useState('');
+  const [aiParsing, setAiParsing] = useState(false);
+  const [aiSaving, setAiSaving] = useState(false);
 
   const addMutation = useMutation({
     mutationFn: async (body: any) => {
@@ -450,7 +455,65 @@ export default function BacktestTrades() {
     },
     onError: (e: any) => setFileResult({ error: e.message }),
   });
-  const handleFile = (file: File) => { setFileResult(null); importMutation.mutate(file); };
+  const handleFile = async (file: File) => {
+    setFileResult(null);
+    setAiError('');
+    setAiRows(null);
+    if (file.type.startsWith('image/')) {
+      setAiParsing(true);
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('target', 'backtest');
+        const r = await fetch(`/api/ai-parse-image${uidParam()}`, { method: 'POST', body: fd });
+        const json = await r.json();
+        if (!r.ok || !json.ok) throw new Error(json.error ?? 'AI parse failed');
+        setAiRows(json.rows);
+        setAiChecked(json.rows.map(() => true));
+      } catch (e: any) {
+        setAiError(e.message);
+      } finally {
+        setAiParsing(false);
+      }
+    } else {
+      importMutation.mutate(file);
+    }
+  };
+
+  const handleAiSave = async () => {
+    if (!aiRows) return;
+    setAiSaving(true);
+    try {
+      const selected = aiRows.filter((_, i) => aiChecked[i]);
+      for (const row of selected) {
+        const result = (row.result ?? '').toLowerCase();
+        const direction = (row.direction ?? '').toLowerCase();
+        const rr = row.rr != null ? parseFloat(row.rr) : undefined;
+        const cost = row.cost != null ? parseFloat(row.cost) : -0.1;
+        const body: any = {
+          date: row.date ?? new Date().toISOString().slice(0, 10),
+          instrument: row.instrument ?? 'EUR',
+          direction: ['long', 'short'].includes(direction) ? direction : 'long',
+          result: ['tp', 'sl', 'be'].includes(result) ? result : 'be',
+          rr: rr ?? undefined,
+          session: row.session ? row.session.toLowerCase() : null,
+          cost,
+        };
+        await fetch(`/api/backtest-manual${uidParam()}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+      }
+      qc.invalidateQueries({ queryKey: ['backtest-trades'] });
+      qc.invalidateQueries({ queryKey: ['stats'] });
+      setAiRows(null);
+      setAiChecked([]);
+      setFileResult({ ok: true, inserted: selected.length });
+    } catch (e: any) {
+      setAiError(e.message);
+    } finally {
+      setAiSaving(false);
+    }
+  };
 
   // Paste from clipboard (Cmd+V / Ctrl+V) anywhere on the page when upload zone is visible
   useEffect(() => {
@@ -545,7 +608,7 @@ export default function BacktestTrades() {
         <button type="button" className={showUpload ? 'btn-primary' : 'btn-ghost'}
           onClick={() => { setShowUploadWarning(true); }}
           style={{ padding: '8px 18px', fontSize: 13 }}>
-          ↑ Upload File (.xlsx)
+          ↑ Upload File
         </button>
       </div>
 
@@ -606,21 +669,83 @@ export default function BacktestTrades() {
 
       {showUpload && (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-          <div
-            onDragOver={e => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
-            onClick={() => fileRef.current?.click()}
-            style={{ border: `2px dashed ${dragging ? '#4b5263' : 'var(--border)'}`, borderRadius: 12, padding: isMobile ? '28px 16px' : '40px 24px', textAlign: 'center', cursor: 'pointer', background: dragging ? '#1a1d2a' : 'var(--bg)', transition: 'all 0.15s', marginBottom: 12 }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>📂</div>
-            <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{isMobile ? 'Tap to browse' : 'Drop xlsx here or click to browse'}</div>
-            <div style={{ fontSize: 12, color: 'var(--text2)' }}>Supports: Raw Backtest Database (.xlsx) · або вставте скріншот <kbd style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px', fontSize: 11 }}>Ctrl+V</kbd></div>
-            <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }} />
-          </div>
-          {importMutation.isPending && (
-            <div style={{ color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}><span>⏳</span> Parsing and importing trades...</div>
+          {/* Drop zone */}
+          {!aiRows && (
+            <div
+              onDragOver={e => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
+              onClick={() => fileRef.current?.click()}
+              style={{ border: `2px dashed ${dragging ? '#4b5263' : 'var(--border)'}`, borderRadius: 12, padding: isMobile ? '28px 16px' : '40px 24px', textAlign: 'center', cursor: 'pointer', background: dragging ? '#1a1d2a' : 'var(--bg)', transition: 'all 0.15s', marginBottom: 12 }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>📂</div>
+              <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{isMobile ? 'Tap to browse' : 'Drop file here or click to browse'}</div>
+              <div style={{ fontSize: 12, color: 'var(--text2)' }}>або вставте скріншот <kbd style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px', fontSize: 11 }}>Ctrl+V</kbd></div>
+              <input ref={fileRef} type="file" accept=".xlsx,.xls,image/*" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }} />
+            </div>
           )}
-          {fileResult && (
+          {aiParsing && (
+            <div style={{ color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10 }}>
+              <span>⏳</span> Gemini розпізнає скріншот...
+            </div>
+          )}
+          {importMutation.isPending && (
+            <div style={{ color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}><span>⏳</span> Importing trades...</div>
+          )}
+          {aiError && (
+            <div style={{ background: '#1a0808', border: '1px solid var(--red)', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 10 }}>
+              <span style={{ color: 'var(--red)' }}>❌ {aiError}</span>
+            </div>
+          )}
+          {/* AI preview table */}
+          {aiRows && aiRows.length > 0 && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}>
+                Gemini розпізнав {aiRows.length} угод — перевір і підтверди:
+              </div>
+              <div style={{ overflowX: 'auto', marginBottom: 12 }}>
+                <table style={{ minWidth: 560, borderCollapse: 'collapse', width: '100%' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--surface2)' }}>
+                      {['✓', 'Дата', 'Напрям', 'Результат', 'RR', 'Сесія', 'Cost', 'Інструмент'].map(h => (
+                        <th key={h} style={{ padding: '5px 8px', fontSize: 10, color: 'var(--text2)', textAlign: 'left', fontWeight: 500 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiRows.map((row, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'var(--surface)' : 'var(--bg)', opacity: aiChecked[i] ? 1 : 0.4 }}>
+                        <td style={{ padding: '4px 8px' }}>
+                          <input type="checkbox" checked={aiChecked[i] ?? true} onChange={e => setAiChecked(prev => prev.map((v, idx) => idx === i ? e.target.checked : v))} />
+                        </td>
+                        <td style={{ padding: '4px 8px', fontSize: 11, fontFamily: 'monospace' }}>{row.date ?? '—'}</td>
+                        <td style={{ padding: '4px 8px', fontSize: 11 }}>
+                          <span style={{ padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: row.direction === 'long' ? '#1a3a2a' : '#3a1a1a', color: row.direction === 'long' ? '#4ade80' : '#f87171' }}>{row.direction ?? '—'}</span>
+                        </td>
+                        <td style={{ padding: '4px 8px', fontSize: 11 }}>
+                          <span style={{ padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: row.result === 'tp' ? '#1a3228' : row.result === 'sl' ? '#2d1a1a' : '#2d2a1a', color: row.result === 'tp' ? '#26a69a' : row.result === 'sl' ? '#ef5350' : '#f59e0b' }}>{row.result?.toUpperCase() ?? '—'}</span>
+                        </td>
+                        <td style={{ padding: '4px 8px', fontSize: 11, fontFamily: 'monospace' }}>{row.rr ?? '—'}</td>
+                        <td style={{ padding: '4px 8px', fontSize: 11 }}>{row.session ?? '—'}</td>
+                        <td style={{ padding: '4px 8px', fontSize: 11, fontFamily: 'monospace' }}>{row.cost ?? '—'}</td>
+                        <td style={{ padding: '4px 8px', fontSize: 11 }}>{row.instrument ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <button className="btn-primary" onClick={handleAiSave} disabled={aiSaving || aiChecked.every(v => !v)}
+                  style={{ padding: '8px 20px', fontSize: 13 }}>
+                  {aiSaving ? 'Зберігаємо...' : `Зберегти (${aiChecked.filter(Boolean).length})`}
+                </button>
+                <button className="btn-ghost" onClick={() => { setAiRows(null); setAiChecked([]); setAiError(''); }}
+                  style={{ padding: '8px 14px', fontSize: 13 }}>
+                  Скасувати
+                </button>
+              </div>
+            </div>
+          )}
+          {fileResult && !aiRows && (
             <div style={{ background: fileResult.error ? '#1a0808' : '#081a0f', border: `1px solid ${fileResult.error ? 'var(--red)' : 'var(--green)'}`, borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
               {fileResult.error ? <div style={{ color: 'var(--red)' }}>❌ {fileResult.error}</div> : <div style={{ color: 'var(--green)' }}>✅ Imported {fileResult.inserted} trades.</div>}
             </div>
