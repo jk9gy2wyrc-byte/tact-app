@@ -1209,7 +1209,7 @@ app.post('/ai-parse-image', async (c) => {
     const mimeType = (file.type || 'image/png') as any;
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
     const prompt = `You are a trading journal parser. Extract all trade rows from this screenshot.
 Return ONLY a valid JSON array, no markdown, no explanation.
