@@ -363,6 +363,7 @@ export default function BacktestTrades() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [showModal, setShowModal] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
+  const [showUploadWarning, setShowUploadWarning] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [fileResult, setFileResult] = useState<{ ok?: boolean; inserted?: number; error?: string } | null>(null);
 
@@ -515,11 +516,66 @@ export default function BacktestTrades() {
           <span style={{ fontSize: 15 }}>＋</span> New Database
         </button>
         <button type="button" className={showUpload ? 'btn-primary' : 'btn-ghost'}
-          onClick={() => { setShowUpload((o: boolean) => !o); setFileResult(null); }}
+          onClick={() => { setShowUploadWarning(true); }}
           style={{ padding: '8px 18px', fontSize: 13 }}>
           ↑ Upload File (.xlsx)
         </button>
       </div>
+
+      {showUploadWarning && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 10000,
+          background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: 14, padding: '28px 28px 24px',
+            maxWidth: 420, width: '90%', position: 'relative',
+          }}>
+            {/* Close X */}
+            <button
+              onClick={() => setShowUploadWarning(false)}
+              style={{
+                position: 'absolute', top: 12, right: 14,
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--text2)', fontSize: 16, lineHeight: 1, padding: 4,
+              }}>✕</button>
+
+            {/* Title */}
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, color: 'var(--text)', paddingRight: 20 }}>
+              Обов'язкові поля для позицій
+            </div>
+
+            {/* Required fields */}
+            <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, marginBottom: 10 }}>
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Дата</strong> — формат <code>хх.уууу</code> або <code>хх.фф.уууу</code><br />
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Напрямок</strong> (Buy / Sell)<br />
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>RR</strong> (Risk-to-Reward)<br />
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Сесія</strong><br />
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Результат</strong> (Win / Loss / BE)
+            </div>
+
+            {/* Warning */}
+            <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 20 }}>
+              (Попередження: завжди перевіряйте правильність заповнених даних самотужки для уникнення помилок)
+            </div>
+
+            {/* CTA */}
+            <button
+              className="btn-primary"
+              style={{ width: '100%', padding: '10px', fontSize: 13, fontWeight: 600 }}
+              onClick={() => {
+                setShowUploadWarning(false);
+                setShowUpload(true);
+                setFileResult(null);
+                setTimeout(() => fileRef.current?.click(), 50);
+              }}
+            >
+              Ознайомився
+            </button>
+          </div>
+        </div>
+      )}
 
       {showUpload && (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
