@@ -7,7 +7,7 @@ import { backtestTrades, emailCodes, liveTrades, subscriptionSettings, users } f
 import { eq, desc, asc, sql, lt } from "drizzle-orm";
 import * as XLSX from "xlsx";
 import { DEFAULT_SUBSCRIPTION_SETTINGS } from "../shared/subscription";
-import { Resend } from "resend";
+// Resend loaded lazily inside handler to avoid crash if key missing
 
 type UserRoleName = 'admin' | 'free' | 'paid' | 'free-trial' | 'no-access';
 
@@ -191,6 +191,7 @@ const app = new Hono()
       const expiresAt = Date.now() + 10 * 60 * 1000; // 10 хвилин
       await db.insert(emailCodes).values({ email, code, expiresAt });
       // send email
+      const { Resend } = await import('resend');
       const resend = new Resend(process.env.RESEND_API_KEY);
       try {
         await resend.emails.send({
