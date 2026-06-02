@@ -133,7 +133,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
               { label: 'Нових за сьогодні', value: users.filter((u) => {
                 if (!u.createdAt) return false;
                 const today = new Date().toISOString().slice(0, 10);
-                return u.createdAt.starts_with(today);
+                return u.createdAt.startsWith(today);
               }).length, color: '#4ade80' },
             ].map(c => (
               <div key={c.label} style={{

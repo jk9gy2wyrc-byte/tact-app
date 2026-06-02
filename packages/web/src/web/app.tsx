@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Route, Switch, Link, useRoute } from "wouter";
+import { useState, useEffect, useRef } from "react";
+import { Route, Switch, Link, useRoute, useLocation } from "wouter";
 import Dashboard from "./pages/dashboard";
 import LiveTrades from "./pages/live-trades";
 import LiveAnalysis from "./pages/live-analysis";
@@ -9,6 +9,83 @@ import Charts from "./pages/charts";
 import AdminUsers from "./pages/admin-users";
 import Subscription from "./pages/subscription";
 import { setSession, clearSession, getSession, type Session } from "./lib/session";
+
+// ─── TRIAL EXPIRED OVERLAY ───────────────────────────────────────────────────
+function TrialExpiredOverlay({ children }: { children: React.ReactNode }) {
+  const [, navigate] = useLocation();
+  return (
+    <div style={{ position: 'relative', minHeight: '100%' }}>
+      <div style={{ filter: 'blur(6px)', pointerEvents: 'none', userSelect: 'none', minHeight: 400 }}>
+        {children}
+      </div>
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(13,15,17,0.55)',
+        zIndex: 10,
+      }}>
+        <div style={{
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 16, padding: '40px 48px',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+        }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', textAlign: 'center' }}>
+            Manage your plan to get full access
+          </div>
+          <button
+            onClick={() => navigate('/subscription')}
+            style={{
+              background: 'var(--primary)', color: '#fff',
+              border: 'none', borderRadius: 10,
+              padding: '12px 32px', fontSize: 14, fontWeight: 600,
+              cursor: 'pointer', letterSpacing: 0.2,
+            }}
+          >
+            Subscription
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ACCESS CHECK HOOK ───────────────────────────────────────────────────────
+function useAccessCheck(session: Session | null) {
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!session) { setHasAccess(null); return; }
+    const role = session.role;
+    if (role === 'admin' || role === 'paid' || role === 'free') {
+      setHasAccess(true);
+      return;
+    }
+    // free-trial: check via API
+    const check = async () => {
+      try {
+        const res = await fetch(`/api/auth/access/${session.id}`);
+        const data = await res.json();
+        setHasAccess(!!data.hasAccess);
+        // schedule re-check if trial is still active
+        if (data.hasAccess && data.trialEndsAt) {
+          const ms = new Date(data.trialEndsAt).getTime() - Date.now();
+          if (ms > 0 && ms < 7 * 24 * 3600 * 1000) {
+            timerRef.current = setTimeout(check, ms + 1000);
+          }
+        }
+      } catch {
+        setHasAccess(true); // fail open
+      }
+    };
+    check();
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [session?.id, session?.role]);
+
+  return hasAccess;
+}
 
 // ─── NAV (admin gets extra tab) ──────────────────────────────────────────────
 function buildNav(role: string) {
@@ -156,6 +233,7 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const isMobile = useIsMobile();
+  const hasAccess = useAccessCheck(session);
 
   useEffect(() => { fetch('/api/auth/seed').catch(() => {}); }, []);
   useEffect(() => { if (!isMobile) setDrawerOpen(false); }, [isMobile]);
@@ -215,7 +293,7 @@ export default function App() {
                   .then(r => r.json())
                   .then(data => {
                     if (data.error) alert(data.error);
-                    else handleAuth(data);
+                    else handleAuth({ id: data.id, login: data.login, role: data.role, createdAt: data.createdAt });
                   })
                   .catch(() => alert('Error'));
               }}
@@ -237,7 +315,7 @@ export default function App() {
                   .then(r => r.json())
                   .then(data => {
                     if (data.error) alert(data.error);
-                    else handleAuth(data);
+                    else handleAuth({ id: data.id, login: data.login, role: data.role, createdAt: data.createdAt });
                   })
                   .catch(() => alert('Error'));
               }}
@@ -340,12 +418,28 @@ export default function App() {
         flex: 1, minHeight: '100vh', background: 'var(--bg)',
       }}>
         <Switch>
-          <Route path="/" component={Dashboard} />
+          <Route path="/">
+            {hasAccess === false
+              ? <TrialExpiredOverlay><Dashboard /></TrialExpiredOverlay>
+              : <Dashboard />}
+          </Route>
           <Route path="/live" component={LiveTrades} />
-          <Route path="/live-analysis" component={LiveAnalysis} />
+          <Route path="/live-analysis">
+            {hasAccess === false
+              ? <TrialExpiredOverlay><LiveAnalysis /></TrialExpiredOverlay>
+              : <LiveAnalysis />}
+          </Route>
           <Route path="/backtest" component={BacktestTrades} />
-          <Route path="/backtest-analysis" component={BacktestAnalysis} />
-          <Route path="/charts" component={Charts} />
+          <Route path="/backtest-analysis">
+            {hasAccess === false
+              ? <TrialExpiredOverlay><BacktestAnalysis /></TrialExpiredOverlay>
+              : <BacktestAnalysis />}
+          </Route>
+          <Route path="/charts">
+            {hasAccess === false
+              ? <TrialExpiredOverlay><Charts /></TrialExpiredOverlay>
+              : <Charts />}
+          </Route>
           {session.role === 'admin' && (
             <Route path="/users">
               <AdminUsers currentLogin={session.login} />
