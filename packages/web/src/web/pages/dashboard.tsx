@@ -341,7 +341,25 @@ function WeeklyChanges({ selected, toggle }: { selected: string[]; toggle: (k: s
         <span style={{ fontSize: 11, color: 'var(--text2)' }}>Week change · {weekLabel}</span>
         <AssetDropdown selected={selected} toggle={toggle} />
       </div>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+      <style>{`
+        .asset-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 10px;
+          justify-items: stretch;
+        }
+        @media (max-width: 600px) {
+          .asset-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+        .asset-card:last-child {
+          grid-column: auto !important;
+          justify-self: start;
+          width: 100%;
+        }
+      `}</style>
+      <div className="asset-grid">
         {selected.map(key => {
           const meta = ALL_ASSETS[key];
           if (!meta) return null;
@@ -351,11 +369,10 @@ function WeeklyChanges({ selected, toggle }: { selected: string[]; toggle: (k: s
           const color = change === null ? 'var(--text2)' : 'var(--text)';
           const arrow = change === null ? '' : isPos ? '▲' : '▼';
           return (
-            <div key={key} style={{
+            <div key={key} className="asset-card" style={{
               display: 'flex', alignItems: 'center', gap: 10,
               background: 'var(--surface)', border: '1px solid var(--border)',
               borderRadius: 12, padding: '10px 16px',
-              flex: '1 1 140px', minWidth: 130,
             }}>
               <div style={{
                 width: 32, height: 32, borderRadius: 8,
