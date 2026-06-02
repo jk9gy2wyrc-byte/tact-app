@@ -1620,6 +1620,19 @@ export default function Charts() {
                   </div>
                 );
               })()}
+
+              {/* ── Final Statistical Control Framework ── */}
+              <div style={{
+                borderTop: '1px solid var(--border)',
+                paddingTop: 24, marginTop: 8,
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
+                  Final Statistical Control Framework
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text2)' }}>
+                  — розділ в розробці
+                </div>
+              </div>
             </>
           )}
           </div>
