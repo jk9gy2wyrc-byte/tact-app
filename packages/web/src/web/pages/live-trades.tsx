@@ -296,7 +296,7 @@ function EditModal({ trade, onClose, onSave, isPending }: {
   );
 }
 
-function TradeCard({ t, onEdit, onDelete }: { t: any; onEdit: () => void; onDelete: () => void }) {
+function TradeCard({ t, onEdit, onDelete, onPreview }: { t: any; onEdit: () => void; onDelete: () => void; onPreview: (src: string) => void }) {
   const links = parseAttachments(t.attachments);
   return (
     <div onClick={onEdit} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer', transition: 'border-color 0.15s' }}
@@ -329,7 +329,7 @@ function TradeCard({ t, onEdit, onDelete }: { t: any; onEdit: () => void; onDele
           {links.filter((lk: Attachment) => lk.type === 'image').length > 0 && (
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {links.filter((lk: Attachment) => lk.type === 'image').slice(0, 4).map((lk: Attachment, i: number) => (
-                <img key={i} src={lk.url} alt={lk.label} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 5, border: '1px solid var(--border)' }} />
+                <img key={i} src={lk.url} alt={lk.label} onClick={e => { e.stopPropagation(); onPreview(lk.url); }} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 5, border: '1px solid var(--border)', cursor: 'pointer' }} />
               ))}
               {links.filter((lk: Attachment) => lk.type === 'image').length > 4 && (
                 <div style={{ width: 48, height: 48, borderRadius: 5, background: 'var(--surface2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--text2)' }}>
@@ -339,14 +339,8 @@ function TradeCard({ t, onEdit, onDelete }: { t: any; onEdit: () => void; onDele
             </div>
           )}
           {links.filter((lk: Attachment) => !lk.type || lk.type === 'link').map((lk: Attachment, i: number) => (
-            <a key={i} href={lk.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--text2)', textDecoration: 'none' }}>🔗 {lk.label}</a>
+            <a key={i} href={lk.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 11, color: 'var(--text2)', textDecoration: 'none' }}>🔗 {lk.label}</a>
           ))}
-        </div>
-      )}
-      {previewImg && (
-        <div onClick={() => setPreviewImg(null)} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <img src={previewImg} style={{ maxWidth: '100%', maxHeight: '90vh', borderRadius: 10, objectFit: 'contain' }} onClick={e => e.stopPropagation()} />
-          <button onClick={() => setPreviewImg(null)} style={{ position: 'fixed', top: 16, right: 16, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 22, width: 36, height: 36, borderRadius: 8, cursor: 'pointer' }}>×</button>
         </div>
       )}
     </div>
@@ -567,6 +561,12 @@ export default function LiveTrades() {
           onSave={body => editMutation.mutate({ id: editTrade.id, body })}
           isPending={editMutation.isPending} />
       )}
+      {previewImg && (
+        <div onClick={() => setPreviewImg(null)} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <img src={previewImg} style={{ maxWidth: '100%', maxHeight: '90vh', borderRadius: 10, objectFit: 'contain' }} onClick={e => e.stopPropagation()} />
+          <button onClick={() => setPreviewImg(null)} style={{ position: 'fixed', top: 16, right: 16, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 22, width: 36, height: 36, borderRadius: 8, cursor: 'pointer' }}>×</button>
+        </div>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div style={{ fontSize: 18, fontWeight: 600 }}>Live Database</div>
@@ -773,7 +773,7 @@ export default function LiveTrades() {
                     {group.trades.map((t: any) => {
                       const tw = { ...t, __monthSeq: monthSeqMap.get(t.id) };
                       return (
-                        <TradeCard key={t.id} t={tw} onEdit={() => setEditTrade(tw)} onDelete={() => { if (confirm('Delete?')) deleteMutation.mutate(t.id); }} />
+                        <TradeCard key={t.id} t={tw} onEdit={() => setEditTrade(tw)} onDelete={() => { if (confirm('Delete?')) deleteMutation.mutate(t.id); }} onPreview={setPreviewImg} />
                       );
                     })}
                   </div>
