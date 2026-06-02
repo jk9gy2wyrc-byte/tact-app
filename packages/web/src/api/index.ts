@@ -8,12 +8,13 @@ import { eq, desc, asc, sql } from "drizzle-orm";
 import * as XLSX from "xlsx";
 import { DEFAULT_SUBSCRIPTION_SETTINGS } from "../shared/subscription";
 
-type UserRoleName = 'admin' | 'free' | 'paid' | 'free-trial';
+type UserRoleName = 'admin' | 'free' | 'paid' | 'free-trial' | 'no-access';
 
 const normalizeRole = (role: string | null | undefined): UserRoleName => {
   if (role === 'admin') return 'admin';
   if (role === 'paid') return 'paid';
   if (role === 'free-trial' || role === 'trial') return 'free-trial';
+  if (role === 'no-access') return 'no-access';
   return 'free';
 };
 
@@ -188,6 +189,7 @@ const app = new Hono()
     const role = normalizeRole(user.role);
     if (role === 'admin') return c.json({ hasAccess: true, reason: 'admin' }, 200);
     if (role === 'paid' || role === 'free') return c.json({ hasAccess: true, reason: 'full' }, 200);
+    if (role === 'no-access') return c.json({ hasAccess: false, reason: 'no_access' }, 200);
 
     const row = await ensureSubscriptionRow();
     const plans = parsePlans(row.plansJson);
@@ -231,7 +233,7 @@ const app = new Hono()
   })
 
   .put('/admin/users/:id',
-    zValidator('json', z.object({ role: z.enum(['admin', 'paid', 'free-trial', 'free']) })),
+    zValidator('json', z.object({ role: z.enum(['admin', 'paid', 'free-trial', 'free', 'no-access']) })),
     async (c) => {
       const asLogin = c.req.query('asLogin');
       const caller = await db.select().from(users).where(eq(users.login, asLogin ?? '')).get();

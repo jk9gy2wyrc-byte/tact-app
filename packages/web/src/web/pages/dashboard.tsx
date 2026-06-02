@@ -343,11 +343,11 @@ export default function Dashboard() {
     staleTime: 60_000,
   });
 
-  const trialBlocked = Boolean(accessData && !accessData.hasAccess && accessData.reason === 'trial_expired');
-  const otherDenied = Boolean(accessData && !accessData.hasAccess && accessData.reason !== 'trial_expired' && accessData.reason !== 'admin');
+  const isBlocked = Boolean(accessData && !accessData.hasAccess);
+  
 
   if (isLoading) return <div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>;
-  if (otherDenied) {
+  if (false) {
     return (
       <div style={{ padding: 48, textAlign: 'center' }}>
         <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
@@ -383,7 +383,7 @@ export default function Dashboard() {
   const p = isMobile ? '16px' : '24px 28px';
 
   return (
-    <AccessWrapper blocked={trialBlocked}>
+    <AccessWrapper blocked={isBlocked} reason={accessData?.reason}>
       <div style={{ padding: p, maxWidth: 1200, width: '100%', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>Dashboard</div>

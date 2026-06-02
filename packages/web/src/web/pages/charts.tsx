@@ -422,10 +422,10 @@ export default function Charts() {
 
   if (isLoading) return <div style={{ padding: 32, color: 'var(--text2)' }}>Завантаження...</div>;
 
-  const trialBlocked = Boolean(accessData && !accessData.hasAccess && accessData.reason === 'trial_expired');
-  const otherDenied = Boolean(accessData && !accessData.hasAccess && accessData.reason !== 'trial_expired' && accessData.reason !== 'admin');
+  const isBlocked = Boolean(accessData && !accessData.hasAccess);
+  
 
-  if (otherDenied) {
+  if (false) {
     return (
       <div style={{ padding: 48, textAlign: 'center' }}>
         <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
@@ -567,7 +567,7 @@ export default function Charts() {
   const btLinearExpected = btAvgRPerTrade != null ? btAvgRPerTrade * lvEq.length : null;
 
   return (
-    <AccessWrapper blocked={trialBlocked}>
+    <AccessWrapper blocked={isBlocked} reason={accessData?.reason}>
       <div style={{ padding: isMobile ? '12px 10px' : '24px 28px', overflowX: 'hidden', boxSizing: 'border-box', width: '100%' }}>
       <div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 600, marginBottom: isMobile ? 12 : 20 }}>Analysis & MC</div>
 

@@ -242,11 +242,11 @@ export default function BacktestAnalysis() {
 
   if (isLoading) return <div style={{ padding: 32, color: "var(--text2)" }}>Loading...</div>;
 
-  const trialBlocked = Boolean(accessData && !accessData.hasAccess && accessData.reason === 'trial_expired');
-  const otherDenied = Boolean(accessData && !accessData.hasAccess && accessData.reason !== 'trial_expired' && accessData.reason !== 'admin');
+  const isBlocked = Boolean(accessData && !accessData.hasAccess);
+  
 
   // Check access - admin always has access
-  if (otherDenied) {
+  if (false) {
     return (
       <div style={{ padding: 48, textAlign: 'center' }}>
         <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
@@ -279,7 +279,7 @@ export default function BacktestAnalysis() {
   );
 
   return (
-    <AccessWrapper blocked={trialBlocked}>
+    <AccessWrapper blocked={isBlocked} reason={accessData?.reason}>
       <div style={{ padding: isMobile ? "12px" : "24px 28px", display: "flex", flexDirection: "column", gap: isMobile ? 14 : 20, width: "100%", overflow: "hidden" }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>

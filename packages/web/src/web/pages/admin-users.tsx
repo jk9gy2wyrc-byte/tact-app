@@ -1,13 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 
-type RoleOptionValue = 'admin' | 'paid' | 'free-trial' | 'free';
+type RoleOptionValue = 'admin' | 'paid' | 'free-trial' | 'free' | 'no-access';
 
 const ROLE_OPTIONS: { value: RoleOptionValue; label: string }[] = [
   { value: 'admin', label: 'Expanded rights' },
   { value: 'paid', label: 'Paid' },
   { value: 'free-trial', label: 'Free trial' },
   { value: 'free', label: 'Free' },
+  { value: 'no-access', label: 'No access' },
 ];
 
 const ROLE_BADGES: Record<RoleOptionValue, { bg: string; border: string; text: string }> = {
@@ -15,12 +16,14 @@ const ROLE_BADGES: Record<RoleOptionValue, { bg: string; border: string; text: s
   paid: { bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.35)', text: '#94a3b8' },
   'free-trial': { bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.35)', text: '#94a3b8' },
   free: { bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.35)', text: '#94a3b8' },
+  'no-access': { bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.35)', text: '#ef4444' },
 };
 
 const mapBackendRoleToVisual = (role: string): RoleOptionValue => {
   if (role === 'admin') return 'admin';
   if (role === 'paid') return 'paid';
   if (role === 'free-trial' || role === 'trial') return 'free-trial';
+  if (role === 'no-access') return 'no-access';
   return 'free';
 };
 

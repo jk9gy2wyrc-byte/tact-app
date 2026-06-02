@@ -88,11 +88,11 @@ export default function LiveAnalysis() {
 
   if (isLoading) return <div style={{ padding: 32, color: "var(--text2)" }}>Loading...</div>;
 
-  const trialBlocked = Boolean(accessData && !accessData.hasAccess && accessData.reason === 'trial_expired');
-  const otherDenied = Boolean(accessData && !accessData.hasAccess && accessData.reason !== 'trial_expired' && accessData.reason !== 'admin');
+  const isBlocked = Boolean(accessData && !accessData.hasAccess);
+  
 
   // Check access - admin always has access
-  if (otherDenied) {
+  if (false) {
     return (
       <div style={{ padding: 48, textAlign: 'center' }}>
         <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
@@ -223,7 +223,7 @@ export default function LiveAnalysis() {
   const colorNet = (v: number) => v > 0 ? "#7eb8f7" : v < 0 ? "#f0a070" : "#a0a8b8";
 
   return (
-    <AccessWrapper blocked={trialBlocked}>
+    <AccessWrapper blocked={isBlocked} reason={accessData?.reason}>
       <div style={{ padding: isMobile ? "16px" : "24px 28px", display: "flex", flexDirection: "column", gap: 28 }}>
       {/* ── HEADER + MONTH SELECTOR ── */}
       <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexDirection: isMobile ? "column" : "row", gap: 12 }}>

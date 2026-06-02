@@ -11,6 +11,11 @@ export async function fetchAccess(): Promise<AccessResult> {
 
   const role = session.role ?? "";
 
+  // Blocked by admin
+  if (role === "no-access") {
+    return { hasAccess: false, reason: "no_access" };
+  }
+
   // Admin and paid always have access
   if (["admin", "paid", "free"].includes(role)) {
     return { hasAccess: true, reason: "admin" };
