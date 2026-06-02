@@ -1070,7 +1070,7 @@ export default function Charts() {
               <>
                 {/* KPI cards — Stress */}
                 <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, fontWeight: 600 }}>Stress симуляція</div>
-                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16, alignItems: 'flex-start' }}>
                   {[
                     {
                       label: 'Survival Rate',
@@ -1132,11 +1132,12 @@ export default function Charts() {
 
                 {/* KPI cards — Normal MC metrics */}
                 {(btStats || lvStats) && (() => {
-                  type NCard = { label: string; btV: number | null; lvV: number | null; mcV: number | null | undefined; fmt: (v: number) => string; color: (v: number) => string; desc: string };
+                  type NCard = { label: string; btV: number | null; lvV: number | null; mcV: number | null | undefined; stressV?: number | null; fmt: (v: number) => string; color: (v: number) => string; desc: string };
                   const normalCards: NCard[] = [
                     {
                       label: 'Total R',
                       btV: btStats?.totalR ?? null, lvV: lvStats?.totalR ?? null, mcV: mcStats?.totalR ?? null,
+                      stressV: stressData ? stressData.stressFinalEq.med : null,
                       fmt: (v: number) => v.toFixed(2) + 'R',
                       color: (v: number) => v >= 0 ? '#4ade80' : '#f87171',
                       desc: 'Сумарний результат в R. Бектест = очікування стратегії, Live = реальне виконання, MC = медіанний прогноз.',
@@ -1165,6 +1166,7 @@ export default function Charts() {
                     {
                       label: 'Max DD',
                       btV: btStats?.maxDD ?? null, lvV: lvStats?.maxDD ?? null, mcV: mcStats?.maxDD ?? null,
+                      stressV: stressData ? stressData.stressMaxDD.med : null,
                       fmt: (v: number) => v.toFixed(2) + 'R',
                       color: (v: number) => Math.abs(v) <= 5 ? '#4ade80' : Math.abs(v) <= 10 ? '#facc15' : '#f87171',
                       desc: 'Максимальна просадка від піку до дна. Показує найгірший послідовний збиток в серії угод.',
@@ -1179,6 +1181,7 @@ export default function Charts() {
                     {
                       label: 'SQN',
                       btV: btStats?.sqn ?? null, lvV: lvStats?.sqn ?? null, mcV: mcStats?.sqn ?? null,
+                      stressV: stressData ? stressData.stressSQN.med : null,
                       fmt: (v: number) => v.toFixed(2),
                       color: (v: number) => v >= 2 ? '#4ade80' : v >= 1 ? '#facc15' : '#f87171',
                       desc: 'System Quality Number = (Avg R / Std Dev) × √N. > 2 = добра система, > 3 = відмінна, < 1 = ненадійна.',
@@ -1187,7 +1190,7 @@ export default function Charts() {
                   return (
                     <>
                       <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, fontWeight: 600 }}>Загальні метрики</div>
-                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20, alignItems: 'flex-start' }}>
                         {normalCards.map(card => {
                           const isOpen = stressDescOpen.has('nm_' + card.label);
                           return (
@@ -1200,6 +1203,7 @@ export default function Charts() {
                                 {card.btV != null && <div style={{ fontSize: 13, fontWeight: 700, color: card.color(card.btV), fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, color: 'var(--text2)', marginRight: 2 }}>BT</span>{card.fmt(card.btV)}</div>}
                                 {card.lvV != null && (lvStats?.n ?? 0) > 0 && <div style={{ fontSize: 13, fontWeight: 700, color: card.color(card.lvV), fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, color: '#60a5fa', marginRight: 2 }}>LV</span>{card.fmt(card.lvV)}</div>}
                                 {card.mcV != null && <div style={{ fontSize: 11, color: '#a78bfa', fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, marginRight: 2 }}>MC</span>{card.fmt(card.mcV)}</div>}
+                                {card.stressV != null && <div style={{ fontSize: 11, color: '#fb923c', fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, marginRight: 2 }}>ST</span>{card.fmt(card.stressV)}</div>}
                               </div>
                               <button
                                 onClick={() => setStressDescOpen(prev => {
