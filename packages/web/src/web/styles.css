@@ -86,3 +86,8 @@ tr:hover td { background: #20242a; }
 .pos { color: var(--green); }
 .neg { color: var(--red); }
 .be  { color: var(--yellow); }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

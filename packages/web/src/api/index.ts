@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from "hono/cors";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// OpenRouter replaces Gemini for AI image parsing
 import { db } from "./database";
 import { backtestTrades, emailCodes, liveTrades, subscriptionSettings, users } from "./database/schema";
 import { eq, desc, asc, sql, lt } from "drizzle-orm";
@@ -1196,8 +1196,8 @@ app.get('/prices', async (c) => {
 // ── AI parse image ────────────────────────────────────────────────────────────
 app.post('/ai-parse-image', async (c) => {
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return c.json({ error: 'GEMINI_API_KEY not set' }, 500);
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) return c.json({ error: 'OPENROUTER_API_KEY not set' }, 500);
 
     const formData = await c.req.formData();
     const file = formData.get('file') as File | null;
@@ -1206,10 +1206,7 @@ app.post('/ai-parse-image', async (c) => {
 
     const arrayBuffer = await file.arrayBuffer();
     const base64 = Buffer.from(arrayBuffer).toString('base64');
-    const mimeType = (file.type || 'image/png') as any;
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const mimeType = file.type || 'image/png';
 
     const prompt = `You are a trading journal parser. Extract all trade rows from this screenshot.
 Return ONLY a valid JSON array, no markdown, no explanation.
@@ -1225,32 +1222,37 @@ Each object must have these fields (use null if not visible):
 - grossR: number | null
 Example: [{"date":"2024-05-13","direction":"long","result":"tp","rr":3.5,"session":"London","cost":-0.1,"instrument":"EUR","asset":null,"grossR":3.5}]`;
 
-    // Retry up to 3 times on 429 rate limit
-    let lastErr: any;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const result = await model.generateContent([
-          { inlineData: { mimeType, data: base64 } },
-          prompt,
-        ]);
-        const text = result.response.text().trim();
-        const jsonMatch = text.match(/\[[\s\S]*\]/);
-        if (!jsonMatch) return c.json({ error: 'Could not parse response', raw: text }, 422);
-        const rows = JSON.parse(jsonMatch[0]);
-        return c.json({ ok: true, rows });
-      } catch (err: any) {
-        lastErr = err;
-        const is429 = err?.message?.includes('429') || err?.status === 429;
-        if (is429 && attempt < 2) {
-          // Extract retryDelay from error message if available, default to 60s
-          const delayMatch = err?.message?.match(/retryDelay["\s:]+(\d+)s/);
-          const waitMs = delayMatch ? parseInt(delayMatch[1]) * 1000 : 65000;
-          await new Promise(r => setTimeout(r, waitMs));
-          continue;
-        }
-        throw err;
-      }
-    }
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://tact-app.com',
+        'X-Title': 'TACT Trading Journal',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.0-flash-001',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
+              { type: 'text', text: prompt },
+            ],
+          },
+        ],
+      }),
+    });
+
+    const json = await response.json() as any;
+    if (!response.ok) throw new Error(json.error?.message ?? `OpenRouter error ${response.status}`);
+
+    const text = (json.choices?.[0]?.message?.content ?? '').trim();
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return c.json({ error: 'Could not parse response', raw: text }, 422);
+
+    const rows = JSON.parse(jsonMatch[0]);
+    return c.json({ ok: true, rows });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }

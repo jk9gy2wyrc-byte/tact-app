@@ -558,7 +558,7 @@ export default function LiveTrades() {
             <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, marginBottom: 10 }}>
               <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Скріншот</strong> — вставити через <kbd style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px', fontSize: 11 }}>Ctrl+V</kbd> або drag&drop<br />
               <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>.xlsx файл</strong> — лист з "live" в назві<br />
-              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span>Скріншот обробляє <strong>Gemini AI</strong> — перевір дані перед збереженням
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span>Скріншот обробляє <strong>AI</strong> — перевір дані перед збереженням
             </div>
             <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 20 }}>
               (Попередження: завжди перевіряйте правильність заповнених даних самотужки для уникнення помилок)
@@ -590,7 +590,7 @@ export default function LiveTrades() {
           {/* Parsing spinner */}
           {aiParsing && (
             <div style={{ color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10 }}>
-              <span>⏳</span> Gemini розпізнає скріншот...
+              <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', fontSize: 16 }}>◌</span> AI розпізнає скріншот...
             </div>
           )}
           {importMutation.isPending && (
@@ -606,7 +606,7 @@ export default function LiveTrades() {
           {aiRows && aiRows.length > 0 && (
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}>
-                Gemini розпізнав {aiRows.length} угод — перевір і підтверди:
+                AI розпізнав {aiRows.length} угод — перевір і підтверди:
               </div>
               <div style={{ overflowX: 'auto', marginBottom: 12 }}>
                 <table style={{ minWidth: 560, borderCollapse: 'collapse', width: '100%' }}>
