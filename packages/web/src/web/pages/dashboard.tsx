@@ -232,18 +232,31 @@ function useSelectedAssets() {
 
 function AssetDropdown({ selected, toggle }: { selected: string[]; toggle: (k: string) => void }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (
+        btnRef.current && !btnRef.current.contains(e.target as Node) &&
+        dropRef.current && !dropRef.current.contains(e.target as Node)
+      ) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+  const handleOpen = () => {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left });
+    }
+    setOpen(o => !o);
+  };
   return (
-    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+    <div style={{ display: 'inline-block' }}>
       <button
-        onClick={() => setOpen(o => !o)}
+        ref={btnRef}
+        onClick={handleOpen}
         style={{
           display: 'flex', alignItems: 'center', gap: 6,
           background: 'var(--surface)', border: '1px solid var(--border)',
@@ -255,11 +268,11 @@ function AssetDropdown({ selected, toggle }: { selected: string[]; toggle: (k: s
         <span style={{ fontSize: 9 }}>▼</span>
       </button>
       {open && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 100,
+        <div ref={dropRef} style={{
+          position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999,
           background: 'var(--surface)', border: '1px solid var(--border)',
-          borderRadius: 10, padding: 8, minWidth: 180,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          borderRadius: 10, padding: 8, minWidth: 190,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
           display: 'flex', flexDirection: 'column', gap: 2,
         }}>
           {Object.entries(ALL_ASSETS).map(([key, meta]) => {
