@@ -382,6 +382,41 @@ export default function LiveTrades() {
     },
   });
 
+  const importMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const fd = new FormData();
+      fd.append('file', file);
+      const r = await fetch(`/api/import-live${uidParam()}`, { method: 'POST', body: fd });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error ?? 'Import failed');
+      return json;
+    },
+    onSuccess: (data) => {
+      setFileResult(data);
+      qc.invalidateQueries({ queryKey: ['live-trades'] });
+      qc.invalidateQueries({ queryKey: ['stats'] });
+    },
+    onError: (e: any) => setFileResult({ error: e.message }),
+  });
+
+  const handleFile = (file: File) => { setFileResult(null); importMutation.mutate(file); };
+
+  useEffect(() => {
+    if (!showUpload) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) { handleFile(file); break; }
+        }
+      }
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [showUpload]);
+
   const handleAddSubmit = () => {
     const { grossR, netR } = calcRValues(form.result, form.rr as string, form.cost as string);
     if (form.result === 'tp' && grossR == null) { setError('RR required for TP'); return; }
@@ -438,8 +473,39 @@ export default function LiveTrades() {
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div style={{ fontSize: 18, fontWeight: 600 }}>Live Database</div>
-        <span style={{ fontSize: 12, color: 'var(--text2)' }}>{allTrades.length} trades</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 12, color: 'var(--text2)' }}>{allTrades.length} trades</span>
+          <button type="button" className={showUpload ? 'btn-primary' : 'btn-ghost'}
+            onClick={() => { setShowUpload(v => !v); setFileResult(null); }}
+            style={{ padding: '6px 14px', fontSize: 12 }}>
+            ↑ Upload File
+          </button>
+        </div>
       </div>
+
+      {showUpload && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          <div
+            onDragOver={e => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
+            onClick={() => fileRef.current?.click()}
+            style={{ border: `2px dashed ${dragging ? '#4b5263' : 'var(--border)'}`, borderRadius: 12, padding: isMobile ? '28px 16px' : '40px 24px', textAlign: 'center', cursor: 'pointer', background: dragging ? '#1a1d2a' : 'var(--bg)', transition: 'all 0.15s', marginBottom: 12 }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>📂</div>
+            <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{isMobile ? 'Tap to browse' : 'Drop file here or click to browse'}</div>
+            <div style={{ fontSize: 12, color: 'var(--text2)' }}>або вставте скріншот <kbd style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px', fontSize: 11 }}>Ctrl+V</kbd></div>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }} />
+          </div>
+          {importMutation.isPending && (
+            <div style={{ color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}><span>⏳</span> Importing trades...</div>
+          )}
+          {fileResult && (
+            <div style={{ background: fileResult.error ? '#1a0808' : '#081a0f', border: `1px solid ${fileResult.error ? 'var(--red)' : 'var(--green)'}`, borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
+              {fileResult.error ? <div style={{ color: 'var(--red)' }}>❌ {fileResult.error}</div> : <div style={{ color: 'var(--green)' }}>✅ Imported {fileResult.inserted} trades.</div>}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ADD FORM */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 24 }}>
