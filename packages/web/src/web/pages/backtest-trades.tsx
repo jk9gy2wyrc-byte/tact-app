@@ -23,8 +23,17 @@ const cellInput: React.CSSProperties = {
   width: '100%', padding: '4px 6px', fontSize: 12,
   background: 'var(--surface2)', border: '1px solid var(--border)',
   borderRadius: 6, color: 'var(--text)', fontFamily: 'monospace',
+  MozAppearance: 'textfield',
 };
-const cellSelect: React.CSSProperties = { ...cellInput };
+const cellSelect: React.CSSProperties = {
+  width: '100%', padding: '4px 6px', fontSize: 12,
+  background: 'var(--surface2)', border: '1px solid var(--border)',
+  borderRadius: 6, color: 'var(--text)', fontFamily: 'monospace',
+  appearance: 'none', WebkitAppearance: 'none',
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E")`,
+  backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center',
+  paddingRight: 22, cursor: 'pointer',
+};
 
 interface TradeRow {
   id: string; instrument: string; date: string;
@@ -197,9 +206,9 @@ function DatabaseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
                         {DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
                       </select>
                     </td>
-                    <td style={{ padding: '4px 6px' }}><input type="number" step="0.01" min="0" value={row.rr} onChange={e => updateRow(row.id, 'rr', e.target.value)} placeholder="2.5" style={{ ...cellInput, width: 60 }} /></td>
-                    <td style={{ padding: '4px 6px' }}><input type="number" step="0.01" value={row.grossR} onChange={e => updateRow(row.id, 'grossR', e.target.value)} placeholder="auto" style={{ ...cellInput, width: 60 }} /></td>
-                    <td style={{ padding: '4px 6px' }}><input type="number" step="0.01" value={row.cost} onChange={e => updateRow(row.id, 'cost', e.target.value)} style={{ ...cellInput, width: 56 }} /></td>
+                    <td style={{ padding: '4px 6px' }}><input type="text" inputMode="decimal" value={row.rr} onChange={e => updateRow(row.id, 'rr', e.target.value)} placeholder="2.5" style={{ ...cellInput, width: 60 }} /></td>
+                    <td style={{ padding: '4px 6px' }}><input type="text" inputMode="decimal" value={row.grossR} onChange={e => updateRow(row.id, 'grossR', e.target.value)} placeholder="auto" style={{ ...cellInput, width: 60 }} /></td>
+                    <td style={{ padding: '4px 6px' }}><input type="text" inputMode="decimal" value={row.cost} onChange={e => updateRow(row.id, 'cost', e.target.value)} style={{ ...cellInput, width: 56 }} /></td>
                     <td style={{ padding: '4px 6px' }}>
                       <select value={row.session} onChange={e => updateRow(row.id, 'session', e.target.value)} style={{ ...cellSelect, width: 80 }}>
                         <option value="">—</option>
@@ -618,11 +627,11 @@ export default function BacktestTrades() {
             </div>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>RR</div>
-              <input type="number" value={form.rr} placeholder="3.5" onChange={e => setForm(f => ({ ...f, rr: e.target.value }))} style={{ width: '100%', borderRadius: 8 }} />
+              <input type="text" inputMode="decimal" value={form.rr} placeholder="3.5" onChange={e => setForm(f => ({ ...f, rr: e.target.value }))} style={{ width: '100%', borderRadius: 8 }} />
             </div>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Cost</div>
-              <input type="number" value={form.cost} placeholder="-0.10" onChange={e => setForm(f => ({ ...f, cost: e.target.value }))} style={{ width: '100%', borderRadius: 8 }} />
+              <input type="text" inputMode="decimal" value={form.cost} placeholder="-0.10" onChange={e => setForm(f => ({ ...f, cost: e.target.value }))} style={{ width: '100%', borderRadius: 8 }} />
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
