@@ -1225,17 +1225,32 @@ Each object must have these fields (use null if not visible):
 - grossR: number | null
 Example: [{"date":"2024-05-13","direction":"long","result":"tp","rr":3.5,"session":"London","cost":-0.1,"instrument":"EUR","asset":null,"grossR":3.5}]`;
 
-    const result = await model.generateContent([
-      { inlineData: { mimeType, data: base64 } },
-      prompt,
-    ]);
-
-    const text = result.response.text().trim();
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return c.json({ error: 'Could not parse response', raw: text }, 422);
-
-    const rows = JSON.parse(jsonMatch[0]);
-    return c.json({ ok: true, rows });
+    // Retry up to 3 times on 429 rate limit
+    let lastErr: any;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const result = await model.generateContent([
+          { inlineData: { mimeType, data: base64 } },
+          prompt,
+        ]);
+        const text = result.response.text().trim();
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        if (!jsonMatch) return c.json({ error: 'Could not parse response', raw: text }, 422);
+        const rows = JSON.parse(jsonMatch[0]);
+        return c.json({ ok: true, rows });
+      } catch (err: any) {
+        lastErr = err;
+        const is429 = err?.message?.includes('429') || err?.status === 429;
+        if (is429 && attempt < 2) {
+          // Extract retryDelay from error message if available, default to 60s
+          const delayMatch = err?.message?.match(/retryDelay["\s:]+(\d+)s/);
+          const waitMs = delayMatch ? parseInt(delayMatch[1]) * 1000 : 65000;
+          await new Promise(r => setTimeout(r, waitMs));
+          continue;
+        }
+        throw err;
+      }
+    }
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }
