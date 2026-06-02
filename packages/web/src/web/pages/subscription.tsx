@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useQuery } from "@tanstack/react-query";
 import { getSession } from "../lib/session";
+import { fetchAccess } from "../lib/access";
 import {
   DEFAULT_SUBSCRIPTION_SETTINGS,
   type SubscriptionPlans,
@@ -24,6 +26,13 @@ export default function Subscription() {
   const isAdmin = session?.role === 'admin';
   const userRole = session?.role ?? 'free';
 
+  const { data: accessData } = useQuery({
+    queryKey: ['access'],
+    queryFn: fetchAccess,
+    staleTime: 60_000,
+    enabled: userRole === 'free-trial' || userRole === 'no-access',
+  });
+
   const [config, setConfig] = useState<SubscriptionSettingsPayload>(() => cloneConfig(DEFAULT_SUBSCRIPTION_SETTINGS));
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [globalMessage, setGlobalMessage] = useState<string | null>(null);
@@ -43,12 +52,22 @@ export default function Subscription() {
   const getRoleInfo = (role: string) => {
     switch (role) {
       case 'admin':
-        return { label: 'Розширені права', color: '#facc15', bg: '#facc1522', border: '#facc1544' };
+        return { label: 'Expanded rights', color: '#facc15', bg: '#facc1522', border: '#facc1544' };
       case 'paid':
-        return { label: 'Підписка', color: '#7eb8f7', bg: '#7eb8f722', border: '#7eb8f744' };
+        return { label: 'Subscribed', color: '#4ade80', bg: '#4ade8022', border: '#4ade8044' };
       case 'free':
+        return { label: 'Free access', color: '#9ca3af', bg: '#9ca3af22', border: '#9ca3af44' };
+      case 'no-access':
+        return { label: 'Unsubscribed', color: '#9ca3af', bg: '#9ca3af22', border: '#9ca3af44' };
+      case 'free-trial': {
+        const hasAccess = accessData?.hasAccess ?? true;
+        if (hasAccess) {
+          return { label: 'Free trial', color: '#7eb8f7', bg: '#7eb8f722', border: '#7eb8f744' };
+        }
+        return { label: 'Unsubscribed', color: '#9ca3af', bg: '#9ca3af22', border: '#9ca3af44' };
+      }
       default:
-        return { label: 'Безкоштовний', color: '#9ca3af', bg: '#9ca3af22', border: '#9ca3af44' };
+        return { label: 'Free access', color: '#9ca3af', bg: '#9ca3af22', border: '#9ca3af44' };
     }
   };
 
