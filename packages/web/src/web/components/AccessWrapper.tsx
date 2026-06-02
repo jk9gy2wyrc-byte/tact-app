@@ -1,5 +1,5 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation } from "wouter";
 
 interface Props {
   blocked: boolean;
@@ -7,7 +7,7 @@ interface Props {
 }
 
 export default function AccessWrapper({ blocked, children }: Props) {
-  const navigate = useNavigate();
+  const [, navigate] = useLocation();
 
   return (
     <div style={{ position: "relative" }}>
