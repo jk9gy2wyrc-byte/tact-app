@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import { cors } from "hono/cors";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-// OpenRouter replaces Gemini for AI image parsing
 import { db } from "./database";
 import { backtestTrades, emailCodes, liveTrades, subscriptionSettings, users } from "./database/schema";
 import { eq, desc, asc, sql, lt } from "drizzle-orm";
@@ -1201,7 +1200,6 @@ app.post('/ai-parse-image', async (c) => {
 
     const formData = await c.req.formData();
     const file = formData.get('file') as File | null;
-    const target = (formData.get('target') as string) ?? 'backtest'; // 'backtest' | 'live'
     if (!file) return c.json({ error: 'no file' }, 400);
 
     const arrayBuffer = await file.arrayBuffer();
@@ -1231,7 +1229,7 @@ Example: [{"date":"2024-05-13","direction":"long","result":"tp","rr":3.5,"sessio
         'X-Title': 'TACT Trading Journal',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-001',
+        model: 'nvidia/nemotron-nano-12b-v2-vl:free',
         messages: [
           {
             role: 'user',
