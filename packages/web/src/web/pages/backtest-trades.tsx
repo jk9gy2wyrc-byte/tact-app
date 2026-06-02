@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { uidParam } from "../lib/session";
 import { useMobile } from "../hooks/useMobile";
@@ -370,6 +370,7 @@ export default function BacktestTrades() {
   const [editTrade, setEditTrade] = useState<any | null>(null);
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
   const [showModal, setShowModal] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [showUploadWarning, setShowUploadWarning] = useState(false);
@@ -450,6 +451,23 @@ export default function BacktestTrades() {
     onError: (e: any) => setFileResult({ error: e.message }),
   });
   const handleFile = (file: File) => { setFileResult(null); importMutation.mutate(file); };
+
+  // Paste from clipboard (Cmd+V / Ctrl+V) anywhere on the page when upload zone is visible
+  useEffect(() => {
+    if (!showUpload) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) { handleFile(file); break; }
+        }
+      }
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [showUpload]);
 
   const handleAddSubmit = () => {
     const { grossR } = calcRValues(form.result, form.rr, form.cost);
@@ -596,7 +614,7 @@ export default function BacktestTrades() {
             style={{ border: `2px dashed ${dragging ? '#4b5263' : 'var(--border)'}`, borderRadius: 12, padding: isMobile ? '28px 16px' : '40px 24px', textAlign: 'center', cursor: 'pointer', background: dragging ? '#1a1d2a' : 'var(--bg)', transition: 'all 0.15s', marginBottom: 12 }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>📂</div>
             <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{isMobile ? 'Tap to browse' : 'Drop xlsx here or click to browse'}</div>
-            <div style={{ fontSize: 12, color: 'var(--text2)' }}>Supports: Raw Backtest Database (.xlsx)</div>
+            <div style={{ fontSize: 12, color: 'var(--text2)' }}>Supports: Raw Backtest Database (.xlsx) · або вставте скріншот <kbd style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px', fontSize: 11 }}>Ctrl+V</kbd></div>
             <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }} />
           </div>
           {importMutation.isPending && (
