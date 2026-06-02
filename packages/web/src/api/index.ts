@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from "hono/cors";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { db } from "./database";
 import { backtestTrades, emailCodes, liveTrades, subscriptionSettings, users } from "./database/schema";
 import { eq, desc, asc, sql, lt } from "drizzle-orm";
@@ -1189,6 +1190,54 @@ app.get('/prices', async (c) => {
     console.error('prices error', e);
     if (pricesCache.data) return c.json(pricesCache.data);
     return c.json({});
+  }
+});
+
+// ── AI parse image ────────────────────────────────────────────────────────────
+app.post('/ai-parse-image', async (c) => {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return c.json({ error: 'GEMINI_API_KEY not set' }, 500);
+
+    const formData = await c.req.formData();
+    const file = formData.get('file') as File | null;
+    const target = (formData.get('target') as string) ?? 'backtest'; // 'backtest' | 'live'
+    if (!file) return c.json({ error: 'no file' }, 400);
+
+    const arrayBuffer = await file.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
+    const mimeType = (file.type || 'image/png') as any;
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    const prompt = `You are a trading journal parser. Extract all trade rows from this screenshot.
+Return ONLY a valid JSON array, no markdown, no explanation.
+Each object must have these fields (use null if not visible):
+- date: string (format YYYY-MM-DD or MM.YYYY or DD.MM.YYYY as shown)
+- direction: "long" | "short" | null
+- result: "tp" | "sl" | "be" | null
+- rr: number | null
+- session: "Asia" | "Frankfurt" | "London" | "Overlap" | "New York" | null
+- cost: number | null (commission/swap, negative like -0.1)
+- instrument: string | null (e.g. "EUR", "XAU", "GER") — for backtest only
+- asset: string | null (pair/asset name) — for live only
+- grossR: number | null
+Example: [{"date":"2024-05-13","direction":"long","result":"tp","rr":3.5,"session":"London","cost":-0.1,"instrument":"EUR","asset":null,"grossR":3.5}]`;
+
+    const result = await model.generateContent([
+      { inlineData: { mimeType, data: base64 } },
+      prompt,
+    ]);
+
+    const text = result.response.text().trim();
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return c.json({ error: 'Could not parse response', raw: text }, 422);
+
+    const rows = JSON.parse(jsonMatch[0]);
+    return c.json({ ok: true, rows });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
   }
 });
 
