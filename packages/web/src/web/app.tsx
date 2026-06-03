@@ -11,6 +11,30 @@ import AdminUsers from "./pages/admin-users";
 import Subscription from "./pages/subscription";
 import { setSession, clearSession, getSession, type Session } from "./lib/session";
 
+type ThemeMode = 'dark' | 'light';
+const THEME_STORAGE_KEY = 'tsct-theme';
+
+function MoonIcon() {
+  return <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" /></svg>;
+}
+
+function SunIcon() {
+  return <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2.5M12 19.5V22M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8 6 18M18 6l1.8-1.8" /></svg>;
+}
+
+function applyTheme(theme: ThemeMode) {
+  const root = document.documentElement;
+  root.dataset.theme = theme;
+  root.style.setProperty('--bg', theme === 'light' ? '#f5f7fb' : '#0d0f11');
+  root.style.setProperty('--surface', theme === 'light' ? '#ffffff' : '#14171b');
+  root.style.setProperty('--surface2', theme === 'light' ? '#eef2f7' : '#1b1f24');
+  root.style.setProperty('--border', theme === 'light' ? '#d6dce6' : '#262b33');
+  root.style.setProperty('--text', theme === 'light' ? '#121826' : '#e5e7eb');
+  root.style.setProperty('--text2', theme === 'light' ? '#5b6472' : '#9ca3af');
+  root.style.setProperty('--text3', theme === 'light' ? '#7a8494' : '#6b7280');
+  root.style.setProperty('--primary', '#7eb8f7');
+}
+
 // ─── TRIAL EXPIRED OVERLAY ───────────────────────────────────────────────────
 function TrialExpiredOverlay({ children }: { children: React.ReactNode }) {
   const [, navigate] = useLocation();
@@ -332,11 +356,13 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [session, setSessionState] = useState<Session | null>(() => getSession());
+  const [theme, setTheme] = useState<ThemeMode>(() => (localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode) || 'dark');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const isMobile = useIsMobile();
   const hasAccess = useAccessCheck(session);
 
+  useEffect(() => { applyTheme(theme); localStorage.setItem(THEME_STORAGE_KEY, theme); }, [theme]);
   useEffect(() => { fetch('/api/auth/seed').catch(() => {}); }, []);
   useEffect(() => { if (!isMobile) setDrawerOpen(false); }, [isMobile]);
 
@@ -380,6 +406,32 @@ export default function App() {
             >
               log out
             </button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={() => setTheme('dark')}
+                title="Dark"
+                aria-label="Dark theme"
+                style={{
+                  width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  borderRadius: 8, border: '1px solid var(--border)', background: theme === 'dark' ? 'var(--surface2)' : 'var(--surface)',
+                  color: 'var(--text2)', cursor: 'pointer',
+                }}
+              >
+                <MoonIcon />
+              </button>
+              <button
+                onClick={() => setTheme('light')}
+                title="Light"
+                aria-label="Light theme"
+                style={{
+                  width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  borderRadius: 8, border: '1px solid var(--border)', background: theme === 'light' ? 'var(--surface2)' : 'var(--surface)',
+                  color: 'var(--text2)', cursor: 'pointer',
+                }}
+              >
+                <SunIcon />
+              </button>
+            </div>
           </div>
         </div>
         {isMobile && (
