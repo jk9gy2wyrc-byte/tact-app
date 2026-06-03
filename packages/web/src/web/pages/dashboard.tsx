@@ -32,23 +32,142 @@ function parseFFIsoDate(isoStr: string): Date | null {
   try { return new Date(isoStr); } catch { return null; }
 }
 
-function nowUTC3(): Date {
-  return new Date(Date.now() + 3 * 3600_000);
+// UTC offset options: UTC-12 to UTC+14
+const UTC_OFFSETS: { label: string; offsetHours: number }[] = (() => {
+  const opts = [];
+  for (let h = -12; h <= 14; h++) {
+    opts.push({ label: h === 0 ? 'UTC' : h > 0 ? `UTC+${h}` : `UTC${h}`, offsetHours: h });
+  }
+  return opts;
+})();
+
+function getStoredTzOffset(): number {
+  try {
+    const v = localStorage.getItem('news_tz_offset');
+    if (v !== null) return Number(v);
+  } catch {}
+  return 0; // default UTC
 }
-function todayStartUTC3(): Date {
-  const n = nowUTC3();
-  return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()));
+
+function formatTimeWithOffset(dt: Date, offsetHours: number): string {
+  // dt is a true UTC timestamp; shift by offsetHours to display
+  const shifted = new Date(dt.getTime() + offsetHours * 3600_000);
+  const hh = String(shifted.getUTCHours()).padStart(2, '0');
+  const mm = String(shifted.getUTCMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
 }
-function windowEndUTC3(): Date {
-  return new Date(todayStartUTC3().getTime() + 2 * 86400_000 + 86399_999);
+
+function formatDayLabelWithOffset(dt: Date, offsetHours: number): string {
+  const shifted = new Date(dt.getTime() + offsetHours * 3600_000);
+  return shifted.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+
+function TimezoneDropdown({ offsetHours, onChange }: { offsetHours: number; onChange: (h: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const selectedLabel = UTC_OFFSETS.find(o => o.offsetHours === offsetHours)?.label ?? 'UTC';
+
+  const updatePos = () => {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left });
+    }
+  };
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        btnRef.current && !btnRef.current.contains(e.target as Node) &&
+        dropRef.current && !dropRef.current.contains(e.target as Node)
+      ) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+  useEffect(() => {
+    if (!open) return;
+    const onScroll = () => updatePos();
+    const onResize = () => updatePos();
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [open]);
+
+  const handleOpen = () => { updatePos(); setOpen(o => !o); };
+
+  return (
+    <div style={{ display: 'inline-block' }}>
+      <button
+        ref={btnRef}
+        onClick={handleOpen}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 8, padding: '5px 10px', cursor: 'pointer',
+          color: 'var(--text2)', fontSize: 11,
+        }}
+      >
+        <span>{selectedLabel}</span>
+        <span style={{ fontSize: 9 }}>▼</span>
+      </button>
+      {open && (
+        <div ref={dropRef} style={{
+          position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999,
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 10, padding: 8, minWidth: 130,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          display: 'flex', flexDirection: 'column', gap: 2,
+          maxHeight: 260, overflowY: 'auto',
+        }}>
+          {UTC_OFFSETS.map(opt => {
+            const isSelected = opt.offsetHours === offsetHours;
+            return (
+              <button
+                key={opt.label}
+                onClick={() => { onChange(opt.offsetHours); setOpen(false); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '7px 10px', borderRadius: 7, cursor: 'pointer',
+                  background: isSelected ? 'rgba(99,102,241,0.15)' : 'transparent',
+                  border: isSelected ? '1px solid rgba(99,102,241,0.4)' : '1px solid transparent',
+                  color: isSelected ? 'var(--text)' : 'var(--text2)',
+                  fontSize: 12, textAlign: 'left', transition: 'all 0.15s',
+                }}
+              >
+                <span style={{
+                  width: 16, height: 16, borderRadius: 8,
+                  background: isSelected ? 'rgba(99,102,241,0.25)' : 'var(--surface2)',
+                  border: '1px solid var(--border)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0, fontSize: 9,
+                }}>{isSelected ? '●' : ''}</span>
+                <span>{opt.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function NewsWidget({ selectedAssets }: { selectedAssets: string[] }) {
   const [tick, setTick] = useState(0);
+  const [tzOffset, setTzOffset] = useState<number>(getStoredTzOffset);
+
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 30_000);
     return () => clearInterval(id);
   }, [tick]);
+
+  const handleTzChange = (h: number) => {
+    setTzOffset(h);
+    try { localStorage.setItem('news_tz_offset', String(h)); } catch {}
+  };
 
   const { data: news = [], isLoading, isError } = useQuery({
     queryKey: ['news'],
@@ -67,32 +186,42 @@ function NewsWidget({ selectedAssets }: { selectedAssets: string[] }) {
     }
   }
 
-  const nowLocal = nowUTC3();
-  const windowEnd = windowEndUTC3();
-  const nowMs = nowLocal.getTime();
+  // Use true UTC "now" for all time math — event timestamps are UTC
+  const nowMs = Date.now();
+  // Window: show events from 3h ago up to 2 days ahead (UTC)
+  const windowEnd = new Date(nowMs + 2 * 86400_000 + 86399_999);
 
   const enriched = (news as any[])
     .map(item => ({ ...item, dt: parseFFIsoDate(item.isoDate) }))
     .filter(item => {
       if (!item.dt) return false;
       if (!relevantCurrencies.has(item.currency)) return false;
-      return item.dt >= new Date(nowMs - 3 * 60 * 60_000) && item.dt <= windowEnd;
+      return item.dt.getTime() >= nowMs - 3 * 60 * 60_000 && item.dt <= windowEnd;
     })
     .sort((a, b) => a.dt!.getTime() - b.dt!.getTime());
 
   if (!enriched.length) return (
-    <div style={{ color: 'var(--text2)', fontSize: 12, padding: '8px 0' }}>No upcoming high-impact news this week.</div>
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <TimezoneDropdown offsetHours={tzOffset} onChange={handleTzChange} />
+      </div>
+      <div style={{ color: 'var(--text2)', fontSize: 12, padding: '8px 0' }}>No upcoming high-impact news this week.</div>
+    </div>
   );
 
+  // Group by day label in the selected timezone
   const grouped: Record<string, typeof enriched> = {};
   for (const item of enriched) {
-    const key = item.dt!.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+    const key = formatDayLabelWithOffset(item.dt!, tzOffset);
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(item);
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+        <TimezoneDropdown offsetHours={tzOffset} onChange={handleTzChange} />
+      </div>
       {Object.entries(grouped).map(([dayLabel, items]) => {
         const hasLive = items.some(it => it.dt && Math.abs(it.dt.getTime() - nowMs) <= 15 * 60_000);
         return (
@@ -109,17 +238,12 @@ function NewsWidget({ selectedAssets }: { selectedAssets: string[] }) {
               {items.map((item, i) => {
                 if (!item.dt) return null;
                 const diffMin = (item.dt.getTime() - nowMs) / 60_000;
-                const isLive = diffMin > 0 && diffMin <= 60;
-                const isSoon = diffMin > 60 && diffMin <= 180;
+                const isLive = Math.abs(diffMin) <= 15;
+                const isSoon = diffMin > 15 && diffMin <= 180;
                 let rowBg = '#1a1d24', rowBorder = '#2a2d36';
                 if (isLive) { rowBg = 'rgba(22,163,74,0.13)'; rowBorder = 'rgba(22,163,74,0.5)'; }
                 else if (isSoon) { rowBg = 'rgba(249,115,22,0.09)'; rowBorder = 'rgba(249,115,22,0.30)'; }
-                const localTime = new Intl.DateTimeFormat('uk-UA', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  hour12: false,
-                  timeZone: 'Europe/Kyiv',
-                }).format(item.dt);
+                const displayTime = formatTimeWithOffset(item.dt, tzOffset);
                 return (
                   <div key={i} style={{
                     display: 'flex', alignItems: 'center', gap: 8,
@@ -133,7 +257,7 @@ function NewsWidget({ selectedAssets }: { selectedAssets: string[] }) {
                       boxShadow: item.impact === 'red' ? '0 0 5px #ef4444aa' : '0 0 5px #f97316aa',
                     }} />
                     <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#9ca3af', minWidth: 28 }}>{item.currency}</span>
-                    <span style={{ fontSize: 10, fontFamily: 'monospace', minWidth: 42, color: isLive ? '#4ade80' : isSoon ? '#facc15' : '#6b7280', fontWeight: isLive || isSoon ? 700 : 400 }}>{localTime}</span>
+                    <span style={{ fontSize: 10, fontFamily: 'monospace', minWidth: 42, color: isLive ? '#4ade80' : isSoon ? '#facc15' : '#6b7280', fontWeight: isLive || isSoon ? 700 : 400 }}>{displayTime}</span>
                     <span style={{ fontSize: 12, flex: 1, color: isLive ? '#f1f5f9' : isSoon ? '#e2e8f0' : '#94a3b8', fontWeight: isLive ? 600 : 400 }}>{item.title}</span>
                     {isLive && <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 6px', fontWeight: 700, flexShrink: 0 }}>NOW</span>}
                     {isSoon && !isLive && <span style={{ fontSize: 9, color: '#f97316', fontFamily: 'monospace', flexShrink: 0 }}>{diffMin < 60 ? `${Math.round(diffMin)}m` : `${Math.floor(diffMin/60)}h${Math.round(diffMin%60)}m`}</span>}
