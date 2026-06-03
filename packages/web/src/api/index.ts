@@ -60,6 +60,7 @@ const ensureEmailTables = async () => {
   if (!emailTablesReady) {
     emailTablesReady = Promise.all([
       db.run(sql`ALTER TABLE users ADD COLUMN email TEXT`).catch(() => {}),
+      db.run(sql`ALTER TABLE users ADD COLUMN country TEXT`).catch(() => {}),
       db.run(sql`
         CREATE TABLE IF NOT EXISTS email_codes (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -147,10 +148,12 @@ const app = new Hono()
 
   // ─── AUTH: SEED ADMIN + LOGIN + REGISTER ──────────────────────────────────
   .get('/auth/seed', async (c) => {
-    // Ensure admin user exists
+    // Ensure admin user exists with correct role
     const existing = await db.select().from(users).where(eq(users.login, 'whatif')).get();
     if (!existing) {
       await db.insert(users).values({ login: 'whatif', password: '7777', role: 'admin' });
+    } else if (existing.role !== 'admin') {
+      await db.update(users).set({ role: 'admin' }).where(eq(users.login, 'whatif'));
     }
     return c.json({ ok: true }, 200);
   })
