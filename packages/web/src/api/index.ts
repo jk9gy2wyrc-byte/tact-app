@@ -61,6 +61,7 @@ const ensureEmailTables = async () => {
     emailTablesReady = Promise.all([
       db.run(sql`ALTER TABLE users ADD COLUMN email TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN country TEXT`).catch(() => {}),
+      db.run(sql`ALTER TABLE users ADD COLUMN ip TEXT`).catch(() => {}),
       db.run(sql`
         CREATE TABLE IF NOT EXISTS email_codes (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -152,6 +153,7 @@ const app = new Hono()
     await Promise.all([
       db.run(sql`ALTER TABLE users ADD COLUMN email TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN country TEXT`).catch(() => {}),
+      db.run(sql`ALTER TABLE users ADD COLUMN ip TEXT`).catch(() => {}),
     ]);
     // Ensure admin user exists with correct role
     const existing = await db.select().from(users).where(eq(users.login, 'whatif')).get();
@@ -187,10 +189,22 @@ const app = new Hono()
       const { login, password } = c.req.valid('json');
       const existing = await db.select().from(users).where(eq(users.login, login)).get();
       if (existing) return c.json({ error: 'Логін вже зайнятий' }, 409);
+      let regIp: string | null = null;
+      let regCountry: string | null = null;
+      try {
+        const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for')?.split(',')[0].trim() || c.req.header('x-real-ip');
+        if (ip && ip !== '127.0.0.1' && ip !== '::1') {
+          regIp = ip;
+          const geo = await fetch(`http://ip-api.com/json/${ip}?fields=countryCode`).then(r => r.json()).catch(() => null);
+          if (geo?.countryCode) regCountry = geo.countryCode;
+        }
+      } catch {}
       const [newUser] = await db.insert(users).values({
         login,
         password,
         role: 'free-trial',
+        ip: regIp,
+        country: regCountry,
       }).returning();
       return c.json({
         id: newUser.id,
@@ -270,9 +284,11 @@ const app = new Hono()
       if (emailUsed) return c.json({ error: 'Ця пошта вже зареєстрована' }, 409);
       // detect country by IP
       let country: string | null = null;
+      let userIp: string | null = null;
       try {
         const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for')?.split(',')[0].trim() || c.req.header('x-real-ip');
         if (ip && ip !== '127.0.0.1' && ip !== '::1') {
+          userIp = ip;
           const geo = await fetch(`http://ip-api.com/json/${ip}?fields=countryCode`).then(r => r.json()).catch(() => null);
           if (geo?.countryCode) country = geo.countryCode;
         }
@@ -283,6 +299,7 @@ const app = new Hono()
         password,
         email,
         country,
+        ip: userIp,
         role: 'free-trial',
       }).returning();
       await db.delete(emailCodes).where(eq(emailCodes.email, email));
@@ -1570,6 +1587,7 @@ export default app;
     await Promise.all([
       db.run(sql`ALTER TABLE users ADD COLUMN email TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN country TEXT`).catch(() => {}),
+      db.run(sql`ALTER TABLE users ADD COLUMN ip TEXT`).catch(() => {}),
     ]);
     // Ensure admin user exists with correct role
     const existing = await db.select().from(users).where(eq(users.login, 'whatif')).get();

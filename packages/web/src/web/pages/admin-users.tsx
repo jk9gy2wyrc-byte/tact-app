@@ -34,6 +34,7 @@ interface UserRow {
   password: string;
   role: string;
   country: string | null;
+  ip: string | null;
   createdAt: string | null;
 }
 
@@ -260,6 +261,9 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                             · <img src={`https://flagcdn.com/20x15/${u.country.toLowerCase()}.png`} alt={u.country} style={{ width: 16, height: 12, borderRadius: 2 }} /> {u.country}
                           </span>
                         )}
+                        {u.ip && (
+                          <span style={{ color: 'var(--text3)', fontSize: 10 }}> · {u.ip}</span>
+                        )}
                       </div>
                     </div>
                     {u.login !== currentLogin && (
@@ -296,6 +300,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                     <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Password</th>
                     <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Role</th>
                     <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Country</th>
+                    <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>IP</th>
                     <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>
                       Registered <span style={{ color: 'var(--text3)', fontSize: 10 }}>· UTC+3</span>
                     </th>
@@ -330,6 +335,9 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                             {u.country}
                           </span>
                         ) : '—'}
+                      </td>
+                      <td style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text2)', fontFamily: 'monospace' }}>
+                        {u.ip ?? '—'}
                       </td>
                       <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)', fontFamily: 'monospace' }}>
                         {fmt(u.createdAt)}
