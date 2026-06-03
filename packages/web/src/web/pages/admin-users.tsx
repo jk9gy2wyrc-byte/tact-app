@@ -153,6 +153,77 @@ function RoleDropdown({
   );
 }
 
+// ─── SVG Growth Chart ─────────────────────────────────────────────────────────
+function GrowthChart({ data }: { data: { date: string; total: number }[] }) {
+  const W = 800, H = 140, PL = 36, PR = 16, PT = 16, PB = 28;
+  const w = W - PL - PR;
+  const h = H - PT - PB;
+  const maxVal = Math.max(...data.map(d => d.total), 1);
+  const minVal = 0;
+
+  const toX = (i: number) => PL + (i / (data.length - 1)) * w;
+  const toY = (v: number) => PT + h - ((v - minVal) / (maxVal - minVal)) * h;
+
+  // smooth bezier path
+  const points = data.map((d, i) => ({ x: toX(i), y: toY(d.total) }));
+  const path = points.reduce((acc, pt, i) => {
+    if (i === 0) return `M ${pt.x},${pt.y}`;
+    const prev = points[i - 1];
+    const cpx = (prev.x + pt.x) / 2;
+    return acc + ` C ${cpx},${prev.y} ${cpx},${pt.y} ${pt.x},${pt.y}`;
+  }, '');
+  const fillPath = path + ` L ${points[points.length-1].x},${PT+h} L ${points[0].x},${PT+h} Z`;
+
+  // x-axis labels: show ~6 evenly spaced
+  const step = Math.max(1, Math.floor(data.length / 6));
+  const xLabels = data.filter((_, i) => i % step === 0 || i === data.length - 1);
+
+  // y-axis ticks: 0, mid, max
+  const yTicks = [0, Math.round(maxVal / 2), maxVal].filter((v, i, a) => a.indexOf(v) === i);
+
+  return (
+    <div style={{
+      background: 'var(--surface)', border: '1px solid var(--border)',
+      borderRadius: 12, padding: '16px 20px', marginBottom: 20,
+    }}>
+      <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
+        User growth
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block', overflow: 'visible' }}>
+        <defs>
+          <linearGradient id="ug" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#7eb8f7" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#7eb8f7" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {/* grid lines */}
+        {yTicks.map(v => (
+          <g key={v}>
+            <line x1={PL} y1={toY(v)} x2={W - PR} y2={toY(v)}
+              stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+            <text x={PL - 6} y={toY(v) + 4} textAnchor="end"
+              fontSize="10" fill="rgba(255,255,255,0.3)">{v}</text>
+          </g>
+        ))}
+        {/* fill */}
+        <path d={fillPath} fill="url(#ug)" />
+        {/* line */}
+        <path d={path} fill="none" stroke="#7eb8f7" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        {/* dot on last point */}
+        <circle cx={points[points.length-1].x} cy={points[points.length-1].y} r="4" fill="#7eb8f7" />
+        {/* x labels */}
+        {xLabels.map((d) => {
+          const i = data.indexOf(d);
+          return (
+            <text key={i} x={toX(i)} y={H - 4} textAnchor="middle"
+              fontSize="10" fill="rgba(255,255,255,0.3)">{d.date}</text>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
 export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
   const qc = useQueryClient();
   const isMobile = useMobile();
@@ -247,7 +318,29 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
   const admins = users.filter((u) => u.role === 'admin');
   const regulars = users.filter((u) => u.role !== 'admin');
 
+  // ─── build growth chart data ─────────────────────────────────────────────
+  const growthData = React.useMemo(() => {
+    if (!users.length) return [];
+    const sorted = [...users]
+      .filter(u => u.createdAt)
+      .sort((a, b) => new Date(a.createdAt!).getTime() - new Date(b.createdAt!).getTime());
+    if (!sorted.length) return [];
 
+    const first = new Date(sorted[0].createdAt!);
+    const last = new Date();
+    // build day buckets from first registration to today
+    const dayMs = 86400_000;
+    const startDay = new Date(first.getFullYear(), first.getMonth(), first.getDate()).getTime();
+    const endDay = new Date(last.getFullYear(), last.getMonth(), last.getDate()).getTime();
+    const days: { date: string; total: number }[] = [];
+    for (let t = startDay; t <= endDay; t += dayMs) {
+      const d = new Date(t);
+      const label = d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' });
+      const count = sorted.filter(u => new Date(u.createdAt!).getTime() <= t + dayMs - 1).length;
+      days.push({ date: label, total: count });
+    }
+    return days;
+  }, [users]);
 
   return (
     <div style={{ padding: isMobile ? '16px' : '24px 28px' }}>
@@ -288,6 +381,11 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
               </div>
             ))}
           </div>
+
+          {/* Growth chart */}
+          {growthData.length >= 2 && (
+            <GrowthChart data={growthData} />
+          )}
 
           {/* Mobile: cards */}
           {isMobile ? (
