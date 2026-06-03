@@ -50,6 +50,7 @@ const subscriptionSettingsUpdateSchema = z.object({
   asLogin: z.string().min(1),
   buttonText: z.string().min(2).max(120),
   buttonUrl: z.string().max(1024).optional(),
+  contactMessage: z.string().max(500).optional(),
   plans: subscriptionPlansSchema,
 });
 
@@ -58,6 +59,7 @@ type SubscriptionSettingsRow = typeof subscriptionSettings.$inferSelect;
 type SubscriptionSettingsResponse = {
   buttonText: string;
   buttonUrl: string;
+  contactMessage: string;
   plans: z.infer<typeof subscriptionPlansSchema>;
   updatedAt: string | null;
 };
@@ -97,7 +99,9 @@ const ensureSubscriptionTable = async () => {
         plans_json TEXT NOT NULL DEFAULT '{}',
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
-    `).then(() => {});
+    `).then(() =>
+      db.run(sql`ALTER TABLE subscription_settings ADD COLUMN contact_message TEXT DEFAULT ''`).catch(() => {})
+    ).then(() => {});
   }
   return subscriptionTableReady;
 };
@@ -133,6 +137,7 @@ const parsePlans = (raw?: string | null): z.infer<typeof subscriptionPlansSchema
 const mapSubscriptionRow = (row: SubscriptionSettingsRow): SubscriptionSettingsResponse => ({
   buttonText: row.buttonText,
   buttonUrl: row.buttonUrl,
+  contactMessage: row.contactMessage ?? '',
   plans: parsePlans(row.plansJson),
   updatedAt: row.updatedAt ?? null,
 });
@@ -512,18 +517,20 @@ const app = new Hono()
   .post('/subscription/settings',
     zValidator('json', subscriptionSettingsUpdateSchema),
     async (c) => {
-      const { asLogin, buttonText, buttonUrl = '', plans } = c.req.valid('json');
+      const { asLogin, buttonText, buttonUrl = '', contactMessage = '', plans } = c.req.valid('json');
       const caller = await db.select().from(users).where(eq(users.login, asLogin)).get();
       if (!caller || caller.role !== 'admin') return c.json({ error: 'Forbidden' }, 403);
 
       const row = await ensureSubscriptionRow();
       const normalizedText = buttonText.trim() || DEFAULT_SUBSCRIPTION_SETTINGS.buttonText;
       const normalizedUrl = buttonUrl.trim();
+      const normalizedMsg = contactMessage.trim();
       const nowIso = new Date().toISOString();
 
       await db.update(subscriptionSettings).set({
         buttonText: normalizedText,
         buttonUrl: normalizedUrl,
+        contactMessage: normalizedMsg,
         plansJson: JSON.stringify(plans),
         updatedAt: nowIso,
       }).where(eq(subscriptionSettings.id, row.id));
@@ -531,6 +538,7 @@ const app = new Hono()
       return c.json({
         buttonText: normalizedText,
         buttonUrl: normalizedUrl,
+        contactMessage: normalizedMsg,
         plans,
         updatedAt: nowIso,
       }, 200);

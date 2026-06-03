@@ -70,6 +70,7 @@ export const subscriptionSettings = sqliteTable("subscription_settings", {
   id: integer("id").primaryKey({ autoIncrement: true }).default(1),
   buttonText: text("button_text").notNull().default("Contact Us"),
   buttonUrl: text("button_url").notNull().default(""),
+  contactMessage: text("contact_message").default(""),
   plansJson: text("plans_json").notNull().default("{}"),
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });

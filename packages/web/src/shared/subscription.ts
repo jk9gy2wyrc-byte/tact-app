@@ -14,6 +14,7 @@ export type SubscriptionPlans = {
 export type SubscriptionSettingsPayload = {
   buttonText: string;
   buttonUrl: string;
+  contactMessage?: string;
   plans: SubscriptionPlans;
 };
 

@@ -16,6 +16,7 @@ const clonePlans = (plans: SubscriptionPlans): SubscriptionPlans => ({
 const cloneConfig = (config: SubscriptionSettingsPayload): SubscriptionSettingsPayload => ({
   buttonText: config.buttonText,
   buttonUrl: config.buttonUrl,
+  contactMessage: config.contactMessage ?? '',
   plans: clonePlans(config.plans),
 });
 
@@ -45,6 +46,7 @@ export default function Subscription() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editButtonText, setEditButtonText] = useState(DEFAULT_SUBSCRIPTION_SETTINGS.buttonText);
   const [editButtonUrl, setEditButtonUrl] = useState(DEFAULT_SUBSCRIPTION_SETTINGS.buttonUrl);
+  const [editContactMessage, setEditContactMessage] = useState('');
   const [editModalError, setEditModalError] = useState<string | null>(null);
 
   const [showPlansModal, setShowPlansModal] = useState(false);
@@ -88,6 +90,7 @@ export default function Subscription() {
         setConfig(next);
         setEditButtonText(next.buttonText);
         setEditButtonUrl(next.buttonUrl);
+        setEditContactMessage(next.contactMessage ?? '');
         setEditPlans(clonePlans(next.plans));
         setUpdatedAt((data as SubscriptionApiResponse).updatedAt ?? null);
       } catch (err) {
@@ -112,6 +115,7 @@ export default function Subscription() {
           asLogin: session.login,
           buttonText: nextConfig.buttonText,
           buttonUrl: nextConfig.buttonUrl,
+          contactMessage: nextConfig.contactMessage ?? '',
           plans: nextConfig.plans,
         }),
       });
@@ -121,6 +125,7 @@ export default function Subscription() {
       setConfig(normalized);
       setEditButtonText(normalized.buttonText);
       setEditButtonUrl(normalized.buttonUrl);
+      setEditContactMessage(normalized.contactMessage ?? '');
       setEditPlans(clonePlans(normalized.plans));
       setUpdatedAt((data as SubscriptionApiResponse).updatedAt ?? null);
       setGlobalMessage('Налаштування збережено');
@@ -134,6 +139,7 @@ export default function Subscription() {
     setEditModalError(null);
     setEditButtonText(config.buttonText);
     setEditButtonUrl(config.buttonUrl);
+    setEditContactMessage(config.contactMessage ?? '');
     setShowEditModal(true);
   };
 
@@ -144,6 +150,7 @@ export default function Subscription() {
         ...config,
         buttonText: editButtonText.trim() || DEFAULT_SUBSCRIPTION_SETTINGS.buttonText,
         buttonUrl: editButtonUrl.trim(),
+        contactMessage: editContactMessage.trim(),
       });
       setShowEditModal(false);
     } catch (err) {
@@ -260,37 +267,44 @@ export default function Subscription() {
         <div style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 16 }}>
           For more information on subscription, please contact:
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <a
-            href={contactDisabled ? undefined : config.buttonUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => contactDisabled && e.preventDefault()}
-            style={{
-              display: 'inline-block',
-              background: contactDisabled ? 'var(--surface2)' : 'var(--primary)',
-              color: contactDisabled ? 'var(--text2)' : '#fff',
-              padding: '12px 24px', borderRadius: 10,
-              fontSize: 14, fontWeight: 600, textDecoration: 'none',
-              cursor: contactDisabled ? 'not-allowed' : 'pointer',
-              opacity: contactDisabled ? 0.6 : 1,
-            }}
-          >
-            {config.buttonText}
-          </a>
-          {isAdmin && (
-            <button
-              onClick={handleEdit}
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <a
+              href={contactDisabled ? undefined : config.buttonUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => contactDisabled && e.preventDefault()}
               style={{
                 display: 'inline-block',
-                background: 'var(--border)', color: 'var(--text)',
-                padding: '12px 16px', borderRadius: 10,
-                fontSize: 14, fontWeight: 600, border: 'none',
-                cursor: 'pointer',
+                background: contactDisabled ? 'var(--surface2)' : 'var(--primary)',
+                color: contactDisabled ? 'var(--text2)' : '#fff',
+                padding: '12px 24px', borderRadius: 10,
+                fontSize: 14, fontWeight: 600, textDecoration: 'none',
+                cursor: contactDisabled ? 'not-allowed' : 'pointer',
+                opacity: contactDisabled ? 0.6 : 1,
               }}
             >
-              Edit
-            </button>
+              {config.buttonText}
+            </a>
+            {isAdmin && (
+              <button
+                onClick={handleEdit}
+                style={{
+                  display: 'inline-block',
+                  background: 'var(--border)', color: 'var(--text)',
+                  padding: '12px 16px', borderRadius: 10,
+                  fontSize: 14, fontWeight: 600, border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                Edit
+              </button>
+            )}
+          </div>
+          {config.contactMessage && (
+            <div style={{ marginTop: 10, fontSize: 13, color: 'var(--text2)', lineHeight: 1.5, maxWidth: 480 }}>
+              {config.contactMessage}
+            </div>
           )}
         </div>
       </div>
@@ -379,7 +393,7 @@ export default function Subscription() {
                 }}
               />
             </div>
-            <div style={{ marginBottom: 24 }}>
+            <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', fontSize: 14, color: 'var(--text2)', marginBottom: 8 }}>
                 Button URL
               </label>
@@ -391,6 +405,23 @@ export default function Subscription() {
                   width: '100%', padding: '10px 12px', borderRadius: 8,
                   border: '1px solid var(--border)', background: 'var(--bg)',
                   color: 'var(--text)', fontSize: 14,
+                }}
+              />
+            </div>
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', fontSize: 14, color: 'var(--text2)', marginBottom: 8 }}>
+                Message under button <span style={{ fontSize: 12, color: 'var(--text3)' }}>(visible to all users)</span>
+              </label>
+              <textarea
+                value={editContactMessage}
+                onChange={(e) => setEditContactMessage(e.target.value)}
+                placeholder="e.g. Response time: 1-2 hours. Mention your username."
+                rows={3}
+                style={{
+                  width: '100%', padding: '10px 12px', borderRadius: 8,
+                  border: '1px solid var(--border)', background: 'var(--bg)',
+                  color: 'var(--text)', fontSize: 13, resize: 'vertical',
+                  fontFamily: 'inherit', lineHeight: 1.5,
                 }}
               />
             </div>
