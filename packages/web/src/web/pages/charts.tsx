@@ -1889,13 +1889,13 @@ export default function Charts() {
                         </div>
                       </div>
 
-                      {/* ─ deviation — always visible ─ */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '5px 8px' }}>
+                      {/* ─ deviation — always visible, single block ─ */}
+                      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor, flexShrink: 0, display: 'inline-block' }} />
-                          <span style={{ fontSize: 10, color: 'var(--text)', flex: 1 }}>{statusLabel}</span>
+                          <span style={{ fontSize: 10, color: 'var(--text)', fontWeight: 600 }}>{statusLabel}</span>
                         </div>
-                        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '5px 8px', fontSize: 10, color: 'var(--text2)', lineHeight: 1.5 }}>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', lineHeight: 1.5, paddingLeft: 13 }}>
                           {devLabel}
                         </div>
                       </div>
