@@ -63,7 +63,7 @@ function RoleDropdown({
   const isSelfAdmin = u.login === currentLogin && visualRole === 'admin';
 
   const btnRef = useRef<HTMLButtonElement>(null);
-  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; openUp: boolean } | null>(null);
 
   if (isSelfAdmin) {
     return (
@@ -88,7 +88,12 @@ function RoleDropdown({
             setMenuPos(null);
           } else {
             const rect = btnRef.current?.getBoundingClientRect();
-            if (rect) setMenuPos({ top: rect.bottom + 6, left: rect.right });
+            if (rect) {
+              const menuHeight = 260;
+              const spaceBelow = window.innerHeight - rect.bottom;
+              const openUp = spaceBelow < menuHeight + 10;
+              setMenuPos({ top: openUp ? rect.top - menuHeight - 6 : rect.bottom + 6, left: rect.right, openUp });
+            }
             setRoleMenuOpen(u.id);
           }
         }}
