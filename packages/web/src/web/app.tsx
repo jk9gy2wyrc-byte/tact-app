@@ -354,7 +354,7 @@ function PageTransition({ children, routeKey }: { children: React.ReactNode; rou
   return (
     <div key={key} style={{
       opacity: animating ? 0 : 1,
-      transform: animating ? 'translateY(8px)' : 'translateY(0)',
+      transform: animating ? 'translateY(8px)' : undefined,
       transition: 'opacity 0.2s ease, transform 0.2s ease',
       minHeight: '100%',
     }}>
