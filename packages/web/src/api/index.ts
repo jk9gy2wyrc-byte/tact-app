@@ -7,7 +7,7 @@ import { backtestTrades, emailCodes, liveTrades, subscriptionSettings, userPrefs
 import { eq, desc, asc, sql, lt } from "drizzle-orm";
 import * as XLSX from "xlsx";
 import { DEFAULT_SUBSCRIPTION_SETTINGS } from "../shared/subscription";
-// Resend loaded lazily inside handler to avoid crash if key missing
+// Email sending via Brevo
 
 // ─── disposable email domains list ───────────────────────────────────────────
 import disposableDomains from 'disposable-email-domains';
@@ -248,28 +248,39 @@ const app = new Hono()
       const code = String(Math.floor(1000 + Math.random() * 9000));
       const expiresAt = Date.now() + 10 * 60 * 1000; // 10 хвилин
       await db.insert(emailCodes).values({ email, code, expiresAt });
-      // send email (or return code directly in dev mode)
-      if (!process.env.RESEND_API_KEY) {
-        // DEV MODE: return code in response
+      // send email via Brevo
+      const brevoKey = process.env.BREVO_API_KEY;
+      if (!brevoKey) {
         console.log(`[DEV] Email code for ${email}: ${code}`);
         return c.json({ ok: true, devCode: code }, 200);
       }
-      const { Resend } = await import('resend');
-      const resend = new Resend(process.env.RESEND_API_KEY);
       try {
-        await resend.emails.send({
-          from: 'TSCT <onboarding@resend.dev>',
-          to: email,
-          subject: 'Код підтвердження TSCT',
-          html: `
-            <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:32px;background:#0d0f11;color:#e2e8f0;border-radius:16px">
-              <div style="font-size:20px;font-weight:700;margin-bottom:16px">TSCT</div>
-              <p style="color:#94a3b8;margin-bottom:24px">Ваш код підтвердження для реєстрації:</p>
-              <div style="font-size:40px;font-weight:700;letter-spacing:12px;text-align:center;padding:20px;background:#1a1d2a;border-radius:12px;color:#fff">${code}</div>
-              <p style="color:#94a3b8;font-size:12px;margin-top:20px">Код дійсний 10 хвилин. Якщо ви не реєструвались — проігноруйте цей лист.</p>
-            </div>
-          `,
+        const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'accept': 'application/json',
+            'content-type': 'application/json',
+            'api-key': brevoKey,
+          },
+          body: JSON.stringify({
+            sender: { name: 'TSCT', email: 'noreply@tsct.app' },
+            to: [{ email }],
+            subject: 'Код підтвердження TSCT',
+            htmlContent: `
+              <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:32px;background:#0d0f11;color:#e2e8f0;border-radius:16px">
+                <div style="font-size:20px;font-weight:700;margin-bottom:16px">TSCT</div>
+                <p style="color:#94a3b8;margin-bottom:24px">Ваш код підтвердження для реєстрації:</p>
+                <div style="font-size:40px;font-weight:700;letter-spacing:12px;text-align:center;padding:20px;background:#1a1d2a;border-radius:12px;color:#fff">${code}</div>
+                <p style="color:#94a3b8;font-size:12px;margin-top:20px">Код дійсний 10 хвилин. Якщо ви не реєструвались — проігноруйте цей лист.</p>
+              </div>
+            `,
+          }),
         });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          console.error('[Brevo error]', err);
+          return c.json({ error: 'Не вдалося надіслати лист. Перевірте адресу.' }, 500);
+        }
       } catch (e) {
         return c.json({ error: 'Не вдалося надіслати лист. Перевірте адресу.' }, 500);
       }
