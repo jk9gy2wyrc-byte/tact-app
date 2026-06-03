@@ -251,6 +251,7 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
 
   const handleLogin = async () => {
     if (!loginVal || !passwordVal) return;
+    if (!loginVal.includes('@')) { setLoginErr('Введіть коректний email'); return; }
     setLoading(true); setLoginErr('');
     try {
       const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: loginVal, password: passwordVal }) });
@@ -300,7 +301,7 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
         {mode === 'login' && (<>
           <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 24, textAlign: 'center' }}>TSCT</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input placeholder="Логін або пошта" value={loginVal} onChange={e => setLoginVal(e.target.value)}
+            <input type="email" placeholder="Email" value={loginVal} onChange={e => setLoginVal(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleLogin()} style={inputStyle} />
             <input type="password" placeholder="Пароль" value={passwordVal} onChange={e => setPasswordVal(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleLogin()} style={inputStyle} />
@@ -406,39 +407,7 @@ export default function App() {
   };
 
   if (!session) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--text)' }}>
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '32px 40px', width: 320 }}>
-          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 24, textAlign: 'center' }}>TSCT Login</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input placeholder="Логін (email)" id="login-input"
-              style={{ width: '100%', fontSize: 14, borderRadius: 10, padding: '12px 14px', boxSizing: 'border-box', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }} />
-            <input type="password" placeholder="Password" id="password-input"
-              style={{ width: '100%', fontSize: 14, borderRadius: 10, padding: '12px 14px', boxSizing: 'border-box', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }} />
-            <button className="btn-primary"
-              onClick={() => {
-                const login = (document.getElementById('login-input') as HTMLInputElement)?.value;
-                const password = (document.getElementById('password-input') as HTMLInputElement)?.value;
-                if (!login || !password) return;
-                fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login, password }) })
-                  .then(r => r.json()).then(data => { if (data.error) alert(data.error); else handleAuth({ id: data.id, login: data.login, role: data.role, createdAt: data.createdAt }); })
-                  .catch(() => alert('Error'));
-              }}
-              style={{ borderRadius: 10, padding: '12px 0', fontSize: 14 }}>Login</button>
-            <button className="btn-ghost"
-              onClick={() => {
-                const login = (document.getElementById('login-input') as HTMLInputElement)?.value;
-                const password = (document.getElementById('password-input') as HTMLInputElement)?.value;
-                if (!login || !password) return;
-                fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login, password }) })
-                  .then(r => r.json()).then(data => { if (data.error) alert(data.error); else handleAuth({ id: data.id, login: data.login, role: data.role, createdAt: data.createdAt }); })
-                  .catch(() => alert('Error'));
-              }}
-              style={{ borderRadius: 10, padding: '10px 0', fontSize: 13 }}>Register</button>
-          </div>
-        </div>
-      </div>
-    );
+    return <AuthScreen onAuth={handleAuth} />;
   }
 
   const nav = buildNav(session.role);
