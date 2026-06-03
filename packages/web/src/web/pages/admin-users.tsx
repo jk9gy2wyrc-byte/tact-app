@@ -263,12 +263,12 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6 }}>
                         #{i + 1} · {fmt(u.createdAt)}
-                        {u.country && (
+                        {u.country && !(u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN) && (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                             · <img src={`https://flagcdn.com/20x15/${u.country.toLowerCase()}.png`} alt={u.country} style={{ width: 16, height: 12, borderRadius: 2 }} /> {u.country}
                           </span>
                         )}
-                        {u.ip && (
+                        {u.ip && !(u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN) && (
                           <span style={{ color: 'var(--text3)', fontSize: 10 }}> · {u.ip}</span>
                         )}
                       </div>
@@ -345,7 +345,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                         <RoleDropdown u={u} />
                       </td>
                       <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)' }}>
-                        {u.country ? (
+                        {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '—' : u.country ? (
                           <span title={u.country} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                             <img src={`https://flagcdn.com/20x15/${u.country.toLowerCase()}.png`} alt={u.country} style={{ width: 20, height: 15, borderRadius: 2 }} />
                             {u.country}
@@ -353,7 +353,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                         ) : '—'}
                       </td>
                       <td style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text2)', fontFamily: 'monospace' }}>
-                        {u.ip ?? '—'}
+                        {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '—' : (u.ip ?? '—')}
                       </td>
                       <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)', fontFamily: 'monospace' }}>
                         {fmt(u.createdAt)}
