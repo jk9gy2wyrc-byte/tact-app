@@ -1662,6 +1662,7 @@ export default function Charts() {
                 const lvSQN    = lvStats?.sqn ?? 0;
                 const lvMaxDD  = lvStats?.maxDD ?? 0;
                 const lvEq: number[] = (d as any).lvEquity ?? [];
+                const btEq: number[] = (d as any).btEquity ?? [];
                 const lvNets: number[] = lvEq.map((v: number, i: number) => i === 0 ? v : v - lvEq[i - 1]);
                 let lvStreak = 0, lvStreakCur = 0;
                 for (const r of lvNets) { if (r < 0) { lvStreakCur++; if (lvStreakCur > lvStreak) lvStreak = lvStreakCur; } else lvStreakCur = 0; }
@@ -1732,127 +1733,206 @@ export default function Charts() {
                   },
                 ];
 
+                // ── helpers ─────────────────────────────────────────────
+                // mini sparkline from equity array (last N points normalised to H)
+                const Sparkline = ({ data, color, W, H }: { data: number[]; color: string; W: number; H: number }) => {
+                  if (data.length < 2) return null;
+                  const slice = data.slice(-40);
+                  const mn = Math.min(...slice), mx = Math.max(...slice);
+                  const rng = mx - mn || 1;
+                  const pts = slice.map((v, i) => {
+                    const x = (i / (slice.length - 1)) * W;
+                    const y = H - ((v - mn) / rng) * (H - 4) - 2;
+                    return `${x.toFixed(1)},${y.toFixed(1)}`;
+                  }).join(' ');
+                  return (
+                    <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+                  );
+                };
+
                 // ── Single metric card ───────────────────────────────────
                 const MetricCard = ({
                   meta,
                   box,
-                  accentColor,
+                  rowKey,
                 }: {
                   meta: typeof METRICS[0];
                   box: BoxStat;
-                  accentColor: string;
+                  rowKey: string;
                 }) => {
                   const { liveVal, higherIsBetter, pct } = meta;
-                  const scale = pct ? 100 : 1;
                   const fmt = (v: number) => pct ? (v * 100).toFixed(1) + '%' : (Number.isInteger(v) ? String(v) : v.toFixed(2));
 
                   const inBox    = liveVal >= box.p25 && liveVal <= box.p75;
                   const aboveBox = higherIsBetter ? liveVal > box.p75 : liveVal < box.p25;
-                  const liveColor = inBox ? '#facc15' : aboveBox ? '#4ade80' : '#f87171';
+                  const dotColor = inBox ? '#facc15' : aboveBox ? '#4ade80' : '#f87171';
+                  const statusLabel = inBox ? 'В нормі' : aboveBox ? (higherIsBetter ? 'Вище норми' : 'Краще норми') : (higherIsBetter ? 'Нижче норми' : 'Перевищено');
 
                   const dev = liveVal - box.med;
                   const devLabel = meta.deviationLabel(dev, liveVal, box.med);
 
-                  // ── SVG box plot (horizontal layout) ──
-                  const W = 140, H = 32;
-                  const dMin = box.p5  * scale;
-                  const dMax = box.p95 * scale;
-                  const range = dMax - dMin || 1;
-                  const toX = (v: number) => ((v * scale - dMin) / range) * W;
+                  const explainKey = `fscf_exp_${rowKey}_${meta.key}`;
+                  const devKey     = `fscf_dev_${rowKey}_${meta.key}`;
+                  const explainOpen = stressDescOpen.has(explainKey);
+                  const devOpen     = stressDescOpen.has(devKey);
+                  const toggle = (k: string) => setStressDescOpen(prev => {
+                    const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s;
+                  });
 
-                  const xP5  = toX(box.p5);
-                  const xP25 = toX(box.p25);
-                  const xMed = toX(box.med);
-                  const xP75 = toX(box.p75);
-                  const xP95 = toX(box.p95);
-                  const xLiv = Math.max(0, Math.min(W, toX(liveVal)));
-                  const cy   = H / 2;
+                  // sparkline data: for each metric derive a series from lvEquity / btEquity
+                  // return→lvEq, drawdown→running dd from lvEq, wr→rolling 20-trade, sqn→rolling, streak→rolling
+                  // For simplicity: use lvEq for return, and MC box percentiles as static reference
+                  const sparkData: number[] = (() => {
+                    if (meta.key === 'return') return lvEq;
+                    if (meta.key === 'drawdown') {
+                      let pk = -Infinity, res: number[] = [];
+                      for (const v of lvEq) { if (v > pk) pk = v; res.push(pk === -Infinity ? 0 : pk - v); }
+                      return res;
+                    }
+                    // for wr/sqn/streak: rolling 20-trade window on lvNets
+                    if (meta.key === 'wr') {
+                      const res: number[] = [];
+                      for (let i = 0; i < lvNets.length; i++) {
+                        const w = lvNets.slice(Math.max(0, i - 19), i + 1);
+                        res.push(w.filter(x => x > 0).length / (w.length || 1));
+                      }
+                      return res;
+                    }
+                    if (meta.key === 'sqn') {
+                      const res: number[] = [];
+                      for (let i = 0; i < lvNets.length; i++) {
+                        const w = lvNets.slice(Math.max(0, i - 19), i + 1);
+                        if (w.length < 2) { res.push(0); continue; }
+                        const mean = w.reduce((a, b) => a + b, 0) / w.length;
+                        const std  = Math.sqrt(w.reduce((a, b) => a + (b - mean) ** 2, 0) / w.length) || 1;
+                        res.push(mean / std * Math.sqrt(w.length));
+                      }
+                      return res;
+                    }
+                    if (meta.key === 'streak') {
+                      const res: number[] = [];
+                      for (let i = 0; i < lvNets.length; i++) {
+                        const w = lvNets.slice(Math.max(0, i - 19), i + 1);
+                        let mx2 = 0, cur = 0;
+                        for (const r of w) { if (r < 0) { cur++; if (cur > mx2) mx2 = cur; } else cur = 0; }
+                        res.push(mx2);
+                      }
+                      return res;
+                    }
+                    return lvEq;
+                  })();
 
-                  const statusLabel = inBox ? 'В нормі' : aboveBox ? (higherIsBetter ? 'Вище норми ✓' : 'Краще норми ✓') : (higherIsBetter ? 'Нижче норми !' : 'Перевищено !');
-                  const statusBg = inBox ? 'rgba(250,204,21,0.12)' : aboveBox ? 'rgba(74,222,128,0.12)' : 'rgba(248,113,113,0.12)';
+                  const SW = 160, SH = 48;
 
                   return (
                     <div style={{
                       flex: '1 1 0',
                       minWidth: 0,
                       background: 'var(--bg2)',
-                      border: `1px solid var(--border)`,
-                      borderTop: `2px solid ${accentColor}`,
+                      border: '1px solid var(--border)',
                       borderRadius: 8,
                       padding: '12px 14px',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: 10,
+                      gap: 8,
                     }}>
-                      {/* ─ header row ─ */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.8 }}>{meta.label}</span>
-                        <span style={{ fontSize: 9, fontWeight: 700, color: liveColor, background: statusBg, borderRadius: 4, padding: '2px 6px' }}>{statusLabel}</span>
+                      {/* ─ header ─ */}
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.8 }}>{meta.label}</div>
+
+                      {/* ─ sparkline ─ */}
+                      <div style={{ background: 'var(--bg)', borderRadius: 5, overflow: 'hidden', height: SH }}>
+                        <svg width="100%" height={SH} viewBox={`0 0 ${SW} ${SH}`} preserveAspectRatio="none">
+                          {/* p25-p75 band */}
+                          {(() => {
+                            const scale = pct ? 100 : 1;
+                            const mn2 = Math.min(...sparkData.length ? sparkData : [0]);
+                            const mx2 = Math.max(...sparkData.length ? sparkData : [1]);
+                            const rng2 = mx2 - mn2 || 1;
+                            const toSY = (v: number) => SH - ((v - mn2) / rng2) * (SH - 4) - 2;
+                            const medY2 = toSY(box.med * (pct ? scale : 1) / (pct ? scale : 1));
+                            // map box values into sparkline Y space
+                            const bMed = pct ? box.med : box.med;
+                            const bP25 = pct ? box.p25 : box.p25;
+                            const bP75 = pct ? box.p75 : box.p75;
+                            // we need to map box values which are in same units as sparkData last value
+                            // for return: box is in R, sparkData[-1] ≈ lvTotalR
+                            // approximate: use sparkData range to position box reference lines
+                            const refY   = (v: number) => {
+                              const clamped = Math.max(mn2, Math.min(mx2, v));
+                              return SH - ((clamped - mn2) / rng2) * (SH - 4) - 2;
+                            };
+                            const p25y = refY(bP25 * (pct ? 1 : 1));
+                            const p75y = refY(bP75 * (pct ? 1 : 1));
+                            const medy = refY(bMed);
+                            return (<>
+                              <rect x={0} y={Math.min(p25y, p75y)} width={SW} height={Math.abs(p25y - p75y) || 1} fill="rgba(255,255,255,0.04)" />
+                              <line x1={0} y1={medy} x2={SW} y2={medy} stroke="rgba(255,255,255,0.18)" strokeWidth={1} strokeDasharray="3,3" />
+                            </>);
+                          })()}
+                          <Sparkline data={sparkData} color={dotColor} W={SW} H={SH} />
+                        </svg>
                       </div>
 
-                      {/* ─ live value prominent ─ */}
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                        <span style={{ fontSize: 22, fontWeight: 800, color: liveColor, fontFamily: 'monospace', lineHeight: 1 }}>{fmt(liveVal)}</span>
-                        <span style={{ fontSize: 10, color: 'var(--text2)' }}>live</span>
-                        <span style={{ fontSize: 11, color: 'var(--text2)', marginLeft: 'auto' }}>мед <b style={{ color: accentColor }}>{fmt(box.med)}</b></span>
-                      </div>
-
-                      {/* ─ horizontal box plot ─ */}
-                      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ overflow: 'visible' }}>
-                        {/* p5-p95 thin line */}
-                        <line x1={xP5} y1={cy} x2={xP95} y2={cy} stroke="#444" strokeWidth={1} />
-                        {/* p5, p95 caps */}
-                        <line x1={xP5}  y1={cy - 4} x2={xP5}  y2={cy + 4} stroke="#555" strokeWidth={1} />
-                        <line x1={xP95} y1={cy - 4} x2={xP95} y2={cy + 4} stroke="#555" strokeWidth={1} />
-                        {/* IQR box */}
-                        <rect x={xP25} y={cy - 7} width={Math.max(1, xP75 - xP25)} height={14} fill={accentColor + '22'} stroke={accentColor} strokeWidth={1} rx={2} />
-                        {/* median */}
-                        <line x1={xMed} y1={cy - 7} x2={xMed} y2={cy + 7} stroke={accentColor} strokeWidth={2} />
-                        {/* live marker */}
-                        <line x1={xLiv} y1={cy - 10} x2={xLiv} y2={cy + 10} stroke={liveColor} strokeWidth={2} />
-                        <circle cx={xLiv} cy={cy} r={4} fill={liveColor} />
-                      </svg>
-
-                      {/* ─ scale labels ─ */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#555', fontFamily: 'monospace', marginTop: -6 }}>
-                        <span>{fmt(box.p5)}</span>
-                        <span style={{ color: '#666' }}>p5–p95</span>
-                        <span>{fmt(box.p95)}</span>
-                      </div>
-
-                      {/* ─ explanation row ─ */}
-                      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, fontSize: 10, color: 'var(--text2)', lineHeight: 1.5 }}>
-                        {meta.explain}
+                      {/* ─ values stacked ─ */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>Live</span>
+                          <span style={{ color: 'var(--text)', fontWeight: 700, fontFamily: 'monospace' }}>{fmt(liveVal)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>Медіана MC</span>
+                          <span style={{ color: 'var(--text)', fontFamily: 'monospace' }}>{fmt(box.med)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>Діапазон (p25–p75)</span>
+                          <span style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{fmt(box.p25)} – {fmt(box.p75)}</span>
+                        </div>
                       </div>
 
                       {/* ─ deviation row ─ */}
-                      <div style={{
-                        background: statusBg,
-                        borderRadius: 5,
-                        padding: '5px 8px',
-                        fontSize: 10,
-                        color: liveColor,
-                        fontWeight: 600,
-                      }}>
-                        {devLabel}
-                      </div>
+                      <button
+                        onClick={() => toggle(devKey)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '5px 8px', cursor: 'pointer', width: '100%', textAlign: 'left' }}
+                      >
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor, flexShrink: 0, display: 'inline-block' }} />
+                        <span style={{ fontSize: 10, color: 'var(--text)', flex: 1 }}>{statusLabel}</span>
+                        <span style={{ fontSize: 9, color: 'var(--text2)' }}>{devOpen ? '▲' : '▼'}</span>
+                      </button>
+                      {devOpen && (
+                        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '6px 8px', fontSize: 10, color: 'var(--text2)', lineHeight: 1.5 }}>
+                          {devLabel}
+                        </div>
+                      )}
+
+                      {/* ─ explain toggle ─ */}
+                      <button
+                        onClick={() => toggle(explainKey)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '2px 0', cursor: 'pointer', textAlign: 'left' }}
+                      >
+                        <span style={{ fontSize: 9, color: 'var(--text2)' }}>{explainOpen ? '▲' : '▼'} Пояснення</span>
+                      </button>
+                      {explainOpen && (
+                        <div style={{ fontSize: 10, color: 'var(--text2)', lineHeight: 1.55, borderTop: '1px solid var(--border)', paddingTop: 6 }}>
+                          {meta.explain}
+                        </div>
+                      )}
                     </div>
                   );
                 };
 
                 // ── Row of 5 cards ────────────────────────────────────────
-                const MetricRow = ({ box, accentColor, rowLabel }: {
+                const MetricRow = ({ box, rowLabel, rowKey }: {
                   box: { return: BoxStat; drawdown: BoxStat; sqn: BoxStat; wr: BoxStat; streak: BoxStat };
-                  accentColor: string;
                   rowLabel: string;
+                  rowKey: string;
                 }) => (
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: accentColor, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
                       {rowLabel}
                     </div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       {METRICS.map(m => (
-                        <MetricCard key={m.key} meta={m} box={box[m.key]} accentColor={accentColor} />
+                        <MetricCard key={m.key} meta={m} box={box[m.key]} rowKey={rowKey} />
                       ))}
                     </div>
                   </div>
@@ -1868,36 +1948,37 @@ export default function Charts() {
                       <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.6, maxWidth: 720 }}>
                         Порівняння показників живої торгівлі з діапазоном результатів MC-симуляцій.
                         Допомагає виявити, які метрики відхиляються від очікуваного — і через які стрес-фактори.
-                        Зелений = краще за медіану, жовтий = у межах норми (25–75%), червоний = нижче норми.
                       </div>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
                       {mcBoxStats && (
-                        <MetricRow box={mcBoxStats} accentColor="#60a5fa" rowLabel="Очікуваний діапазон — MC Normal (без стрес-факторів)" />
+                        <MetricRow box={mcBoxStats} rowLabel="MC Normal — без стрес-факторів" rowKey="normal" />
                       )}
                       {stressData?.stressBoxStats && (
-                        <MetricRow box={stressData.stressBoxStats} accentColor="#fb923c" rowLabel="Очікуваний діапазон — MC Stress (зі стрес-факторами)" />
+                        <MetricRow box={stressData.stressBoxStats} rowLabel="MC Stress — зі стрес-факторами" rowKey="stress" />
                       )}
                     </div>
 
                     {/* legend */}
                     <div style={{ display: 'flex', gap: 20, marginTop: 18, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--text2)' }}>
-                        <svg width={30} height={10}><rect x={0} y={3} width={30} height={4} fill="#60a5fa22" stroke="#60a5fa" strokeWidth={1} rx={1} /><line x1={15} y1={1} x2={15} y2={9} stroke="#60a5fa" strokeWidth={2} /></svg>
-                        Діапазон 25–75% + медіана
+                      {[
+                        { color: '#4ade80', label: 'Краще очікуваного' },
+                        { color: '#facc15', label: 'В межах норми (25–75%)' },
+                        { color: '#f87171', label: 'Нижче очікуваного' },
+                      ].map(({ color, label }) => (
+                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--text2)' }}>
+                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, display: 'inline-block' }} />
+                          {label}
+                        </div>
+                      ))}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--text2)' }}>
+                        <svg width={24} height={8}><line x1={0} y1={4} x2={24} y2={4} stroke="rgba(255,255,255,0.18)" strokeWidth={1} strokeDasharray="3,3" /></svg>
+                        Медіана MC
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#4ade80' }}>
-                        <svg width={14} height={10}><line x1={7} y1={0} x2={7} y2={10} stroke="#4ade80" strokeWidth={2} /><circle cx={7} cy={5} r={3} fill="#4ade80" /></svg>
-                        Live вище очікуваного
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#facc15' }}>
-                        <svg width={14} height={10}><line x1={7} y1={0} x2={7} y2={10} stroke="#facc15" strokeWidth={2} /><circle cx={7} cy={5} r={3} fill="#facc15" /></svg>
-                        Live в межах норми
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#f87171' }}>
-                        <svg width={14} height={10}><line x1={7} y1={0} x2={7} y2={10} stroke="#f87171" strokeWidth={2} /><circle cx={7} cy={5} r={3} fill="#f87171" /></svg>
-                        Live нижче очікуваного
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--text2)' }}>
+                        <svg width={24} height={8}><rect x={0} y={2} width={24} height={4} fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.1)" strokeWidth={1} rx={1} /></svg>
+                        Зона 25–75%
                       </div>
                     </div>
                   </div>
