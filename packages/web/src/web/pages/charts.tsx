@@ -1869,7 +1869,7 @@ export default function Charts() {
                               <line x1={0} y1={medy} x2={SW} y2={medy} stroke="rgba(255,255,255,0.18)" strokeWidth={1} strokeDasharray="3,3" />
                             </>);
                           })()}
-                          <Sparkline data={sparkData} color={dotColor} W={SW} H={SH} />
+                          <Sparkline data={sparkData} color={LIVE_COLOR} W={SW} H={SH} />
                         </svg>
                       </div>
 
@@ -1889,25 +1889,21 @@ export default function Charts() {
                         </div>
                       </div>
 
-                      {/* ─ deviation row ─ */}
-                      <button
-                        onClick={() => toggle(devKey)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '5px 8px', cursor: 'pointer', width: '100%', textAlign: 'left' }}
-                      >
-                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor, flexShrink: 0, display: 'inline-block' }} />
-                        <span style={{ fontSize: 10, color: 'var(--text)', flex: 1 }}>{statusLabel}</span>
-                        <span style={{ fontSize: 9, color: 'var(--text2)' }}>{devOpen ? '▲' : '▼'}</span>
-                      </button>
-                      {devOpen && (
-                        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '6px 8px', fontSize: 10, color: 'var(--text2)', lineHeight: 1.5 }}>
+                      {/* ─ deviation — always visible ─ */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '5px 8px' }}>
+                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor, flexShrink: 0, display: 'inline-block' }} />
+                          <span style={{ fontSize: 10, color: 'var(--text)', flex: 1 }}>{statusLabel}</span>
+                        </div>
+                        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '5px 8px', fontSize: 10, color: 'var(--text2)', lineHeight: 1.5 }}>
                           {devLabel}
                         </div>
-                      )}
+                      </div>
 
                       {/* ─ explain toggle ─ */}
                       <button
                         onClick={() => toggle(explainKey)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '2px 0', cursor: 'pointer', textAlign: 'left' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 8px', cursor: 'pointer', textAlign: 'left', width: '100%' }}
                       >
                         <span style={{ fontSize: 9, color: 'var(--text2)' }}>{explainOpen ? '▲' : '▼'} Пояснення</span>
                       </button>
