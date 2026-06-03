@@ -1702,7 +1702,7 @@ export default function Charts() {
                 }[] = [
                   {
                     key: 'return',
-                    label: 'Загальний R',
+                    label: 'Total R',
                     liveVal: lvTotalR,
                     higherIsBetter: true,
                     explain: 'Сумарний прибуток у одиницях ризику (R). Показує масштаб результату відносно розміру ризику на угоду.',
@@ -1712,7 +1712,7 @@ export default function Charts() {
                   },
                   {
                     key: 'drawdown',
-                    label: 'Макс просадка',
+                    label: 'Max Drawdown',
                     liveVal: lvMaxDD,
                     higherIsBetter: false,
                     explain: 'Найбільше падіння капіталу від піку до дна (у R). Менше — краще. Критичний індикатор стійкості системи.',
@@ -1744,7 +1744,7 @@ export default function Charts() {
                   },
                   {
                     key: 'streak',
-                    label: 'Серія збитків',
+                    label: 'Loss Streak',
                     liveVal: lvStreak,
                     higherIsBetter: false,
                     explain: 'Максимальна послідовна серія збиткових угод. Менше — краще. Якщо live перевищує p75 MC — сигнал до перегляду параметрів ризику.',
