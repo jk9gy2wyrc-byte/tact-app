@@ -231,7 +231,7 @@ function EditProfileModal({ session, onClose, onSave }: { session: Session; onCl
 }
 
 // ─── AUTH SCREEN ──────────────────────────────────────────────────────────────
-type AuthMode = 'login' | 'reg-email' | 'reg-code' | 'reg-password';
+type AuthMode = 'login' | 'register';
 
 function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role: string; createdAt: string | null }) => void }) {
   const [mode, setMode] = useState<AuthMode>('login');
@@ -239,12 +239,10 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
   const [passwordVal, setPasswordVal] = useState('');
   const [loginErr, setLoginErr] = useState('');
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
   const [password1, setPassword1] = useState('');
   const [password2, setPassword2] = useState('');
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
-  const [codeSent, setCodeSent] = useState(false);
   const [fp, setFp] = useState<string | null>(null);
 
   useEffect(() => {
@@ -269,36 +267,15 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
     setLoading(false);
   };
 
-  const handleSendCode = async () => {
-    if (!email) return;
-    setLoading(true); setErr('');
-    try {
-      const r = await fetch('/api/auth/send-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
-      const data = await r.json();
-      if (data.error) setErr(data.error);
-      else {
-        setCodeSent(true);
-        if (data.devCode) { setCode(data.devCode); setErr(`DEV: код ${data.devCode}`); }
-        setMode('reg-code');
-      }
-    } catch { setErr('Помилка з\'єднання'); }
-    setLoading(false);
-  };
-
-  const handleVerifyCode = () => {
-    if (code.length !== 4) { setErr('Введіть 4-значний код'); return; }
-    setErr('');
-    setMode('reg-password');
-  };
-
   const handleRegister = async () => {
+    if (!email) { setErr('Введіть email'); return; }
     if (!password1 || password1.length < 4) { setErr('Мінімум 4 символи'); return; }
     if (password1 !== password2) { setErr('Паролі не співпадають'); return; }
     setLoading(true); setErr('');
     try {
-      const r = await fetch('/api/auth/register-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code, password: password1, ...(fp ? { fp } : {}) }) });
+      const r = await fetch('/api/auth/register-simple', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: password1, ...(fp ? { fp } : {}) }) });
       const data = await r.json();
-      if (data.error) { setErr(data.error); if (data.error.includes('код')) setMode('reg-code'); }
+      if (data.error) setErr(data.error);
       else onAuth({ id: data.id, login: data.login, role: data.role, createdAt: data.createdAt });
     } catch { setErr('Помилка з\'єднання'); }
     setLoading(false);
@@ -322,70 +299,26 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
             </button>
             <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text2)' }}>
               Немає акаунту?{' '}
-              <span style={{ color: 'var(--primary)', cursor: 'pointer' }} onClick={() => { setMode('reg-email'); setErr(''); }}>
+              <span style={{ color: 'var(--primary)', cursor: 'pointer' }} onClick={() => { setMode('register'); setErr(''); }}>
                 Зареєструватись
               </span>
             </div>
           </div>
         </>)}
 
-        {/* ── REG STEP 1: email ── */}
-        {mode === 'reg-email' && (<>
+        {/* ── REGISTER ── */}
+        {mode === 'register' && (<>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
             <span style={{ cursor: 'pointer', color: 'var(--text2)', fontSize: 18 }} onClick={() => setMode('login')}>←</span>
             <div style={{ fontSize: 16, fontWeight: 600 }}>Реєстрація</div>
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 16 }}>Крок 1 з 3 — введіть email</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input type="email" placeholder="your@email.com" value={email} onChange={e => setEmail(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSendCode()} style={inputStyle} autoFocus />
-            {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
-            <button className="btn-primary" onClick={handleSendCode} disabled={loading || !email} style={{ borderRadius: 10, padding: '12px 0', fontSize: 14 }}>
-              {loading ? 'Надсилаємо...' : 'Надіслати код'}
-            </button>
-          </div>
-        </>)}
-
-        {/* ── REG STEP 2: code ── */}
-        {mode === 'reg-code' && (<>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-            <span style={{ cursor: 'pointer', color: 'var(--text2)', fontSize: 18 }} onClick={() => setMode('reg-email')}>←</span>
-            <div style={{ fontSize: 16, fontWeight: 600 }}>Код підтвердження</div>
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 4 }}>Крок 2 з 3</div>
-          <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 16 }}>
-            Надіслано 4-значний код на <strong style={{ color: 'var(--text)' }}>{email}</strong>. Дійсний 10 хвилин.
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input placeholder="0000" value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              onKeyDown={e => e.key === 'Enter' && handleVerifyCode()}
-              style={{ ...inputStyle, fontSize: 28, letterSpacing: 12, textAlign: 'center' }} maxLength={4} autoFocus />
-            {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
-            <button className="btn-primary" onClick={handleVerifyCode} disabled={code.length !== 4} style={{ borderRadius: 10, padding: '12px 0', fontSize: 14 }}>
-              Підтвердити
-            </button>
-            <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text2)' }}>
-              Не прийшов?{' '}
-              <span style={{ color: 'var(--primary)', cursor: 'pointer' }} onClick={() => { setCodeSent(false); handleSendCode(); }}>
-                Надіслати знову
-              </span>
-            </div>
-          </div>
-        </>)}
-
-        {/* ── REG STEP 3: password ── */}
-        {mode === 'reg-password' && (<>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-            <span style={{ cursor: 'pointer', color: 'var(--text2)', fontSize: 18 }} onClick={() => setMode('reg-code')}>←</span>
-            <div style={{ fontSize: 16, fontWeight: 600 }}>Придумайте пароль</div>
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 16 }}>Крок 3 з 3 — мінімум 4 символи</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input type="password" placeholder="Пароль" value={password1} onChange={e => setPassword1(e.target.value)} style={inputStyle} autoFocus />
+            <input type="email" placeholder="your@email.com" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} autoFocus />
+            <input type="password" placeholder="Пароль" value={password1} onChange={e => setPassword1(e.target.value)} style={inputStyle} />
             <input type="password" placeholder="Повторіть пароль" value={password2} onChange={e => setPassword2(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleRegister()} style={inputStyle} />
             {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
-            <button className="btn-primary" onClick={handleRegister} disabled={loading || !password1 || !password2} style={{ borderRadius: 10, padding: '12px 0', fontSize: 14 }}>
+            <button className="btn-primary" onClick={handleRegister} disabled={loading || !email || !password1 || !password2} style={{ borderRadius: 10, padding: '12px 0', fontSize: 14 }}>
               {loading ? 'Реєструємо...' : 'Зареєструватись'}
             </button>
           </div>

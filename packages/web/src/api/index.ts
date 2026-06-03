@@ -288,6 +288,55 @@ const app = new Hono()
     }
   )
 
+  // ─── SIMPLE REGISTER (no email code) ─────────────────────────────────────
+  .post('/auth/register-simple',
+    zValidator('json', z.object({
+      email: z.string().email(),
+      password: z.string().min(4),
+      fp: z.string().optional(),
+    })),
+    async (c) => {
+      await ensureEmailTables();
+      const { email, password, fp } = c.req.valid('json');
+      // block disposable emails
+      if (isDisposableEmail(email)) return c.json({ error: 'Тимчасові поштові адреси не дозволені' }, 400);
+      // check email not already used
+      const emailUsed = await db.select().from(users).where(eq(users.email, email)).get();
+      if (emailUsed) return c.json({ error: 'Ця пошта вже зареєстрована' }, 409);
+      // fingerprint check
+      if (fp) {
+        const fpUsed = await db.select().from(users).where(eq(users.fp, fp)).get();
+        if (fpUsed) return c.json({ error: 'Пробний період для цього пристрою вже використано' }, 403);
+      }
+      // detect country by IP
+      let country: string | null = null;
+      let userIp: string | null = null;
+      try {
+        const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for')?.split(',')[0].trim() || c.req.header('x-real-ip');
+        if (ip && ip !== '127.0.0.1' && ip !== '::1') {
+          userIp = ip;
+          const geo = await fetch(`http://ip-api.com/json/${ip}?fields=countryCode`).then(r => r.json()).catch(() => null);
+          if (geo?.countryCode) country = geo.countryCode;
+        }
+      } catch {}
+      const [newUser] = await db.insert(users).values({
+        login: email,
+        password,
+        email,
+        country,
+        ip: userIp,
+        fp: fp ?? null,
+        role: 'free-trial',
+      }).returning();
+      return c.json({
+        id: newUser.id,
+        login: newUser.login,
+        role: normalizeRole(newUser.role),
+        createdAt: newUser.createdAt ?? null,
+      }, 200);
+    }
+  )
+
   // ─── EMAIL VERIFICATION: verify code + register ──────────────────────────
   .post('/auth/register-email',
     zValidator('json', z.object({
