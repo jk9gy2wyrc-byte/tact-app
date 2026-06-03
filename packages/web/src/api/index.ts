@@ -284,8 +284,8 @@ const app = new Hono()
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          console.error('[Brevo error]', err);
-          return c.json({ error: 'Не вдалося надіслати лист. Перевірте адресу.' }, 500);
+          console.error('[Brevo error]', JSON.stringify(err));
+          return c.json({ error: `Brevo: ${err?.message || err?.code || JSON.stringify(err)}` }, 500);
         }
       } catch (e) {
         return c.json({ error: 'Не вдалося надіслати лист. Перевірте адресу.' }, 500);
