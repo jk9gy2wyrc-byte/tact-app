@@ -516,7 +516,7 @@ function MostTradedInstruments({ trades }: { trades: any[] }) {
 
   const byInst: Record<string, { n: number; wins: number; netR: number }> = {};
   for (const t of trades) {
-    const k = (t.asset as string | null) ?? '—';
+    const k = ((t.asset as string | null) ?? '—').toUpperCase();
     if (!byInst[k]) byInst[k] = { n: 0, wins: 0, netR: 0 };
     byInst[k].n++;
     if (t.result === 'tp') byInst[k].wins++;
@@ -598,7 +598,7 @@ function WeakSpots({ trades }: { trades: any[] }) {
 
   // by instrument
   const byInst: Record<string, any[]> = {};
-  for (const t of trades) { const k = t.asset ?? '—'; (byInst[k] ??= []).push(t); }
+  for (const t of trades) { const k = (t.asset ?? '—').toUpperCase(); (byInst[k] ??= []).push(t); }
   const instRows = Object.entries(byInst)
     .map(([k, arr]) => ({ key: k, ...groupStats(arr) }))
     .sort((a, b) => a.totalR - b.totalR).slice(0, 3);
