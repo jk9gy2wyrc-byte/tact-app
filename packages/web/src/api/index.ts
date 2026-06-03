@@ -637,10 +637,50 @@ const app = new Hono()
       sqn:     Math.round(pctOf(simFinals.map(s => s.sqn),     0.5) * 100) / 100,
     };
 
+    // helper to compute max losing streak per simulation
+    const maxLosingStreak = (netArr: number[]): number => {
+      let max = 0, cur = 0;
+      for (const r of netArr) { if (r < 0) { cur++; if (cur > max) max = cur; } else cur = 0; }
+      return max;
+    };
+
+    // re-run a lightweight pass to collect streaks per sim (use same rng seed=42)
+    const rand2 = rng(42);
+    const mcStreaks: number[] = [];
+    const mcWRfinals: number[] = [];
+    for (let si = 0; si < N_SIM; si++) {
+      const nets: number[] = [];
+      let wins = 0;
+      for (let j = 0; j < N_TRADES_MC; j++) {
+        const idx = Math.floor(rand2() * btNetRArr.length);
+        nets.push(btNetRArr[idx]);
+        if (btIsTP[idx]) wins++;
+      }
+      mcStreaks.push(maxLosingStreak(nets));
+      mcWRfinals.push(wins / N_TRADES_MC);
+    }
+
+    const box = (arr: number[]) => ({
+      p5:  Math.round(pctOf(arr, 0.05) * 100) / 100,
+      p25: Math.round(pctOf(arr, 0.25) * 100) / 100,
+      med: Math.round(pctOf(arr, 0.50) * 100) / 100,
+      p75: Math.round(pctOf(arr, 0.75) * 100) / 100,
+      p95: Math.round(pctOf(arr, 0.95) * 100) / 100,
+    });
+
+    const mcBoxStats = {
+      return:  box(simFinals.map(s => s.totalR)),
+      drawdown: box(simFinals.map(s => s.maxDD)),
+      sqn:     box(simFinals.map(s => s.sqn)),
+      wr:      box(mcWRfinals),
+      streak:  box(mcStreaks),
+    };
+
     return c.json({
       btStats: calcStats(bt),
       lvStats: calcStats(lv as any),
       mcStats,
+      mcBoxStats,
       btEquity,
       lvEquity,
       btRolling,
@@ -702,6 +742,8 @@ const app = new Hono()
       const finalEqs: number[] = [];
       const maxDDs: number[] = [];
       const sqns: number[] = [];
+      const stressStreaks: number[] = [];
+      const stressWRs: number[] = [];
 
       for (let si = 0; si < N_SIM; si++) {
         const indices: number[] = Array.from({ length: N_TRADES_MC }, () =>
@@ -761,6 +803,12 @@ const app = new Hono()
         const variance = netArr.reduce((a, r) => a + (r - mean) ** 2, 0) / netArr.length;
         const std = Math.sqrt(variance);
         sqns.push(std > 0 ? Math.sqrt(netArr.length) * mean / std : 0);
+
+        // streak & WR
+        let strkMax = 0, strkCur = 0, strkWins = 0;
+        for (const r of netArr) { if (r < 0) { strkCur++; if (strkCur > strkMax) strkMax = strkCur; } else { strkCur = 0; } if (r > 0) strkWins++; }
+        stressStreaks.push(strkMax);
+        stressWRs.push(strkWins / netArr.length);
       }
 
       const N_PTS = 100;
@@ -778,6 +826,22 @@ const app = new Hono()
         stressP5.push( pctOf(eqArr, 0.05));
         stressP95.push(pctOf(eqArr, 0.95));
       }
+
+      const sBox = (arr: number[]) => ({
+        p5:  Math.round(pctOf(arr, 0.05) * 100) / 100,
+        p25: Math.round(pctOf(arr, 0.25) * 100) / 100,
+        med: Math.round(pctOf(arr, 0.50) * 100) / 100,
+        p75: Math.round(pctOf(arr, 0.75) * 100) / 100,
+        p95: Math.round(pctOf(arr, 0.95) * 100) / 100,
+      });
+
+      const stressBoxStats = {
+        return:   sBox(finalEqs),
+        drawdown: sBox(maxDDs),
+        sqn:      sBox(sqns),
+        wr:       sBox(stressWRs),
+        streak:   sBox(stressStreaks),
+      };
 
       return c.json({
         stressMed,
@@ -797,6 +861,7 @@ const app = new Hono()
           p5:  Math.round(pctOf(finalEqs, 0.05) * 100) / 100,
           p95: Math.round(pctOf(finalEqs, 0.95) * 100) / 100,
         },
+        stressBoxStats,
         step,
       }, 200);
     }

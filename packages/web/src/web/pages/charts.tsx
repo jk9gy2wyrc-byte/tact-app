@@ -397,12 +397,14 @@ export default function Charts() {
 
   // ── Stress state ──────────────────────────────────────────────────────────
   const [stressParams, setStressParams] = useState(defaultStress);
+  type BoxStat = { p5: number; p25: number; med: number; p75: number; p95: number };
   const [stressData, setStressData] = useState<null | {
     stressMed: number[]; stressP5: number[]; stressP95: number[];
     survivalRate: number;
     stressMaxDD: { med: number; p95: number };
     stressSQN: { med: number; p5: number };
     stressFinalEq: { med: number; p5: number; p95: number };
+    stressBoxStats: { return: BoxStat; drawdown: BoxStat; sqn: BoxStat; wr: BoxStat; streak: BoxStat };
     step: number;
   }>(null);
   const [stressLoading, setStressLoading] = useState(false);
@@ -513,6 +515,7 @@ export default function Charts() {
   const btStats = d.btStats;
   const lvStats = d.lvStats;
   const mcStats = d.mcStats;
+  const mcBoxStats: { return: any; drawdown: any; sqn: any; wr: any; streak: any } | null = d.mcBoxStats ?? null;
   // True MC bands per metric (from 1000 simulations)
   const mcWR: { med: number[]; p5: number[]; p95: number[] } = d.mcWR ?? { med: [], p5: [], p95: [] };
   const mcRR: { med: number[]; p5: number[]; p95: number[] } = d.mcRR ?? { med: [], p5: [], p95: [] };
@@ -1652,17 +1655,128 @@ export default function Charts() {
               })()}
 
               {/* ── Final Statistical Control Framework ── */}
-              <div style={{
-                borderTop: '1px solid var(--border)',
-                paddingTop: 24, marginTop: 8,
-              }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
-                  Final Statistical Control Framework
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text2)' }}>
-                  — розділ в розробці
-                </div>
-              </div>
+              {(mcBoxStats || stressData?.stressBoxStats) && (() => {
+                // ── Live stats ──────────────────────────────────────────
+                const lv = (d.lvStats ? (d as any).lvEquity ?? [] : []) as number[];
+                const lvNetRArr: number[] = [];
+                // re-derive from lvStats (already computed server-side)
+                const lvTotalR  = lvStats?.totalR ?? 0;
+                const lvWR      = lvStats?.wr ?? 0;
+                const lvSQN     = lvStats?.sqn ?? 0;
+                const lvMaxDD   = lvStats?.maxDD ?? 0;
+                // streak from lvRolling not available — compute from lvEquity diffs
+                // use btNetR to not re-fetch; approx from lvStats
+                // we need actual netR series — use liveByMonth totals as proxy
+                // Better: pass lvEquity diffs
+                const lvEq: number[] = (d as any).lvEquity ?? [];
+                const lvNets: number[] = lvEq.map((v: number, i: number) => i === 0 ? v : v - lvEq[i - 1]);
+                let lvStreak = 0, lvStreakCur = 0;
+                for (const r of lvNets) { if (r < 0) { lvStreakCur++; if (lvStreakCur > lvStreak) lvStreak = lvStreakCur; } else lvStreakCur = 0; }
+
+                type BoxStat = { p5: number; p25: number; med: number; p75: number; p95: number };
+
+                // ── Mini box-plot component ──────────────────────────────
+                const BoxPlot = ({ label, box, liveVal, higherIsBetter = true }: {
+                  label: string;
+                  box: BoxStat;
+                  liveVal: number;
+                  higherIsBetter?: boolean;
+                }) => {
+                  const H = 90; // total height px of the box area
+                  const min = box.p5;
+                  const max = box.p95;
+                  const range = max - min || 1;
+                  const toY = (v: number) => H - ((v - min) / range) * H; // top=bad, bottom=good? no: top=high value
+
+                  const medY   = toY(box.med);
+                  const p25Y   = toY(box.p25);
+                  const p75Y   = toY(box.p75);
+                  const p5Y    = toY(box.p5);
+                  const p95Y   = toY(box.p95);
+                  const liveY  = Math.max(0, Math.min(H, toY(liveVal)));
+
+                  // color: is live within 25-75 band?
+                  const inBox = liveVal >= box.p25 && liveVal <= box.p75;
+                  const aboveBox = higherIsBetter ? liveVal > box.p75 : liveVal < box.p25;
+                  const liveColor = inBox ? '#facc15' : aboveBox ? '#4ade80' : '#f87171';
+
+                  const W = 36;
+                  const cx = W / 2;
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 64 }}>
+                      <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center', fontWeight: 600 }}>{label}</div>
+                      <svg width={W} height={H} style={{ overflow: 'visible' }}>
+                        {/* whisker top (p95→p75) */}
+                        <line x1={cx} y1={p95Y} x2={cx} y2={p75Y} stroke="#555" strokeWidth={1} strokeDasharray="2,2" />
+                        {/* whisker bottom (p25→p5) */}
+                        <line x1={cx} y1={p25Y} x2={cx} y2={p5Y} stroke="#555" strokeWidth={1} strokeDasharray="2,2" />
+                        {/* box p25–p75 */}
+                        <rect x={cx - 10} y={p75Y} width={20} height={Math.abs(p25Y - p75Y) || 2} fill="#2a3a4a" stroke="#3b82f6" strokeWidth={1} rx={2} />
+                        {/* median line */}
+                        <line x1={cx - 10} y1={medY} x2={cx + 10} y2={medY} stroke="#60a5fa" strokeWidth={1.5} />
+                        {/* whisker caps */}
+                        <line x1={cx - 5} y1={p95Y} x2={cx + 5} y2={p95Y} stroke="#555" strokeWidth={1} />
+                        <line x1={cx - 5} y1={p5Y}  x2={cx + 5} y2={p5Y}  stroke="#555" strokeWidth={1} />
+                        {/* live marker — horizontal bar + dot */}
+                        <line x1={cx - 13} y1={liveY} x2={cx + 13} y2={liveY} stroke={liveColor} strokeWidth={2} />
+                        <circle cx={cx} cy={liveY} r={3.5} fill={liveColor} />
+                      </svg>
+                      {/* labels */}
+                      <div style={{ fontSize: 9, color: '#60a5fa', fontFamily: 'monospace' }}>med {box.med}</div>
+                      <div style={{ fontSize: 10, color: liveColor, fontFamily: 'monospace', fontWeight: 700 }}>live {typeof liveVal === 'number' ? (Number.isInteger(liveVal) ? liveVal : liveVal.toFixed(2)) : '—'}</div>
+                    </div>
+                  );
+                };
+
+                const ColBlock = ({ title, box, titleColor }: { title: string; box: { return: BoxStat; drawdown: BoxStat; sqn: BoxStat; wr: BoxStat; streak: BoxStat }; titleColor: string }) => (
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: titleColor, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 14 }}>{title}</div>
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                      <BoxPlot label="Return (R)"  box={box.return}   liveVal={lvTotalR}       higherIsBetter={true} />
+                      <BoxPlot label="Max DD"      box={box.drawdown} liveVal={lvMaxDD}         higherIsBetter={false} />
+                      <BoxPlot label="Win Rate"    box={{ ...box.wr, p5: Math.round(box.wr.p5 * 100) / 100, p25: Math.round(box.wr.p25 * 100) / 100, med: Math.round(box.wr.med * 100) / 100, p75: Math.round(box.wr.p75 * 100) / 100, p95: Math.round(box.wr.p95 * 100) / 100 }} liveVal={Math.round(lvWR * 100) / 100} higherIsBetter={true} />
+                      <BoxPlot label="SQN"         box={box.sqn}      liveVal={lvSQN}           higherIsBetter={true} />
+                      <BoxPlot label="Loss Streak" box={box.streak}   liveVal={lvStreak}        higherIsBetter={false} />
+                    </div>
+                  </div>
+                );
+
+                return (
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginTop: 8 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 }}>
+                      Final Statistical Control Framework
+                    </div>
+                    <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                      {mcBoxStats && <ColBlock title="Expected (MC Normal)" box={mcBoxStats} titleColor="#60a5fa" />}
+                      {stressData?.stressBoxStats && <ColBlock title="Expected (MC Stress)" box={stressData.stressBoxStats} titleColor="#fb923c" />}
+                    </div>
+                    {/* Legend */}
+                    <div style={{ display: 'flex', gap: 16, marginTop: 14, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--text2)' }}>
+                        <svg width={20} height={10}><rect x={0} y={3} width={20} height={4} fill="#2a3a4a" stroke="#3b82f6" strokeWidth={1} rx={1} /></svg>
+                        25–75 перцентиль MC
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--text2)' }}>
+                        <svg width={20} height={10}><line x1={0} y1={5} x2={20} y2={5} stroke="#60a5fa" strokeWidth={2} /></svg>
+                        Медіана MC
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#4ade80' }}>
+                        <svg width={20} height={10}><line x1={0} y1={5} x2={20} y2={5} stroke="#4ade80" strokeWidth={2} /><circle cx={10} cy={5} r={3} fill="#4ade80" /></svg>
+                        Live вище очікуваного
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#facc15' }}>
+                        <svg width={20} height={10}><line x1={0} y1={5} x2={20} y2={5} stroke="#facc15" strokeWidth={2} /><circle cx={10} cy={5} r={3} fill="#facc15" /></svg>
+                        Live в межах норми
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#f87171' }}>
+                        <svg width={20} height={10}><line x1={0} y1={5} x2={20} y2={5} stroke="#f87171" strokeWidth={2} /><circle cx={10} cy={5} r={3} fill="#f87171" /></svg>
+                        Live нижче очікуваного
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </>
           )}
           </div>
