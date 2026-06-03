@@ -13,7 +13,7 @@ import { setSession, clearSession, getSession, type Session } from "./lib/sessio
 
 
 // ─── TRIAL EXPIRED OVERLAY ───────────────────────────────────────────────────
-function TrialExpiredOverlay({ children }: { children: React.ReactNode }) {
+function TrialExpiredOverlay({ children, isMobile }: { children: React.ReactNode; isMobile?: boolean }) {
   const [, navigate] = useLocation();
   return (
     <div style={{ position: 'relative', minHeight: '100%' }}>
@@ -21,7 +21,10 @@ function TrialExpiredOverlay({ children }: { children: React.ReactNode }) {
         {children}
       </div>
       <div style={{
-        position: 'fixed', inset: 0,
+        position: 'fixed',
+        top: 0, bottom: 0,
+        left: isMobile ? 0 : 186,
+        right: 0,
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         background: 'rgba(13,15,17,0.55)',
@@ -552,24 +555,24 @@ export default function App() {
         <Switch>
           <Route path="/">
             {hasAccess === false
-              ? <TrialExpiredOverlay><Dashboard /></TrialExpiredOverlay>
+              ? <TrialExpiredOverlay isMobile={isMobile}><Dashboard /></TrialExpiredOverlay>
               : <Dashboard />}
           </Route>
           <Route path="/live" component={LiveTrades} />
           <Route path="/live-analysis">
             {hasAccess === false
-              ? <TrialExpiredOverlay><LiveAnalysis /></TrialExpiredOverlay>
+              ? <TrialExpiredOverlay isMobile={isMobile}><LiveAnalysis /></TrialExpiredOverlay>
               : <LiveAnalysis />}
           </Route>
           <Route path="/backtest" component={BacktestTrades} />
           <Route path="/backtest-analysis">
             {hasAccess === false
-              ? <TrialExpiredOverlay><BacktestAnalysis /></TrialExpiredOverlay>
+              ? <TrialExpiredOverlay isMobile={isMobile}><BacktestAnalysis /></TrialExpiredOverlay>
               : <BacktestAnalysis />}
           </Route>
           <Route path="/charts">
             {hasAccess === false
-              ? <TrialExpiredOverlay><Charts /></TrialExpiredOverlay>
+              ? <TrialExpiredOverlay isMobile={isMobile}><Charts /></TrialExpiredOverlay>
               : <Charts />}
           </Route>
           {session.role === 'admin' && (
