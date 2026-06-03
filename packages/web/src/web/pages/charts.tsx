@@ -1657,17 +1657,10 @@ export default function Charts() {
               {/* ── Final Statistical Control Framework ── */}
               {(mcBoxStats || stressData?.stressBoxStats) && (() => {
                 // ── Live stats ──────────────────────────────────────────
-                const lv = (d.lvStats ? (d as any).lvEquity ?? [] : []) as number[];
-                const lvNetRArr: number[] = [];
-                // re-derive from lvStats (already computed server-side)
-                const lvTotalR  = lvStats?.totalR ?? 0;
-                const lvWR      = lvStats?.wr ?? 0;
-                const lvSQN     = lvStats?.sqn ?? 0;
-                const lvMaxDD   = lvStats?.maxDD ?? 0;
-                // streak from lvRolling not available — compute from lvEquity diffs
-                // use btNetR to not re-fetch; approx from lvStats
-                // we need actual netR series — use liveByMonth totals as proxy
-                // Better: pass lvEquity diffs
+                const lvTotalR = lvStats?.totalR ?? 0;
+                const lvWR     = lvStats?.wr ?? 0;
+                const lvSQN    = lvStats?.sqn ?? 0;
+                const lvMaxDD  = lvStats?.maxDD ?? 0;
                 const lvEq: number[] = (d as any).lvEquity ?? [];
                 const lvNets: number[] = lvEq.map((v: number, i: number) => i === 0 ? v : v - lvEq[i - 1]);
                 let lvStreak = 0, lvStreakCur = 0;
@@ -1675,107 +1668,235 @@ export default function Charts() {
 
                 type BoxStat = { p5: number; p25: number; med: number; p75: number; p95: number };
 
-                // ── Mini box-plot component ──────────────────────────────
-                const BoxPlot = ({ label, box, liveVal, higherIsBetter = true, pct = false }: {
+                // ── Meta per metric ──────────────────────────────────────
+                const METRICS: {
+                  key: keyof { return: BoxStat; drawdown: BoxStat; sqn: BoxStat; wr: BoxStat; streak: BoxStat };
                   label: string;
-                  box: BoxStat;
                   liveVal: number;
-                  higherIsBetter?: boolean;
+                  higherIsBetter: boolean;
                   pct?: boolean;
+                  explain: string;
+                  deviationLabel: (dev: number, liveV: number, medV: number) => string;
+                }[] = [
+                  {
+                    key: 'return',
+                    label: 'Загальний R',
+                    liveVal: lvTotalR,
+                    higherIsBetter: true,
+                    explain: 'Сумарний прибуток у одиницях ризику (R). Показує масштаб результату відносно розміру ризику на угоду.',
+                    deviationLabel: (dev, lv, med) => dev >= 0
+                      ? `+${dev.toFixed(2)}R вище медіани MC`
+                      : `${dev.toFixed(2)}R нижче медіани MC`,
+                  },
+                  {
+                    key: 'drawdown',
+                    label: 'Макс просадка',
+                    liveVal: lvMaxDD,
+                    higherIsBetter: false,
+                    explain: 'Найбільше падіння капіталу від піку до дна (у R). Менше — краще. Критичний індикатор стійкості системи.',
+                    deviationLabel: (dev, lv, med) => dev <= 0
+                      ? `${Math.abs(dev).toFixed(2)}R менше медіани — просадка в нормі`
+                      : `+${dev.toFixed(2)}R більше медіани — просадка перевищена`,
+                  },
+                  {
+                    key: 'wr',
+                    label: 'Win Rate',
+                    liveVal: lvWR,
+                    higherIsBetter: true,
+                    pct: true,
+                    explain: 'Відсоток прибуткових угод від загальної кількості. Важливо порівнювати з бектестом — великий розрив може вказувати на вибіркове виконання.',
+                    deviationLabel: (dev, lv, med) => {
+                      const pDev = (dev * 100).toFixed(1);
+                      return dev >= 0 ? `+${pDev}% вище медіани MC` : `${pDev}% нижче медіани MC`;
+                    },
+                  },
+                  {
+                    key: 'sqn',
+                    label: 'SQN',
+                    liveVal: lvSQN,
+                    higherIsBetter: true,
+                    explain: 'System Quality Number — якість системи. >2 = прийнятно, >3 = добре, >5 = відмінно. Враховує і дохідність, і стабільність.',
+                    deviationLabel: (dev, lv, med) => dev >= 0
+                      ? `+${dev.toFixed(2)} вище медіани — система стабільна`
+                      : `${dev.toFixed(2)} нижче медіани — якість знижена`,
+                  },
+                  {
+                    key: 'streak',
+                    label: 'Серія збитків',
+                    liveVal: lvStreak,
+                    higherIsBetter: false,
+                    explain: 'Максимальна послідовна серія збиткових угод. Менше — краще. Якщо live перевищує p75 MC — сигнал до перегляду параметрів ризику.',
+                    deviationLabel: (dev, lv, med) => dev <= 0
+                      ? `${Math.abs(Math.round(dev))} угод менше медіани — в нормі`
+                      : `+${Math.round(dev)} угод понад медіану — тривожний сигнал`,
+                  },
+                ];
+
+                // ── Single metric card ───────────────────────────────────
+                const MetricCard = ({
+                  meta,
+                  box,
+                  accentColor,
+                }: {
+                  meta: typeof METRICS[0];
+                  box: BoxStat;
+                  accentColor: string;
                 }) => {
-                  // if pct, convert 0-1 values to 0-100 for display
+                  const { liveVal, higherIsBetter, pct } = meta;
+                  const scale = pct ? 100 : 1;
                   const fmt = (v: number) => pct ? (v * 100).toFixed(1) + '%' : (Number.isInteger(v) ? String(v) : v.toFixed(2));
-                  const dispBox: BoxStat = pct ? { p5: box.p5 * 100, p25: box.p25 * 100, med: box.med * 100, p75: box.p75 * 100, p95: box.p95 * 100 } : box;
-                  const dispLive = pct ? liveVal * 100 : liveVal;
-                  const H = 90; // total height px of the box area
-                  const min = dispBox.p5;
-                  const max = dispBox.p95;
-                  const range = max - min || 1;
-                  const toY = (v: number) => H - ((v - min) / range) * H;
 
-                  const medY   = toY(dispBox.med);
-                  const p25Y   = toY(dispBox.p25);
-                  const p75Y   = toY(dispBox.p75);
-                  const p5Y    = toY(dispBox.p5);
-                  const p95Y   = toY(dispBox.p95);
-                  const liveY  = Math.max(0, Math.min(H, toY(dispLive)));
-
-                  // color: is live within 25-75 band?
-                  const inBox = liveVal >= box.p25 && liveVal <= box.p75;
+                  const inBox    = liveVal >= box.p25 && liveVal <= box.p75;
                   const aboveBox = higherIsBetter ? liveVal > box.p75 : liveVal < box.p25;
                   const liveColor = inBox ? '#facc15' : aboveBox ? '#4ade80' : '#f87171';
 
-                  const W = 36;
-                  const cx = W / 2;
+                  const dev = liveVal - box.med;
+                  const devLabel = meta.deviationLabel(dev, liveVal, box.med);
+
+                  // ── SVG box plot (horizontal layout) ──
+                  const W = 140, H = 32;
+                  const dMin = box.p5  * scale;
+                  const dMax = box.p95 * scale;
+                  const range = dMax - dMin || 1;
+                  const toX = (v: number) => ((v * scale - dMin) / range) * W;
+
+                  const xP5  = toX(box.p5);
+                  const xP25 = toX(box.p25);
+                  const xMed = toX(box.med);
+                  const xP75 = toX(box.p75);
+                  const xP95 = toX(box.p95);
+                  const xLiv = Math.max(0, Math.min(W, toX(liveVal)));
+                  const cy   = H / 2;
+
+                  const statusLabel = inBox ? 'В нормі' : aboveBox ? (higherIsBetter ? 'Вище норми ✓' : 'Краще норми ✓') : (higherIsBetter ? 'Нижче норми !' : 'Перевищено !');
+                  const statusBg = inBox ? 'rgba(250,204,21,0.12)' : aboveBox ? 'rgba(74,222,128,0.12)' : 'rgba(248,113,113,0.12)';
 
                   return (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 64 }}>
-                      <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center', fontWeight: 600 }}>{label}</div>
-                      <svg width={W} height={H} style={{ overflow: 'visible' }}>
-                        {/* whisker top (p95→p75) */}
-                        <line x1={cx} y1={p95Y} x2={cx} y2={p75Y} stroke="#555" strokeWidth={1} strokeDasharray="2,2" />
-                        {/* whisker bottom (p25→p5) */}
-                        <line x1={cx} y1={p25Y} x2={cx} y2={p5Y} stroke="#555" strokeWidth={1} strokeDasharray="2,2" />
-                        {/* box p25–p75 */}
-                        <rect x={cx - 10} y={p75Y} width={20} height={Math.abs(p25Y - p75Y) || 2} fill="#2a3a4a" stroke="#3b82f6" strokeWidth={1} rx={2} />
-                        {/* median line */}
-                        <line x1={cx - 10} y1={medY} x2={cx + 10} y2={medY} stroke="#60a5fa" strokeWidth={1.5} />
-                        {/* whisker caps */}
-                        <line x1={cx - 5} y1={p95Y} x2={cx + 5} y2={p95Y} stroke="#555" strokeWidth={1} />
-                        <line x1={cx - 5} y1={p5Y}  x2={cx + 5} y2={p5Y}  stroke="#555" strokeWidth={1} />
-                        {/* live marker — horizontal bar + dot */}
-                        <line x1={cx - 13} y1={liveY} x2={cx + 13} y2={liveY} stroke={liveColor} strokeWidth={2} />
-                        <circle cx={cx} cy={liveY} r={3.5} fill={liveColor} />
+                    <div style={{
+                      flex: '1 1 0',
+                      minWidth: 0,
+                      background: 'var(--bg2)',
+                      border: `1px solid var(--border)`,
+                      borderTop: `2px solid ${accentColor}`,
+                      borderRadius: 8,
+                      padding: '12px 14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                    }}>
+                      {/* ─ header row ─ */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.8 }}>{meta.label}</span>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: liveColor, background: statusBg, borderRadius: 4, padding: '2px 6px' }}>{statusLabel}</span>
+                      </div>
+
+                      {/* ─ live value prominent ─ */}
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                        <span style={{ fontSize: 22, fontWeight: 800, color: liveColor, fontFamily: 'monospace', lineHeight: 1 }}>{fmt(liveVal)}</span>
+                        <span style={{ fontSize: 10, color: 'var(--text2)' }}>live</span>
+                        <span style={{ fontSize: 11, color: 'var(--text2)', marginLeft: 'auto' }}>мед <b style={{ color: accentColor }}>{fmt(box.med)}</b></span>
+                      </div>
+
+                      {/* ─ horizontal box plot ─ */}
+                      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ overflow: 'visible' }}>
+                        {/* p5-p95 thin line */}
+                        <line x1={xP5} y1={cy} x2={xP95} y2={cy} stroke="#444" strokeWidth={1} />
+                        {/* p5, p95 caps */}
+                        <line x1={xP5}  y1={cy - 4} x2={xP5}  y2={cy + 4} stroke="#555" strokeWidth={1} />
+                        <line x1={xP95} y1={cy - 4} x2={xP95} y2={cy + 4} stroke="#555" strokeWidth={1} />
+                        {/* IQR box */}
+                        <rect x={xP25} y={cy - 7} width={Math.max(1, xP75 - xP25)} height={14} fill={accentColor + '22'} stroke={accentColor} strokeWidth={1} rx={2} />
+                        {/* median */}
+                        <line x1={xMed} y1={cy - 7} x2={xMed} y2={cy + 7} stroke={accentColor} strokeWidth={2} />
+                        {/* live marker */}
+                        <line x1={xLiv} y1={cy - 10} x2={xLiv} y2={cy + 10} stroke={liveColor} strokeWidth={2} />
+                        <circle cx={xLiv} cy={cy} r={4} fill={liveColor} />
                       </svg>
-                      {/* labels */}
-                      <div style={{ fontSize: 9, color: '#60a5fa', fontFamily: 'monospace' }}>med {fmt(box.med)}</div>
-                      <div style={{ fontSize: 10, color: liveColor, fontFamily: 'monospace', fontWeight: 700 }}>live {fmt(liveVal)}</div>
+
+                      {/* ─ scale labels ─ */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#555', fontFamily: 'monospace', marginTop: -6 }}>
+                        <span>{fmt(box.p5)}</span>
+                        <span style={{ color: '#666' }}>p5–p95</span>
+                        <span>{fmt(box.p95)}</span>
+                      </div>
+
+                      {/* ─ explanation row ─ */}
+                      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, fontSize: 10, color: 'var(--text2)', lineHeight: 1.5 }}>
+                        {meta.explain}
+                      </div>
+
+                      {/* ─ deviation row ─ */}
+                      <div style={{
+                        background: statusBg,
+                        borderRadius: 5,
+                        padding: '5px 8px',
+                        fontSize: 10,
+                        color: liveColor,
+                        fontWeight: 600,
+                      }}>
+                        {devLabel}
+                      </div>
                     </div>
                   );
                 };
 
-                const ColBlock = ({ title, box, titleColor }: { title: string; box: { return: BoxStat; drawdown: BoxStat; sqn: BoxStat; wr: BoxStat; streak: BoxStat }; titleColor: string }) => (
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: titleColor, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 14 }}>{title}</div>
-                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                      <BoxPlot label="Return (R)"  box={box.return}   liveVal={lvTotalR}  higherIsBetter={true} />
-                      <BoxPlot label="Max DD"      box={box.drawdown} liveVal={lvMaxDD}   higherIsBetter={false} />
-                      <BoxPlot label="Win Rate"    box={box.wr}       liveVal={lvWR}      higherIsBetter={true}  pct={true} />
-                      <BoxPlot label="SQN"         box={box.sqn}      liveVal={lvSQN}     higherIsBetter={true} />
-                      <BoxPlot label="Loss Streak" box={box.streak}   liveVal={lvStreak}  higherIsBetter={false} />
+                // ── Row of 5 cards ────────────────────────────────────────
+                const MetricRow = ({ box, accentColor, rowLabel }: {
+                  box: { return: BoxStat; drawdown: BoxStat; sqn: BoxStat; wr: BoxStat; streak: BoxStat };
+                  accentColor: string;
+                  rowLabel: string;
+                }) => (
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: accentColor, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                      {rowLabel}
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      {METRICS.map(m => (
+                        <MetricCard key={m.key} meta={m} box={box[m.key]} accentColor={accentColor} />
+                      ))}
                     </div>
                   </div>
                 );
 
                 return (
                   <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginTop: 8 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 }}>
-                      Final Statistical Control Framework
-                    </div>
-                    <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                      {mcBoxStats && <ColBlock title="Expected (MC Normal)" box={mcBoxStats} titleColor="#60a5fa" />}
-                      {stressData?.stressBoxStats && <ColBlock title="Expected (MC Stress)" box={stressData.stressBoxStats} titleColor="#fb923c" />}
-                    </div>
-                    {/* Legend */}
-                    <div style={{ display: 'flex', gap: 16, marginTop: 14, flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--text2)' }}>
-                        <svg width={20} height={10}><rect x={0} y={3} width={20} height={4} fill="#2a3a4a" stroke="#3b82f6" strokeWidth={1} rx={1} /></svg>
-                        25–75 перцентиль MC
+                    {/* ─ section header ─ */}
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                        Статистичний контроль системи
                       </div>
+                      <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.6, maxWidth: 720 }}>
+                        Порівняння показників живої торгівлі з діапазоном результатів MC-симуляцій.
+                        Допомагає виявити, які метрики відхиляються від очікуваного — і через які стрес-фактори.
+                        Зелений = краще за медіану, жовтий = у межах норми (25–75%), червоний = нижче норми.
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+                      {mcBoxStats && (
+                        <MetricRow box={mcBoxStats} accentColor="#60a5fa" rowLabel="Очікуваний діапазон — MC Normal (без стрес-факторів)" />
+                      )}
+                      {stressData?.stressBoxStats && (
+                        <MetricRow box={stressData.stressBoxStats} accentColor="#fb923c" rowLabel="Очікуваний діапазон — MC Stress (зі стрес-факторами)" />
+                      )}
+                    </div>
+
+                    {/* legend */}
+                    <div style={{ display: 'flex', gap: 20, marginTop: 18, flexWrap: 'wrap', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--text2)' }}>
-                        <svg width={20} height={10}><line x1={0} y1={5} x2={20} y2={5} stroke="#60a5fa" strokeWidth={2} /></svg>
-                        Медіана MC
+                        <svg width={30} height={10}><rect x={0} y={3} width={30} height={4} fill="#60a5fa22" stroke="#60a5fa" strokeWidth={1} rx={1} /><line x1={15} y1={1} x2={15} y2={9} stroke="#60a5fa" strokeWidth={2} /></svg>
+                        Діапазон 25–75% + медіана
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#4ade80' }}>
-                        <svg width={20} height={10}><line x1={0} y1={5} x2={20} y2={5} stroke="#4ade80" strokeWidth={2} /><circle cx={10} cy={5} r={3} fill="#4ade80" /></svg>
+                        <svg width={14} height={10}><line x1={7} y1={0} x2={7} y2={10} stroke="#4ade80" strokeWidth={2} /><circle cx={7} cy={5} r={3} fill="#4ade80" /></svg>
                         Live вище очікуваного
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#facc15' }}>
-                        <svg width={20} height={10}><line x1={0} y1={5} x2={20} y2={5} stroke="#facc15" strokeWidth={2} /><circle cx={10} cy={5} r={3} fill="#facc15" /></svg>
+                        <svg width={14} height={10}><line x1={7} y1={0} x2={7} y2={10} stroke="#facc15" strokeWidth={2} /><circle cx={7} cy={5} r={3} fill="#facc15" /></svg>
                         Live в межах норми
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#f87171' }}>
-                        <svg width={20} height={10}><line x1={0} y1={5} x2={20} y2={5} stroke="#f87171" strokeWidth={2} /><circle cx={10} cy={5} r={3} fill="#f87171" /></svg>
+                        <svg width={14} height={10}><line x1={7} y1={0} x2={7} y2={10} stroke="#f87171" strokeWidth={2} /><circle cx={7} cy={5} r={3} fill="#f87171" /></svg>
                         Live нижче очікуваного
                       </div>
                     </div>
