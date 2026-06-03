@@ -208,7 +208,12 @@ const app = new Hono()
       const code = String(Math.floor(1000 + Math.random() * 9000));
       const expiresAt = Date.now() + 10 * 60 * 1000; // 10 хвилин
       await db.insert(emailCodes).values({ email, code, expiresAt });
-      // send email
+      // send email (or return code directly in dev mode)
+      if (!process.env.RESEND_API_KEY) {
+        // DEV MODE: return code in response
+        console.log(`[DEV] Email code for ${email}: ${code}`);
+        return c.json({ ok: true, devCode: code }, 200);
+      }
       const { Resend } = await import('resend');
       const resend = new Resend(process.env.RESEND_API_KEY);
       try {

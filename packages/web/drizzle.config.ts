@@ -1,11 +1,11 @@
 import { defineConfig } from "drizzle-kit";
+import path from "path";
 
 export default defineConfig({
-  dialect: "turso",
+  dialect: "sqlite",
   schema: "./src/api/database/schema.ts",
   out: "./drizzle",
   dbCredentials: {
-    url: process.env.DATABASE_URL!,
-    authToken: process.env.DATABASE_AUTH_TOKEN,
+    url: path.resolve(process.cwd(), "data/tact.db"),
   },
 });

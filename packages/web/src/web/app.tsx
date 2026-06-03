@@ -269,7 +269,11 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
       const r = await fetch('/api/auth/send-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
       const data = await r.json();
       if (data.error) setErr(data.error);
-      else { setCodeSent(true); setMode('reg-code'); }
+      else {
+        setCodeSent(true);
+        if (data.devCode) { setCode(data.devCode); setErr(`DEV: код ${data.devCode}`); }
+        setMode('reg-code');
+      }
     } catch { setErr('Помилка з\'єднання'); }
     setLoading(false);
   };
