@@ -748,28 +748,28 @@ function ConsistencyScore({ trades, btAvgRR, lvAvgRR }: { trades: any[]; btAvgRR
           )}
           <button
             onClick={() => setShowInfo(v => !v)}
-            style={{ marginLeft: 4, width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--border)', background: showInfo ? 'var(--blue)' : 'var(--surface)', color: showInfo ? '#fff' : 'var(--text2)', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+            style={{ marginLeft: 4, width: 18, height: 18, borderRadius: '50%', border: '1px solid var(--border)', background: showInfo ? 'var(--blue)' : 'var(--surface)', color: showInfo ? '#fff' : 'var(--text2)', fontSize: 11, lineHeight: '18px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}
           >?</button>
         </div>
 
         {showInfo && (
           <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12, color: 'var(--text2)', lineHeight: 1.6 }}>
-            <div style={{ color: 'var(--text)', fontWeight: 600, marginBottom: 6, fontSize: 12 }}>How Consistency Score is calculated</div>
+            <div style={{ color: 'var(--text)', fontWeight: 600, marginBottom: 6, fontSize: 12 }}>Як розраховується показник стабільності</div>
             <div style={{ marginBottom: 4 }}>
-              <span style={{ color: 'var(--text)' }}>Std Dev Score</span> — based on standard deviation of net R across all trades.
-              Lower deviation = more predictable results. Score: <span style={{ fontFamily: 'monospace' }}>max(0, 100 − stdDev × 20)</span>
+              <span style={{ color: 'var(--text)' }}>Оцінка відхилення</span> — базується на стандартному відхиленні net R по всіх угодах.
+              Менше відхилення = більш передбачувані результати. Оцінка: <span style={{ fontFamily: 'monospace' }}>max(0, 100 − stdDev × 20)</span>
             </div>
             <div style={{ marginBottom: 4 }}>
-              <span style={{ color: 'var(--text)' }}>In Range Score</span> — % of trades where net R falls within <span style={{ fontFamily: 'monospace' }}>[−targetRR, +targetRR]</span>.
-              Trades outside this range (massive wins or losses) lower the score.
+              <span style={{ color: 'var(--text)' }}>Оцінка влучності</span> — % угод, де net R потрапляє в діапазон <span style={{ fontFamily: 'monospace' }}>[−targetRR, +targetRR]</span>.
+              Угоди поза діапазоном (надто великі прибутки або збитки) знижують оцінку.
             </div>
             <div style={{ marginBottom: 4 }}>
-              <span style={{ color: 'var(--text)' }}>Final Score</span> — average of both: <span style={{ fontFamily: 'monospace' }}>(stdDevScore + inRangeScore) / 2</span>
+              <span style={{ color: 'var(--text)' }}>Підсумкова оцінка</span> — середнє обох: <span style={{ fontFamily: 'monospace' }}>(оцінкаВідхилення + оцінкаВлучності) / 2</span>
             </div>
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 6 }}>
-              <span style={{ color: '#7eb8f7' }}>≥ 70</span> Consistent &nbsp;·&nbsp;
-              <span style={{ color: '#f0c070' }}>40–69</span> Moderate &nbsp;·&nbsp;
-              <span style={{ color: '#f0a070' }}>&lt; 40</span> Inconsistent
+              <span style={{ color: '#7eb8f7' }}>≥ 70</span> Стабільний &nbsp;·&nbsp;
+              <span style={{ color: '#f0c070' }}>40–69</span> Помірний &nbsp;·&nbsp;
+              <span style={{ color: '#f0a070' }}>&lt; 40</span> Нестабільний
             </div>
           </div>
         )}
