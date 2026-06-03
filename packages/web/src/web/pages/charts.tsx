@@ -1979,7 +1979,7 @@ export default function Charts() {
                     <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
                       {rowLabel}
                     </div>
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: 10, alignItems: 'flex-start' }}>
                       {METRICS.map(m => (
                         <MetricCard key={m.key} meta={m} box={box[m.key]} rowKey={rowKey} />
                       ))}
