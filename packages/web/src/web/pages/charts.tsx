@@ -1939,7 +1939,7 @@ export default function Charts() {
                     {/* ─ section header ─ */}
                     <div style={{ marginBottom: 20 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
-                        Статистичний контроль системи
+                        Statistical Control Framework
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.6, maxWidth: 720 }}>
                         Порівняння показників живої торгівлі з діапазоном результатів MC-симуляцій.
