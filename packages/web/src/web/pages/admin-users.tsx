@@ -143,6 +143,9 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
     const label = ROLE_OPTIONS.find(opt => opt.value === visualRole)?.label ?? '—';
     const isSelfAdmin = u.login === currentLogin && visualRole === 'admin';
 
+    const btnRef = useRef<HTMLButtonElement>(null);
+    const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+
     if (isSelfAdmin) {
       return (
         <div style={{
@@ -154,9 +157,6 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
         </div>
       );
     }
-
-    const btnRef = useRef<HTMLButtonElement>(null);
-    const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
 
     return (
       <div style={{ position: 'relative', display: 'inline-flex' }}>
