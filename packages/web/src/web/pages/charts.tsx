@@ -104,7 +104,7 @@ function Explanation({ text }: { text: string }) {
         style={{ fontSize: 11, padding: '4px 12px', borderRadius: 8 }}
         onClick={() => setOpen(o => !o)}
       >
-        {open ? '▲' : '▼'} Пояснення
+        {open ? '▲' : '▼'} Explanation
       </button>
       {open && (
         <div style={{
@@ -142,7 +142,7 @@ function DeviationSummary({
   const devBT  = lastBT  !== 0 ? ((lastLv - lastBT)  / Math.abs(lastBT)  * 100) : null;
   const devMed = lastMed != null && lastMed !== 0 ? ((lastLv - lastMed) / Math.abs(lastMed) * 100) : null;
   const inBand = lastP5 != null && lastP95 != null
-    ? (lastLv >= lastP5 && lastLv <= lastP95 ? 'У межах норми' : lastLv < lastP5 ? 'Нижче p5 — увага!' : 'Вище p95 — увага!')
+    ? (lastLv >= lastP5 && lastLv <= lastP95 ? 'In range' : lastLv < lastP5 ? 'Below p5 — warning!' : 'Above p95 — warning!')
     : null;
 
   const fmtVal = (v: number) => `${v.toFixed(3)}${unit}`;
@@ -156,7 +156,7 @@ function DeviationSummary({
         style={{ fontSize: 11, padding: '4px 12px', borderRadius: 8 }}
         onClick={() => setOpen(o => !o)}
       >
-        {open ? '▲' : '▼'} Поточне відхилення
+        {open ? '▲' : '▼'} Current deviation
       </button>
       {open && (
         <div style={{
@@ -166,30 +166,30 @@ function DeviationSummary({
         }}>
           <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
             <div>
-              <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Live (останнє)</div>
+              <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Live (last)</div>
               <div className="mono" style={{ color: LIVE_COLOR }}>{fmtVal(lastLv)}</div>
             </div>
             <div>
-              <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs Бектест</div>
+              <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs Backtest</div>
               <div className="mono" style={{ color: devBT != null ? color(devBT) : 'var(--text2)' }}>
                 {devBT != null ? fmtPct(devBT) : '—'}
               </div>
             </div>
             {devMed != null && (
               <div>
-                <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs Очікуване (MC)</div>
+                <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs Expected (MC)</div>
                 <div className="mono" style={{ color: color(devMed) }}>{fmtPct(devMed)}</div>
               </div>
             )}
             {inBand && (
               <div>
                 <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>MC p5–p95</div>
-                <div style={{ color: inBand.includes('увага') ? '#f87171' : '#4ade80', fontWeight: 600, fontSize: 12 }}>{inBand}</div>
+                <div style={{ color: inBand.includes('warning') ? '#f87171' : '#4ade80', fontWeight: 600, fontSize: 12 }}>{inBand}</div>
               </div>
             )}
             {lastP5 != null && lastP95 != null && (
               <div>
-                <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Очікуваний діапазон</div>
+                <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Expected range</div>
                 <div className="mono" style={{ color: MC_BAND_COLOR }}>[{fmtVal(lastP5)} — {fmtVal(lastP95)}]</div>
               </div>
             )}
@@ -256,7 +256,7 @@ function MetricChart({
     <div style={chartStyle(isMobile)}>
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>{title}</div>
       {btSeries.length === 0 ? (
-        <div style={{ color: 'var(--text2)', padding: 24, textAlign: 'center' }}>Немає даних</div>
+        <div style={{ color: 'var(--text2)', padding: 24, textAlign: 'center' }}>No data</div>
       ) : (
         <>
           <ResponsiveContainer width="100%" height={height}>
@@ -495,7 +495,7 @@ export default function Charts() {
     persistCombos(updated);
   };
   const saveCombo = () => {
-    const combo = { id: Date.now().toString(), name: saveComboName.trim() || 'Без назви', params: { ...stressParams } };
+    const combo = { id: Date.now().toString(), name: saveComboName.trim() || 'Unnamed', params: { ...stressParams } };
     const updated = [...savedCombos, combo];
     setSavedCombos(updated);
     persistCombos(updated);
@@ -505,7 +505,7 @@ export default function Charts() {
 
   const isModified = JSON.stringify(stressParams) !== JSON.stringify(defaultStress);
 
-  if (isLoading) return <div style={{ padding: 32, color: 'var(--text2)' }}>Завантаження...</div>;
+  if (isLoading) return <div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>;
 
   const isBlocked = Boolean(accessData && !accessData.hasAccess);
   
@@ -523,7 +523,7 @@ export default function Charts() {
     );
   }
 
-  if (error || !data) return <div style={{ padding: 32, color: 'var(--red)' }}>Помилка</div>;
+  if (error || !data) return <div style={{ padding: 32, color: 'var(--red)' }}>Error</div>;
 
   const d = data as any;
   const btEq: number[] = d.btEquity ?? [];
@@ -659,10 +659,10 @@ export default function Charts() {
 
       {/* LEGEND */}
       <div style={{ display: 'flex', gap: isMobile ? 10 : 20, marginBottom: isMobile ? 12 : 20, fontSize: isMobile ? 11 : 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span><span style={{ color: BT_COLOR,      fontWeight: 700 }}>━</span> Бектест</span>
-        <span><span style={{ color: LIVE_COLOR,    fontWeight: 700 }}>━</span> Live (синій)</span>
-        <span><span style={{ color: MC_MED_COLOR,  fontWeight: 700 }}>- -</span> MC median (білий)</span>
-        <span><span style={{ color: MC_BAND_COLOR, fontWeight: 700 }}>- -</span> MC p5/p95 (помаранчевий)</span>
+        <span><span style={{ color: BT_COLOR,      fontWeight: 700 }}>━</span> Backtest</span>
+        <span><span style={{ color: LIVE_COLOR,    fontWeight: 700 }}>━</span> Live (blue)</span>
+        <span><span style={{ color: MC_MED_COLOR,  fontWeight: 700 }}>- -</span> MC median (white)</span>
+        <span><span style={{ color: MC_BAND_COLOR, fontWeight: 700 }}>- -</span> MC p5/p95 (orange)</span>
       </div>
 
       {/* EQUITY CURVES */}
@@ -670,11 +670,11 @@ export default function Charts() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600 }}>
-              Equity Curves — {equityViewMode === 'cumulative' ? 'Cumulative Net R' : 'Середнє R/угоду (темп зростання)'}
+              Equity Curves — {equityViewMode === 'cumulative' ? 'Cumulative Net R' : 'Avg R/trade (growth rate)'}
             </div>
             {equityViewMode === 'normalized' && (
               <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 3 }}>
-                Y = накопичений R ÷ кількість угод до цієї точки. Криві близько = однаковий темп зростання.
+                Y = cumulative R ÷ trades to that point. Curves close = same growth rate.
               </div>
             )}
           </div>
@@ -685,13 +685,13 @@ export default function Charts() {
                 background: equityViewMode === mode ? 'var(--surface2)' : 'transparent',
                 border: equityViewMode === mode ? '1px solid var(--border)' : '1px solid transparent',
               }} onClick={() => setEquityViewMode(mode)}>
-                {mode === 'cumulative' ? 'Кумулятивний' : 'Нормалізований'}
+                {mode === 'cumulative' ? 'Cumulative' : 'Normalized'}
               </button>
             ))}
           </div>
         </div>
         {btEq.length === 0 ? (
-          <div style={{ color: 'var(--text2)', padding: 40, textAlign: 'center' }}>Немає даних бектесту.</div>
+          <div style={{ color: 'var(--text2)', padding: 40, textAlign: 'center' }}>No backtest data.</div>
         ) : (
           <>
             <ResponsiveContainer width="100%" height={isMobile ? 220 : 340}>
@@ -724,7 +724,7 @@ export default function Charts() {
               const refP5   = isCumul ? p5AtLivePos  : p5AvgR;
               const refP95  = isCumul ? p95AtLivePos : p95AvgR;
               if (liveVal == null) return null;
-              const rSuffix = isCumul ? 'R' : 'R/угоду';
+              const rSuffix = isCumul ? 'R' : 'R/trade';
               const cmpCard = (label: string, ref: number | null | undefined, sub?: string) => {
                 if (ref == null || ref === 0) return null;
                 const dR = liveVal - ref;
@@ -748,7 +748,7 @@ export default function Charts() {
                       const el = (e.target as HTMLElement).nextElementSibling as HTMLElement;
                       if (el) el.style.display = el.style.display === 'none' ? 'flex' : 'none';
                     }}>
-                    ▼ Поточне відхилення
+                    ▼ Current deviation
                   </button>
                   <div style={{
                     display: 'none', marginTop: 8, padding: '12px 16px',
@@ -758,20 +758,20 @@ export default function Charts() {
                     {/* Live value */}
                     <div>
                       <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>
-                        {isCumul ? 'Live R' : 'Live R/угоду'}
+                        {isCumul ? 'Live R' : 'Live R/trade'}
                       </div>
                       <div className="mono" style={{ color: LIVE_COLOR, fontSize: 16, fontWeight: 700 }}>
                         {liveVal.toFixed(dp)}
                       </div>
                       <div style={{ fontSize: 9, color: '#555', marginTop: 2 }}>
-                        {isCumul ? `за ${lvEq.length} угод` : `${lvEq.length} угод`}
+                        {isCumul ? `over ${lvEq.length} trades` : `${lvEq.length} trades`}
                       </div>
                     </div>
                     {/* vs BT at same progress */}
                     {cmpCard(
-                      isCumul ? `vs BT (${refBT != null ? refBT.toFixed(2) : '?'}R)` : 'vs BT R/угоду',
+                      isCumul ? `vs BT (${refBT != null ? refBT.toFixed(2) : '?'}R)` : 'vs BT R/trade',
                       refBT,
-                      isCumul ? `BT після ${lvEq.length} угод` : `BT avg: ${btAvgR != null ? btAvgR.toFixed(4) : '?'}`
+                      isCumul ? `BT after ${lvEq.length} trades` : `BT avg: ${btAvgR != null ? btAvgR.toFixed(4) : '?'}`
                     )}
                     {/* vs Linear Expected (cumul only) */}
                     {isCumul && btLinearExpected != null && btLinearExpected !== 0 && (() => {
@@ -780,7 +780,7 @@ export default function Charts() {
                       const col = dR >= 0 ? '#4ade80' : '#f87171';
                       return (
                         <div>
-                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>vs Очікуване</div>
+                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>vs Expected</div>
                           <div style={{ fontSize: 9, color: '#555', marginBottom: 3 }}>
                             {btAvgRPerTrade != null ? btAvgRPerTrade.toFixed(3) : '?'}R × {lvEq.length} = {btLinearExpected.toFixed(2)}R
                           </div>
@@ -792,7 +792,7 @@ export default function Charts() {
                       );
                     })()}
                     {/* vs MC Median */}
-                    {cmpCard('vs MC Median', refMed, isCumul ? `MC med після ${lvEq.length} угод` : `MC med avg: ${medAvgR != null ? medAvgR.toFixed(4) : '?'}`)}
+                    {cmpCard('vs MC Median', refMed, isCumul ? `MC med after ${lvEq.length} trades` : `MC med avg: ${medAvgR != null ? medAvgR.toFixed(4) : '?'}`)}
                     {/* MC p5-p95 */}
                     {refP5 != null && refP95 != null && (
                       <div>
@@ -801,7 +801,7 @@ export default function Charts() {
                           [{refP5.toFixed(dp)} — {refP95.toFixed(dp)}]{rSuffix}
                         </div>
                         <div style={{ fontWeight: 700, fontSize: 12, color: liveVal >= refP5 && liveVal <= refP95 ? '#4ade80' : '#f87171' }}>
-                          {liveVal >= refP5 && liveVal <= refP95 ? '✓ У межах норми' : liveVal < refP5 ? '✗ Нижче p5' : '✗ Вище p95'}
+                          {liveVal >= refP5 && liveVal <= refP95 ? '✓ In range' : liveVal < refP5 ? '✗ Below p5' : '✗ Above p95'}
                         </div>
                       </div>
                     )}
@@ -812,8 +812,8 @@ export default function Charts() {
 
             <Explanation text={
               equityViewMode === 'cumulative'
-                ? "Кумулятивний режим: показує накопичений Net R по всіх трейдах наростаючим підсумком. Сіра лінія — бектест, синя — реальна торгівля. Білі пунктири — медіана 500 симуляцій Монте Карло (очікуване), помаранчеві — 5-й та 95-й процентилі (діапазон норми). Якщо синя лінія виходить за помаранчеві межі — це сигнал відхилення від статистичної норми стратегії."
-                : "Нормалізований режим: показує середнє R/угоду в міру просування по угодах — темп зростання кривої. Вісь X — відсоток пройдених угод (1% = перша угода), вісь Y — середнє R за угоду до цієї точки. Криві сходяться до фактичного середнього — це дозволяє порівняти бектест і лайв незалежно від загальної кількості угод. Якщо синя лінія нижче помаранчевої зони — темп зростання live нижчий за очікуваний за MC симуляціями."
+                ? "Cumulative mode: shows accumulated Net R across all trades. Gray line — backtest, blue — live trading. White dashes — median of 500 MC simulations (expected), orange — 5th and 95th percentiles (normal range). If the blue line breaks outside the orange bounds — signal of statistical deviation."
+                : "Normalized mode: shows average R/trade as trades progress — curve growth rate. X axis — % of trades completed (1% = first trade), Y axis — avg R/trade up to that point. Curves converge to actual average — allows comparing backtest and live regardless of total trade count. If blue is below the orange zone — live growth rate is below MC expectation."
             } />
           </>
         )}
@@ -821,14 +821,14 @@ export default function Charts() {
 
       {/* STATS TABLE */}
       <div style={chartStyle(isMobile)}>
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Порівняння метрик</div>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Metric Comparison</div>
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <table style={{ minWidth: 400 }}>
           <thead>
             <tr>
-              <th>Метрика</th>
-              <th style={{ color: BT_COLOR }}>Бектест</th>
-              <th style={{ color: MC_MED_COLOR }}>MC Очікуване</th>
+              <th>Metric</th>
+              <th style={{ color: BT_COLOR }}>Backtest</th>
+              <th style={{ color: MC_MED_COLOR }}>MC Expected</th>
               <th style={{ color: LIVE_COLOR }}>Live</th>
               <th>Live vs BT</th>
             </tr>
@@ -877,7 +877,7 @@ export default function Charts() {
           refY={50}
           unit="%"
           isMobile={isMobile}
-          explanation="Відсоток виграшних угод (результат = TP) у ковзному вікні. Бектест вікно = 20 трейдів, Live = 10 трейдів. Допомагає відслідкувати, чи ваш Win Rate відповідає статистичному очікуванню стратегії. Значне падіння нижче помаранчевої межі (p5) — сигнал деградації."
+          explanation="Percentage of winning trades (TP result) in a rolling window. Backtest window = 20 trades, Live = 10 trades. Tracks whether your Win Rate matches statistical strategy expectation. Significant drop below the orange boundary (p5) — degradation signal."
         />
         <MetricChart
           title="Average RR (rolling)"
@@ -886,7 +886,7 @@ export default function Charts() {
           mcpSeries={rrMC}
           refY={1}
           isMobile={isMobile}
-          explanation="Середнє співвідношення ризик/прибуток за ковзним вікном. Показує, чи тримаєте ви якість входів у порівнянні з бектестом. Значне відхилення від сірої лінії вказує на зміну в якості виконання угод."
+          explanation="Average risk/reward ratio in rolling window. Shows whether you maintain entry quality vs backtest. Significant deviation from the gray line indicates a change in trade execution quality."
         />
         <MetricChart
           title="Profit Factor (rolling)"
@@ -895,7 +895,7 @@ export default function Charts() {
           mcpSeries={pfMC}
           refY={1}
           isMobile={isMobile}
-          explanation="Profit Factor = Сума виграшів / Сума програшів у ковзному вікні. PF > 1 означає прибутковість. Значення нижче 1 — стратегія збиткова в цьому вікні. Порівнюйте з бектестом і діапазоном MC."
+          explanation="Profit Factor = Sum of wins / Sum of losses in rolling window. PF > 1 means profitability. Below 1 — strategy is losing in this window. Compare with backtest and MC range."
         />
         <MetricChart
           title="Max Drawdown (rolling)"
@@ -904,7 +904,7 @@ export default function Charts() {
           mcpSeries={ddMC}
           refY={0}
           isMobile={isMobile}
-          explanation="Максимальна просадка (в одиницях R) від піку до дна у ковзному вікні. Менше = краще. Якщо Live просадка перевищує p95 — стратегія виходить за межі очікуваної волатильності ризиків."
+          explanation="Max drawdown (in R units) from peak to trough in rolling window. Lower is better. If Live drawdown exceeds p95 — strategy is outside expected risk volatility bounds."
         />
       </div>
 
@@ -916,17 +916,17 @@ export default function Charts() {
         refY={0}
         height={isMobile ? 160 : 200}
         isMobile={isMobile}
-        explanation="Стандартне відхилення розподілу Net R у ковзному вікні. Вимірює консистентність результатів. Низьке значення = стабільні результати. Різкий ріст StdDev означає підвищену нестабільність у live-торгівлі відносно бектесту."
+        explanation="Standard deviation of Net R distribution in rolling window. Measures result consistency. Low value = stable results. Sharp StdDev increase means elevated instability in live trading vs backtest."
       />
 
       {/* MC EQUITY RANGE */}
       <div style={chartStyle(isMobile)}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Monte Carlo — Expected Equity Range</div>
         <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 12 }}>
-          500 симуляцій на основі розподілу Net R з бектесту. Білий = медіана, помаранчевий = p5/p95.
+          500 simulations based on Net R distribution from backtest. White = median, orange = p5/p95.
         </div>
         {mcMed.length === 0 ? (
-          <div style={{ color: 'var(--text2)', padding: 20, textAlign: 'center' }}>Немає даних</div>
+          <div style={{ color: 'var(--text2)', padding: 20, textAlign: 'center' }}>No data</div>
         ) : (
           <>
             <ResponsiveContainer width="100%" height={isMobile ? 200 : 280}>
@@ -946,7 +946,7 @@ export default function Charts() {
                 <Line type="monotone" dataKey="Live"   stroke={LIVE_COLOR}    strokeWidth={2.5} dot={false} connectNulls />
               </LineChart>
             </ResponsiveContainer>
-            <Explanation text="Цей графік показує очікуваний діапазон equity кривої на основі 1000 симуляцій Монте Карло. Тьмяні сині лінії — 100 окремих шляхів (кожен 10-й з 1000) для наочного розуміння розкиду. Білий = медіана (найімовірніший результат), помаранчеві = 5-й та 95-й перцентилі (межі норми). Якщо Live лінія виходить за помаранчеві — рідкісний результат." />
+            <Explanation text="This chart shows the expected equity curve range based on 1000 Monte Carlo simulations. Faint blue lines — 100 individual paths (every 10th of 1000) for visual scatter. White = median (most likely outcome), orange = 5th and 95th percentiles (normal bounds). If the Live line exits orange — rare result." />
           </>
         )}
       </div>
@@ -957,7 +957,7 @@ export default function Charts() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600 }}>Stress Testing</div>
-            <div style={{ fontSize: 10, color: 'var(--text2)' }}>Штучне погіршення результативності для перевірки стійкості стратегії</div>
+            <div style={{ fontSize: 10, color: 'var(--text2)' }}>Artificially worsening performance to test strategy robustness</div>
           </div>
         </div>
 
@@ -968,7 +968,7 @@ export default function Charts() {
               {/* LEFT COLUMN */}
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
-                  Фактори збитків
+                  Loss Factors
                 </div>
                 <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
                   <StressSlider
@@ -1019,7 +1019,7 @@ export default function Charts() {
               {/* RIGHT COLUMN */}
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
-                  Додаткові фактори
+                  Additional Factors
                 </div>
 
                 {/* Human Error */}
@@ -1048,7 +1048,7 @@ export default function Charts() {
                     description="Психологічна втома — злякався відкату, вийшов раніше. Кожен прибутковий трейд зменшується на X%"
                     value={stressParams.fatigue}
                     min={0} max={0.5} step={0.01}
-                    format={v => `−${(v * 100).toFixed(0)}% від виграшу`}
+                    format={v => `−${(v * 100).toFixed(0)}% of win`}
                     onChange={v => setSP('fatigue', v)}
                     accent="#fb923c"
                   />
@@ -1124,23 +1124,23 @@ export default function Charts() {
 
             {/* Controls */}
             <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-              <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8, opacity: isModified ? 1 : 0.4 }} onClick={resetStress}>Скинути</button>
-              <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8 }} onClick={() => { setSaveOpen(o => !o); setSaveComboName(''); }}>Зберегти комбінацію</button>
-              {stressLoading && <span style={{ fontSize: 11, color: 'var(--text2)' }}>Симулюю 1000 сценаріїв...</span>}
-              {!isModified && <span style={{ fontSize: 11, color: 'var(--text2)' }}>Рухай слайдери — графік оновиться автоматично</span>}
+              <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8, opacity: isModified ? 1 : 0.4 }} onClick={resetStress}>Reset</button>
+              <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8 }} onClick={() => { setSaveOpen(o => !o); setSaveComboName(''); }}>Save combination</button>
+              {stressLoading && <span style={{ fontSize: 11, color: 'var(--text2)' }}>Simulating 1000 scenarios...</span>}
+              {!isModified && <span style={{ fontSize: 11, color: 'var(--text2)' }}>Adjust sliders — chart updates automatically</span>}
             </div>
 
             {/* Save combo panel */}
             {saveOpen && (
               <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>Зберегти комбінацію факторів</div>
+                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>Save factor combination</div>
                 <input
-                  type="text" placeholder="Назва комбінації..."
+                  type="text" placeholder="Combination name..."
                   value={saveComboName} onChange={e => setSaveComboName(e.target.value)}
                   onKeyDown={(e: any) => e.key === 'Enter' && saveCombo()}
                   style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', fontSize: 12, color: 'var(--text)', marginBottom: 10, boxSizing: 'border-box' }}
                 />
-                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Поточні значення:</div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Current values:</div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12, fontSize: 11 }}>
                   {(Object.entries(stressParams) as [keyof typeof defaultStress, number][]).map(([k, v]) => (
                     <span key={k} style={{ background: 'var(--surface)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)' }}>
@@ -1149,8 +1149,8 @@ export default function Charts() {
                   ))}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8, background: '#1e3a5f', border: '1px solid #3b82f6' }} onClick={saveCombo}>✓ Зберегти</button>
-                  <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8 }} onClick={() => setSaveOpen(false)}>Скасувати</button>
+                  <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8, background: '#1e3a5f', border: '1px solid #3b82f6' }} onClick={saveCombo}>✓ Save</button>
+                  <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8 }} onClick={() => setSaveOpen(false)}>Cancel</button>
                 </div>
               </div>
             )}
@@ -1159,7 +1159,7 @@ export default function Charts() {
             {savedCombos.length > 0 && (
               <div style={{ marginBottom: 20 }}>
                 <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 12px', borderRadius: 8 }} onClick={() => setSavedCombosOpen(o => !o)}>
-                  {savedCombosOpen ? '▲' : '▼'} Збережені комбінації ({savedCombos.length})
+                  {savedCombosOpen ? '▲' : '▼'} Saved combinations ({savedCombos.length})
                 </button>
                 {savedCombosOpen && (
                   <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1168,10 +1168,10 @@ export default function Charts() {
                         <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => loadCombo(combo)}>
                           <div style={{ fontSize: 12, fontWeight: 600 }}>{combo.name}</div>
                           <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>
-                            {(Object.entries(combo.params) as [string, number][]).filter(([k, v]) => v !== (defaultStress as any)[k]).map(([k, v]) => `${k}: ${v}`).join(' · ') || 'всі за замовчуванням'}
+                            {(Object.entries(combo.params) as [string, number][]).filter(([k, v]) => v !== (defaultStress as any)[k]).map(([k, v]) => `${k}: ${v}`).join(' · ') || 'all defaults'}
                           </div>
                         </div>
-                        <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, color: '#7eb8f7', border: '1px solid #1e3a5f' }} onClick={() => loadCombo(combo)}>Застосувати</button>
+                        <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, color: '#7eb8f7', border: '1px solid #1e3a5f' }} onClick={() => loadCombo(combo)}>Apply</button>
                         <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, color: '#f87171' }} onClick={() => deleteCombo(combo.id)}>✕</button>
                       </div>
                     ))}
@@ -1184,7 +1184,7 @@ export default function Charts() {
             {stressData && (
               <>
                 {/* KPI cards — Stress */}
-                <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, fontWeight: 600 }}>Stress симуляція</div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, fontWeight: 600 }}>Stress Simulation</div>
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16, alignItems: 'flex-start' }}>
                   {[
                     {
@@ -1192,28 +1192,28 @@ export default function Charts() {
                       value: `${stressData.survivalRate}%`,
                       sub: `< ${stressParams.survivalThreshold}R DD`,
                       color: stressData.survivalRate >= 90 ? '#4ade80' : stressData.survivalRate >= 70 ? '#facc15' : '#f87171',
-                      desc: '% симуляцій що пережили без blown account. Якщо нижче 90% — стратегія ризикована при стресових умовах.',
+                      desc: '% of simulations survived without blown account. Below 90% — strategy is risky under stress.',
                     },
                     {
                       label: 'Stress Max DD (med)',
                       value: `${stressData.stressMaxDD.med}R`,
                       sub: `p95: ${stressData.stressMaxDD.p95}R`,
                       color: '#fb923c',
-                      desc: 'Медіанна максимальна просадка в стресових умовах. p95 — гірший сценарій (5% симуляцій були гіршими).',
+                      desc: 'Median max drawdown under stress. p95 — worst case scenario (5% of simulations were worse).',
                     },
                     {
                       label: 'Stress SQN (med)',
                       value: stressData.stressSQN.med.toFixed(2),
                       sub: `p5: ${stressData.stressSQN.p5.toFixed(2)}`,
                       color: stressData.stressSQN.med >= 2 ? '#4ade80' : stressData.stressSQN.med >= 1 ? '#facc15' : '#f87171',
-                      desc: 'System Quality Number під стресом. SQN > 2 = стратегія стабільна. < 1 = деградація якості.',
+                      desc: 'System Quality Number under stress. SQN > 2 = strategy stable. < 1 = quality degradation.',
                     },
                     {
                       label: 'Stress Final Eq (med)',
                       value: `${stressData.stressFinalEq.med}R`,
                       sub: `p5: ${stressData.stressFinalEq.p5}R`,
                       color: stressData.stressFinalEq.med > 0 ? '#4ade80' : '#f87171',
-                      desc: 'Медіанний фінальний результат при стресовому сценарії. p5 — консервативний прогноз.',
+                      desc: 'Median final result under stress scenario. p5 — conservative estimate.',
                     },
                   ].map(card => {
                     const isOpen = stressDescOpen.has(card.label);
@@ -1233,7 +1233,7 @@ export default function Charts() {
                           })}
                           style={{ marginTop: 6, fontSize: 10, color: 'var(--text2)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 4 }}
                         >
-                          {isOpen ? '▲' : '▼'} Пояснення
+                          {isOpen ? '▲' : '▼'} Explanation
                         </button>
                         {isOpen && (
                           <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text2)', lineHeight: 1.5, background: 'var(--surface)', borderRadius: 6, padding: '8px 10px' }}>
@@ -1255,28 +1255,28 @@ export default function Charts() {
                       stressV: stressData ? stressData.stressFinalEq.med : null,
                       fmt: (v: number) => v.toFixed(2) + 'R',
                       color: (v: number) => v >= 0 ? '#4ade80' : '#f87171',
-                      desc: 'Сумарний результат в R. Бектест = очікування стратегії, Live = реальне виконання, MC = медіанний прогноз.',
+                      desc: 'Total result in R. Backtest = strategy expectation, Live = actual execution, MC = median forecast.',
                     },
                     {
                       label: 'Win Rate',
                       btV: btStats?.wr ?? null, lvV: lvStats?.wr ?? null, mcV: mcStats?.wr ?? null,
                       fmt: (v: number) => (v * 100).toFixed(1) + '%',
                       color: (v: number) => v >= 0.5 ? '#4ade80' : v >= 0.4 ? '#facc15' : '#f87171',
-                      desc: 'Відсоток виграшних угод (TP). Разом з Avg RR визначає Profit Factor стратегії.',
+                      desc: 'Percentage of winning trades (TP). Together with Avg RR defines strategy Profit Factor.',
                     },
                     {
                       label: 'Avg RR',
                       btV: btStats?.avgRR ?? null, lvV: lvStats?.avgRR ?? null, mcV: mcStats?.avgRR ?? null,
                       fmt: (v: number) => v.toFixed(3),
                       color: (v: number) => v >= 1.5 ? '#4ade80' : v >= 1 ? '#facc15' : '#f87171',
-                      desc: 'Середнє R/R виграшних угод. Вище = краще. RR < 1 при WR < 60% — слабка стратегія.',
+                      desc: 'Average R/R of winning trades. Higher is better. RR < 1 with WR < 60% — weak strategy.',
                     },
                     {
                       label: 'Profit Factor',
                       btV: btStats?.pf ?? null, lvV: lvStats?.pf ?? null, mcV: mcStats?.pf ?? null,
                       fmt: (v: number) => v > 99 ? '∞' : v.toFixed(2),
                       color: (v: number) => v >= 1.5 ? '#4ade80' : v >= 1 ? '#facc15' : '#f87171',
-                      desc: 'Сума виграшів / сума програшів. PF > 1.5 = хороша стратегія, > 2 = відмінна.',
+                      desc: 'Sum of wins / sum of losses. PF > 1.5 = good strategy, > 2 = excellent.',
                     },
                     {
                       label: 'Max DD',
@@ -1284,14 +1284,14 @@ export default function Charts() {
                       stressV: stressData ? stressData.stressMaxDD.med : null,
                       fmt: (v: number) => v.toFixed(2) + 'R',
                       color: (v: number) => Math.abs(v) <= 5 ? '#4ade80' : Math.abs(v) <= 10 ? '#facc15' : '#f87171',
-                      desc: 'Максимальна просадка від піку до дна. Показує найгірший послідовний збиток в серії угод.',
+                      desc: 'Max drawdown from peak to trough. Shows worst consecutive loss in a series of trades.',
                     },
                     {
                       label: 'Std Dev',
                       btV: btStats?.stdDev ?? null, lvV: lvStats?.stdDev ?? null, mcV: mcStats?.stdDev ?? null,
                       fmt: (v: number) => v.toFixed(3),
                       color: (_v: number) => '#facc15',
-                      desc: 'Стандартне відхилення результатів. Низьке = стабільні результати, високе = велика варіативність.',
+                      desc: 'Standard deviation of results. Low = stable, high = high variability.',
                     },
                     {
                       label: 'SQN',
@@ -1299,12 +1299,12 @@ export default function Charts() {
                       stressV: stressData ? stressData.stressSQN.med : null,
                       fmt: (v: number) => v.toFixed(2),
                       color: (v: number) => v >= 2 ? '#4ade80' : v >= 1 ? '#facc15' : '#f87171',
-                      desc: 'System Quality Number = (Avg R / Std Dev) × √N. > 2 = добра система, > 3 = відмінна, < 1 = ненадійна.',
+                      desc: 'System Quality Number = (Avg R / Std Dev) × √N. > 2 = good system, > 3 = excellent, < 1 = unreliable.',
                     },
                   ];
                   return (
                     <>
-                      <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, fontWeight: 600 }}>Загальні метрики</div>
+                      <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, fontWeight: 600 }}>Overall Metrics</div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20, alignItems: 'flex-start' }}>
                         {normalCards.map(card => {
                           const isOpen    = stressDescOpen.has('nm_' + card.label);
@@ -1349,14 +1349,14 @@ export default function Charts() {
                                     })}
                                     style={{ marginTop: 6, fontSize: 10, color: 'var(--text2)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 4 }}
                                   >
-                                    {isDevOpen ? '▲' : '▼'} Відхилення
+                                    {isDevOpen ? '▲' : '▼'} Deviation
                                   </button>
                                   {isDevOpen && (
                                     <div style={{ marginTop: 6, fontSize: 11, lineHeight: 1.8, background: 'var(--surface)', borderRadius: 6, padding: '8px 10px' }}>
-                                      {/* MC симуляція */}
+                                      {/* MC simulation */}
                                       {mc != null && (
                                         <div style={{ marginBottom: bt != null || (hasLv && lv != null) ? 8 : 0 }}>
-                                          <div style={{ fontSize: 9, color: '#a78bfa', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4, letterSpacing: 0.4 }}>MC симуляція</div>
+                                          <div style={{ fontSize: 9, color: '#a78bfa', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4, letterSpacing: 0.4 }}>MC simulation</div>
                                           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                                             {bt != null && (
                                               <div>
@@ -1373,10 +1373,10 @@ export default function Charts() {
                                           </div>
                                         </div>
                                       )}
-                                      {/* Stress симуляція */}
+                                      {/* Stress Simulation */}
                                       {st != null && (
                                         <div>
-                                          <div style={{ fontSize: 9, color: '#fb923c', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4, letterSpacing: 0.4 }}>Stress симуляція</div>
+                                          <div style={{ fontSize: 9, color: '#fb923c', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4, letterSpacing: 0.4 }}>Stress Simulation</div>
                                           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                                             {bt != null && (
                                               <div>
@@ -1406,7 +1406,7 @@ export default function Charts() {
                                 })}
                                 style={{ marginTop: 6, fontSize: 10, color: 'var(--text2)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 4 }}
                               >
-                                {isOpen ? '▲' : '▼'} Пояснення
+                                {isOpen ? '▲' : '▼'} Explanation
                               </button>
                               {isOpen && (
                                 <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text2)', lineHeight: 1.5, background: 'var(--surface)', borderRadius: 6, padding: '8px 10px' }}>
@@ -1424,12 +1424,12 @@ export default function Charts() {
                 {/* Live deviation in Stress */}
                 {lastLvEq != null && lastBTEq != null && (
                   <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', marginBottom: 20 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 8, color: LIVE_COLOR }}>Live відхилення</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 8, color: LIVE_COLOR }}>Live Deviation</div>
                     <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                       <div>
                         <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Live R</div>
                         <div className="mono" style={{ color: LIVE_COLOR, fontSize: 16, fontWeight: 700 }}>{lastLvEq.toFixed(2)}</div>
-                        <div style={{ fontSize: 9, color: '#555', marginTop: 2 }}>{lvEq.length} угод</div>
+                        <div style={{ fontSize: 9, color: '#555', marginTop: 2 }}>{lvEq.length} trades</div>
                       </div>
                       {lastBTEq !== 0 && (() => {
                         const d = lastLvEq - lastBTEq;
@@ -1437,7 +1437,7 @@ export default function Charts() {
                         const col = d >= 0 ? '#4ade80' : '#f87171';
                         return (
                           <div>
-                            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs Бектест</div>
+                            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs Backtest</div>
                             <div className="mono" style={{ color: col }}>{p >= 0 ? '+' : ''}{p.toFixed(1)}%</div>
                             <div style={{ fontSize: 10, color: col, marginTop: 2 }}>{d >= 0 ? '+' : ''}{d.toFixed(2)}R</div>
                           </div>
@@ -1460,7 +1460,7 @@ export default function Charts() {
                           <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>MC p5–p95</div>
                           <div style={{ fontSize: 11, color: MC_BAND_COLOR }}>[{p5AtLivePos.toFixed(2)} — {p95AtLivePos.toFixed(2)}]</div>
                           <div style={{ fontSize: 11, fontWeight: 700, marginTop: 2, color: lastLvEq >= p5AtLivePos && lastLvEq <= p95AtLivePos ? '#4ade80' : '#f87171' }}>
-                            {lastLvEq >= p5AtLivePos && lastLvEq <= p95AtLivePos ? '✓ У нормі' : lastLvEq < p5AtLivePos ? '✗ Нижче p5' : '✗ Вище p95'}
+                            {lastLvEq >= p5AtLivePos && lastLvEq <= p95AtLivePos ? '✓ In range' : lastLvEq < p5AtLivePos ? '✗ Below p5' : '✗ Above p95'}
                           </div>
                         </div>
                       )}
@@ -1538,49 +1538,49 @@ export default function Charts() {
                   {
                     label: 'Loss Amplification',
                     value: `×${stressParams.lossAmp.toFixed(2)}`,
-                    desc: stressParams.lossAmp === 1 ? 'без змін' : `кожен збиток збільшений на ${((stressParams.lossAmp - 1) * 100).toFixed(0)}%`,
+                    desc: stressParams.lossAmp === 1 ? 'no change' : `each loss increased by ${((stressParams.lossAmp - 1) * 100).toFixed(0)}%`,
                     impact: -n * (1 - wr) * lossPerTrade * (stressParams.lossAmp - 1),
                   },
                   {
                     label: 'Win Reduction',
                     value: `×${stressParams.winReduction.toFixed(2)}`,
-                    desc: stressParams.winReduction === 1 ? 'без змін' : `виграші зменшені на ${((1 - stressParams.winReduction) * 100).toFixed(0)}%`,
+                    desc: stressParams.winReduction === 1 ? 'no change' : `wins reduced by ${((1 - stressParams.winReduction) * 100).toFixed(0)}%`,
                     impact: -n * wr * rr * (1 - stressParams.winReduction),
                   },
                   {
                     label: 'WR Degradation',
                     value: `${(stressParams.wrDegradation * 100).toFixed(0)}%`,
-                    desc: stressParams.wrDegradation === 0 ? 'без змін' : `${(stressParams.wrDegradation * 100).toFixed(0)}% виграшів конвертовано в збитки`,
+                    desc: stressParams.wrDegradation === 0 ? 'no change' : `${(stressParams.wrDegradation * 100).toFixed(0)}% of wins converted to losses`,
                     impact: -n * wr * stressParams.wrDegradation * (rr + lossPerTrade),
                   },
                   {
                     label: 'Execution Slippage',
                     value: `−${stressParams.slippage.toFixed(2)}R`,
-                    desc: stressParams.slippage === 0 ? 'без змін' : `−${stressParams.slippage.toFixed(2)}R з кожного трейду`,
+                    desc: stressParams.slippage === 0 ? 'no change' : `−${stressParams.slippage.toFixed(2)}R per trade`,
                     impact: -n * stressParams.slippage,
                   },
                   {
                     label: 'Human Error',
                     value: `${(stressParams.humanError * 100).toFixed(1)}%`,
-                    desc: stressParams.humanError === 0 ? 'без змін' : `${(stressParams.humanError * 100).toFixed(1)}% трейдів стають −1R через помилку`,
+                    desc: stressParams.humanError === 0 ? 'no change' : `${(stressParams.humanError * 100).toFixed(1)}% of trades become −1R due to error`,
                     impact: -n * stressParams.humanError * wr * (rr + lossPerTrade),
                   },
                   {
                     label: 'Fatigue Decay',
                     value: `−${(stressParams.fatigue * 100).toFixed(0)}%`,
-                    desc: stressParams.fatigue === 0 ? 'без змін' : `кожен виграш зменшується на ${(stressParams.fatigue * 100).toFixed(0)}% через втому`,
+                    desc: stressParams.fatigue === 0 ? 'no change' : `each win reduced by ${(stressParams.fatigue * 100).toFixed(0)}% due to fatigue`,
                     impact: -n * wr * rr * stressParams.fatigue,
                   },
                   {
                     label: 'Bad Slip',
                     value: `${(stressParams.badSlipProb * 100).toFixed(0)}% × ${stressParams.badSlipMult.toFixed(1)}×`,
-                    desc: stressParams.badSlipProb === 0 || stressParams.badSlipMult === 1 ? 'без змін' : `${(stressParams.badSlipProb * 100).toFixed(0)}% збиткових угод збільшені в ${stressParams.badSlipMult.toFixed(1)}×`,
+                    desc: stressParams.badSlipProb === 0 || stressParams.badSlipMult === 1 ? 'no change' : `${(stressParams.badSlipProb * 100).toFixed(0)}% of losing trades multiplied by ${stressParams.badSlipMult.toFixed(1)}×`,
                     impact: -n * (1 - wr) * lossPerTrade * stressParams.badSlipProb * (stressParams.badSlipMult - 1),
                   },
                   {
                     label: 'Missed Win',
                     value: `${(stressParams.missedWin * 100).toFixed(0)}%`,
-                    desc: stressParams.missedWin === 0 ? 'без змін' : `${(stressParams.missedWin * 100).toFixed(0)}% виграшів пропускається (стає 0R)`,
+                    desc: stressParams.missedWin === 0 ? 'no change' : `${(stressParams.missedWin * 100).toFixed(0)}% of wins missed (become 0R)`,
                     impact: -n * wr * rr * stressParams.missedWin,
                   },
                 ];
@@ -1594,17 +1594,17 @@ export default function Charts() {
                   <div style={{ marginTop: 20, padding: '14px 16px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                       <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1 }}>
-                        Вплив факторів на результат
+                        Factor impact on results
                       </div>
                       {totalImpact !== 0 && (
                         <div style={{ fontSize: 11, color: '#f87171', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                          Загальний вплив: {totalImpact.toFixed(1)}R
+                          Total impact: {totalImpact.toFixed(1)}R
                         </div>
                       )}
                     </div>
 
                     {activeCount === 0 ? (
-                      <div style={{ fontSize: 11, color: 'var(--text2)' }}>Всі параметри за замовчуванням — вплив відсутній</div>
+                      <div style={{ fontSize: 11, color: 'var(--text2)' }}>All parameters at default — no impact</div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {sorted.map(row => {
@@ -1643,19 +1643,19 @@ export default function Charts() {
                           );
                         })}
                         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 4, display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-                          <span style={{ color: 'var(--text2)' }}>Розрахункове відхилення від базової equity</span>
+                          <span style={{ color: 'var(--text2)' }}>Estimated deviation from base equity</span>
                           <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: totalImpact < 0 ? '#f87171' : '#4ade80' }}>
                             {totalImpact >= 0 ? '+' : ''}{totalImpact.toFixed(1)}R
                           </span>
                         </div>
                         <div style={{ fontSize: 9, color: '#4b5563', marginTop: 2 }}>
-                          * Аналітична оцінка ізольованого впливу кожного фактора. Сума може відрізнятись від MC через взаємодію факторів.
+                          * Analytical estimate of isolated impact per factor. Sum may differ from MC due to factor interactions.
                         </div>
                       </div>
                     )}
 
                     <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 12 }}>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Параметри</div>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Parameters</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                         {impacts.map(row => (
                           <div key={row.label} style={{ display: 'flex', gap: 8, fontSize: 10, lineHeight: 1.5 }}>
@@ -1667,7 +1667,7 @@ export default function Charts() {
                         <div style={{ display: 'flex', gap: 8, fontSize: 10 }}>
                           <span style={{ color: 'var(--text2)', minWidth: 150 }}>Survival Threshold:</span>
                           <span style={{ color: 'var(--text)', fontWeight: 600 }}>{stressParams.survivalThreshold}R</span>
-                          <span style={{ color: 'var(--text2)' }}>— рахунок вважається зламаним при просадці &gt;{stressParams.survivalThreshold}R</span>
+                          <span style={{ color: 'var(--text2)' }}>— account considered blown at drawdown &gt;{stressParams.survivalThreshold}R</span>
                         </div>
                       </div>
                     </div>
@@ -1702,23 +1702,23 @@ export default function Charts() {
                 }[] = [
                   {
                     key: 'return',
-                    label: 'Загальний R',
+                    label: 'Total R',
                     liveVal: lvTotalR,
                     higherIsBetter: true,
-                    explain: 'Сумарний прибуток у одиницях ризику (R). Показує масштаб результату відносно розміру ризику на угоду.',
+                    explain: 'Total profit in risk units (R). Shows the scale of outcome relative to risk per trade.',
                     deviationLabel: (dev, lv, med) => dev >= 0
-                      ? `+${dev.toFixed(2)}R вище медіани MC`
-                      : `${dev.toFixed(2)}R нижче медіани MC`,
+                      ? `+${dev.toFixed(2)}R above MC median`
+                      : `${dev.toFixed(2)}R below MC median`,
                   },
                   {
                     key: 'drawdown',
-                    label: 'Макс просадка',
+                    label: 'Max Drawdown',
                     liveVal: lvMaxDD,
                     higherIsBetter: false,
-                    explain: 'Найбільше падіння капіталу від піку до дна (у R). Менше — краще. Критичний індикатор стійкості системи.',
+                    explain: 'Largest equity drop from peak to trough (in R). Lower is better. Critical indicator of system robustness.',
                     deviationLabel: (dev, lv, med) => dev <= 0
-                      ? `${Math.abs(dev).toFixed(2)}R менше медіани — просадка в нормі`
-                      : `+${dev.toFixed(2)}R більше медіани — просадка перевищена`,
+                      ? `${Math.abs(dev).toFixed(2)}R below median — drawdown normal`
+                      : `+${dev.toFixed(2)}R above median — drawdown exceeded`,
                   },
                   {
                     key: 'wr',
@@ -1726,10 +1726,10 @@ export default function Charts() {
                     liveVal: lvWR,
                     higherIsBetter: true,
                     pct: true,
-                    explain: 'Відсоток прибуткових угод від загальної кількості. Важливо порівнювати з бектестом — великий розрив може вказувати на вибіркове виконання.',
+                    explain: 'Percentage of winning trades. Compare with backtest — a large gap may indicate selective execution.',
                     deviationLabel: (dev, lv, med) => {
                       const pDev = (dev * 100).toFixed(1);
-                      return dev >= 0 ? `+${pDev}% вище медіани MC` : `${pDev}% нижче медіани MC`;
+                      return dev >= 0 ? `+${pDev}% above MC median` : `${pDev}% below MC median`;
                     },
                   },
                   {
@@ -1737,20 +1737,20 @@ export default function Charts() {
                     label: 'SQN',
                     liveVal: lvSQN,
                     higherIsBetter: true,
-                    explain: 'System Quality Number — якість системи. >2 = прийнятно, >3 = добре, >5 = відмінно. Враховує і дохідність, і стабільність.',
+                    explain: 'System Quality Number — system quality. >2 = acceptable, >3 = good, >5 = excellent. Accounts for both profitability and consistency.',
                     deviationLabel: (dev, lv, med) => dev >= 0
-                      ? `+${dev.toFixed(2)} вище медіани — система стабільна`
-                      : `${dev.toFixed(2)} нижче медіани — якість знижена`,
+                      ? `+${dev.toFixed(2)} above median — system stable`
+                      : `${dev.toFixed(2)} below median — quality degraded`,
                   },
                   {
                     key: 'streak',
-                    label: 'Серія збитків',
+                    label: 'Loss Streak',
                     liveVal: lvStreak,
                     higherIsBetter: false,
-                    explain: 'Максимальна послідовна серія збиткових угод. Менше — краще. Якщо live перевищує p75 MC — сигнал до перегляду параметрів ризику.',
+                    explain: 'Maximum consecutive losing streak. Lower is better. If live exceeds MC p75 — review risk parameters.',
                     deviationLabel: (dev, lv, med) => dev <= 0
-                      ? `${Math.abs(Math.round(dev))} угод менше медіани — в нормі`
-                      : `+${Math.round(dev)} угод понад медіану — тривожний сигнал`,
+                      ? `${Math.abs(Math.round(dev))} trades below median — normal`
+                      : `+${Math.round(dev)} trades above median — warning signal`,
                   },
                 ];
 
@@ -1787,7 +1787,7 @@ export default function Charts() {
                   const inBox    = liveVal >= box.p25 && liveVal <= box.p75;
                   const aboveBox = higherIsBetter ? liveVal > box.p75 : liveVal < box.p25;
                   const dotColor = inBox ? '#facc15' : aboveBox ? '#4ade80' : '#f87171';
-                  const statusLabel = inBox ? 'В нормі' : aboveBox ? (higherIsBetter ? 'Вище норми' : 'Краще норми') : (higherIsBetter ? 'Нижче норми' : 'Перевищено');
+                  const statusLabel = inBox ? 'Normal' : aboveBox ? (higherIsBetter ? 'Above range' : 'Better than range') : (higherIsBetter ? 'Below range' : 'Exceeded');
 
                   const dev = liveVal - box.med;
                   const devLabel = meta.deviationLabel(dev, liveVal, box.med);
@@ -1896,11 +1896,11 @@ export default function Charts() {
                           <span style={{ color: 'var(--text)', fontWeight: 700, fontFamily: 'monospace' }}>{fmt(liveVal)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                          <span style={{ color: 'var(--text2)' }}>Медіана MC</span>
+                          <span style={{ color: 'var(--text2)' }}>MC Median</span>
                           <span style={{ color: 'var(--text)', fontFamily: 'monospace' }}>{fmt(box.med)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                          <span style={{ color: 'var(--text2)' }}>Діапазон (p25–p75)</span>
+                          <span style={{ color: 'var(--text2)' }}>Range (p25–p75)</span>
                           <span style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{fmt(box.p25)} – {fmt(box.p75)}</span>
                         </div>
                       </div>
@@ -1921,7 +1921,7 @@ export default function Charts() {
                         onClick={() => toggleScf(explainKey)}
                         style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 8px', cursor: 'pointer', textAlign: 'left', width: '100%' }}
                       >
-                        <span style={{ fontSize: 9, color: 'var(--text2)' }}>{explainOpen ? '▲' : '▼'} Пояснення</span>
+                        <span style={{ fontSize: 9, color: 'var(--text2)' }}>{explainOpen ? '▲' : '▼'} Explanation</span>
                       </button>
                       {explainOpen && (
                         <div style={{ fontSize: 10, color: 'var(--text2)', lineHeight: 1.55, borderTop: '1px solid var(--border)', paddingTop: 6 }}>
@@ -1941,13 +1941,13 @@ export default function Charts() {
                               onClick={() => { toggleScf(impactKey); fetchImpact(); }}
                               style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 8px', cursor: 'pointer', textAlign: 'left', width: '100%' }}
                             >
-                              <span style={{ fontSize: 9, color: 'var(--text2)' }}>{impactOpen ? '▲' : '▼'} Які фактори впливали</span>
+                              <span style={{ fontSize: 9, color: 'var(--text2)' }}>{impactOpen ? '▲' : '▼'} Which factors had impact</span>
                             </button>
                             {impactOpen && (
                               <div style={{ fontSize: 10, color: 'var(--text2)', borderTop: '1px solid var(--border)', paddingTop: 6 }}>
-                                {impactLoading && <div style={{ color: 'var(--text2)', fontStyle: 'italic' }}>Розраховую...</div>}
+                                {impactLoading && <div style={{ color: 'var(--text2)', fontStyle: 'italic' }}>Calculating...</div>}
                                 {!impactLoading && metricImpact.length === 0 && (
-                                  <div style={{ fontStyle: 'italic' }}>Усі фактори нейтральні</div>
+                                  <div style={{ fontStyle: 'italic' }}>All factors are neutral</div>
                                 )}
                                 {!impactLoading && metricImpact.map(f => (
                                   <div key={f.key} style={{ marginBottom: 5 }}>
@@ -1995,26 +1995,26 @@ export default function Charts() {
                         Statistical Control Framework
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.6, maxWidth: 720 }}>
-                        Порівняння показників живої торгівлі з діапазоном результатів MC-симуляцій.
-                        Допомагає виявити, які метрики відхиляються від очікуваного — і через які стрес-фактори.
+                        Comparing live trading metrics against MC simulation result range.
+                        Helps identify which metrics deviate from expected — and which stress factors cause it.
                       </div>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
                       {mcBoxStats && (
-                        <MetricRow box={mcBoxStats} rowLabel="MC Normal — без стрес-факторів" rowKey="normal" />
+                        <MetricRow box={mcBoxStats} rowLabel="MC Normal — no stress factors" rowKey="normal" />
                       )}
                       {stressData?.stressBoxStats && (
-                        <MetricRow box={stressData.stressBoxStats} rowLabel="MC Stress — зі стрес-факторами" rowKey="stress" />
+                        <MetricRow box={stressData.stressBoxStats} rowLabel="MC Stress — with stress factors" rowKey="stress" />
                       )}
                     </div>
 
                     {/* legend */}
                     <div style={{ display: 'flex', gap: 20, marginTop: 18, flexWrap: 'wrap', alignItems: 'center' }}>
                       {[
-                        { color: '#4ade80', label: 'Краще очікуваного' },
-                        { color: '#facc15', label: 'В межах норми (25–75%)' },
-                        { color: '#f87171', label: 'Нижче очікуваного' },
+                        { color: '#4ade80', label: 'Better than expected' },
+                        { color: '#facc15', label: 'Within range (25–75%)' },
+                        { color: '#f87171', label: 'Below expected' },
                       ].map(({ color, label }) => (
                         <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--text2)' }}>
                           <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, display: 'inline-block' }} />
@@ -2023,11 +2023,11 @@ export default function Charts() {
                       ))}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--text2)' }}>
                         <svg width={24} height={8}><line x1={0} y1={4} x2={24} y2={4} stroke="rgba(255,255,255,0.18)" strokeWidth={1} strokeDasharray="3,3" /></svg>
-                        Медіана MC
+                        MC Median
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--text2)' }}>
                         <svg width={24} height={8}><rect x={0} y={2} width={24} height={4} fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.1)" strokeWidth={1} rx={1} /></svg>
-                        Зона 25–75%
+                        Zone 25–75%
                       </div>
                     </div>
                   </div>
