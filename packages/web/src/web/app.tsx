@@ -68,6 +68,8 @@ function useAccessCheck(session: Session | null) {
       try {
         const res = await fetch(`/api/auth/access/${session.id}`);
         const data = await res.json();
+        // Admin always gets access regardless of stored session role
+        if (data.role === 'admin') { setHasAccess(true); return; }
         setHasAccess(!!data.hasAccess);
         // schedule re-check if trial is still active
         if (data.hasAccess && data.trialEndsAt) {

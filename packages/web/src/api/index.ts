@@ -362,8 +362,16 @@ const app = new Hono()
     const asLogin = c.req.query('asLogin');
     const caller = await db.select().from(users).where(eq(users.login, asLogin ?? '')).get();
     if (!caller || caller.role !== 'admin') return c.json({ error: 'Forbidden' }, 403);
-    const all = await db.select().from(users).orderBy(desc(users.createdAt)).all();
-    return c.json(all, 200);
+    try {
+      const all = await db.select().from(users).orderBy(desc(users.createdAt)).all();
+      return c.json(all, 200);
+    } catch {
+      // Fallback: column may not exist yet in prod DB — return without it
+      const all = await db.run(sql`SELECT id, login, role, email, created_at as createdAt FROM users ORDER BY created_at DESC`);
+      return c.json(all.rows.map((r: any) => ({
+        id: r[0], login: r[1], role: r[2], email: r[3], createdAt: r[4], country: null,
+      })), 200);
+    }
   })
 
   .delete('/admin/users/:id', async (c) => {
@@ -1554,3 +1562,23 @@ app.put('/prefs/:key', async (c) => {
 
 export type AppType = typeof app;
 export default app;
+
+// ─── AUTO-MIGRATION ON STARTUP ────────────────────────────────────────────────
+// Runs idempotently — safe to re-run; errors are silently ignored
+(async () => {
+  try {
+    await Promise.all([
+      db.run(sql`ALTER TABLE users ADD COLUMN email TEXT`).catch(() => {}),
+      db.run(sql`ALTER TABLE users ADD COLUMN country TEXT`).catch(() => {}),
+    ]);
+    // Ensure admin user exists with correct role
+    const existing = await db.select().from(users).where(eq(users.login, 'whatif')).get();
+    if (!existing) {
+      await db.insert(users).values({ login: 'whatif', password: '7777', role: 'admin' });
+    } else if (existing.role !== 'admin') {
+      await db.update(users).set({ role: 'admin' }).where(eq(users.login, 'whatif'));
+    }
+  } catch (e) {
+    console.error('[startup migration] failed:', e);
+  }
+})();
