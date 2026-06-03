@@ -867,6 +867,173 @@ const app = new Hono()
     }
   )
 
+  // ─── MC STRESS FACTOR IMPACT ───────────────────────────────────────────────
+  .post('/mc-stress-impact',
+    zValidator('json', z.object({
+      lossAmp:          z.number().min(1).max(3).default(1),
+      winReduction:     z.number().min(0.3).max(1).default(1),
+      wrDegradation:    z.number().min(0).max(0.5).default(0),
+      slippage:         z.number().min(0).max(0.5).default(0),
+      humanError:       z.number().min(0).max(0.2).default(0),
+      fatigue:          z.number().min(0).max(0.5).default(0),
+      badSlipProb:      z.number().min(0).max(0.5).default(0),
+      badSlipMult:      z.number().min(1).max(3).default(1),
+      missedWin:        z.number().min(0).max(0.5).default(0),
+      survivalThreshold:z.number().min(1).max(100).default(20),
+    })),
+    async (c) => {
+      const params = c.req.valid('json');
+      const uid = Number(c.req.query('userId') ?? 0);
+      const bt = await db.select().from(backtestTrades).where(eq(backtestTrades.userId, uid)).orderBy(asc(backtestTrades.id)).all();
+      if (!bt.length) return c.json({ error: 'no data' }, 400);
+
+      const btNetRArr = bt.map(t => t.netR ?? 0);
+      const btIsTP    = bt.map(t => t.result === 'tp');
+      const N_TRADES_MC = bt.length;
+      const N_SIM_IMPACT = 500;
+
+      const rng = (seed: number) => {
+        let s = seed;
+        return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
+      };
+
+      const pctOf = (arr: number[], p: number) => {
+        const s = arr.slice().sort((a, b) => a - b);
+        return s[Math.floor(s.length * p)] ?? 0;
+      };
+
+      // Run one isolated simulation set and return median of all 5 metrics
+      const runSim = (p: typeof params, seed: number) => {
+        const rand = rng(seed);
+        const finalEqs: number[] = [];
+        const maxDDs: number[]   = [];
+        const sqns: number[]     = [];
+        const wrs: number[]      = [];
+        const streaks: number[]  = [];
+
+        for (let si = 0; si < N_SIM_IMPACT; si++) {
+          let acc = 0, peak = 0, maxDD = 0;
+          const netArr: number[] = [];
+
+          for (let j = 0; j < N_TRADES_MC; j++) {
+            let idx = Math.floor(rand() * btNetRArr.length);
+            let netR = btNetRArr[idx];
+            let isTP = btIsTP[idx];
+
+            if (isTP && p.wrDegradation > 0 && rand() < p.wrDegradation) {
+              const losers = btNetRArr.map((r, i) => r < 0 ? i : -1).filter(i => i >= 0);
+              if (losers.length > 0) { idx = losers[Math.floor(rand() * losers.length)]; netR = btNetRArr[idx]; isTP = false; }
+            }
+            if (p.humanError > 0 && rand() < p.humanError) { netR = -1; isTP = false; }
+            if (!isTP && netR < 0) {
+              netR = netR * p.lossAmp;
+              if (p.badSlipProb > 0 && rand() < p.badSlipProb) netR = netR * p.badSlipMult;
+            }
+            if (isTP && netR > 0) {
+              netR = netR * p.winReduction;
+              if (p.fatigue > 0) netR = netR * (1 - p.fatigue);
+              if (p.missedWin > 0 && rand() < p.missedWin) netR = 0;
+            }
+            netR = netR - p.slippage;
+
+            acc += netR;
+            netArr.push(netR);
+            if (acc > peak) peak = acc;
+            const dd = peak - acc;
+            if (dd > maxDD) maxDD = dd;
+          }
+
+          finalEqs.push(acc);
+          maxDDs.push(maxDD);
+
+          const mean = netArr.reduce((a, b) => a + b, 0) / netArr.length;
+          const variance = netArr.reduce((a, r) => a + (r - mean) ** 2, 0) / netArr.length;
+          const std = Math.sqrt(variance);
+          sqns.push(std > 0 ? Math.sqrt(netArr.length) * mean / std : 0);
+
+          let strkMax = 0, strkCur = 0, wins = 0;
+          for (const r of netArr) { if (r < 0) { strkCur++; if (strkCur > strkMax) strkMax = strkCur; } else strkCur = 0; if (r > 0) wins++; }
+          wrs.push(wins / netArr.length);
+          streaks.push(strkMax);
+        }
+
+        return {
+          return:   pctOf(finalEqs, 0.50),
+          drawdown: pctOf(maxDDs,   0.50),
+          sqn:      pctOf(sqns,     0.50),
+          wr:       pctOf(wrs,      0.50),
+          streak:   pctOf(streaks,  0.50),
+        };
+      };
+
+      // Neutral baseline (all factors off)
+      const neutral: typeof params = {
+        lossAmp: 1, winReduction: 1, wrDegradation: 0, slippage: 0,
+        humanError: 0, fatigue: 0, badSlipProb: 0, badSlipMult: 1,
+        missedWin: 0, survivalThreshold: params.survivalThreshold,
+      };
+
+      const baseline = runSim(neutral, 42);
+
+      // Factors that can be non-neutral
+      const FACTORS: { key: string; label: string; apply: (p: typeof params) => Partial<typeof params> }[] = [
+        { key: 'lossAmp',       label: 'Ампліфікація збитків', apply: p => ({ lossAmp: p.lossAmp }) },
+        { key: 'winReduction',  label: 'Зменшення прибутку',   apply: p => ({ winReduction: p.winReduction }) },
+        { key: 'wrDegradation', label: 'WR деградація',        apply: p => ({ wrDegradation: p.wrDegradation }) },
+        { key: 'slippage',      label: 'Слипейдж',             apply: p => ({ slippage: p.slippage }) },
+        { key: 'humanError',    label: 'Людська помилка',       apply: p => ({ humanError: p.humanError }) },
+        { key: 'fatigue',       label: 'Втома',                 apply: p => ({ fatigue: p.fatigue }) },
+        { key: 'badSlipProb',   label: 'Екстремальний слип',    apply: p => ({ badSlipProb: p.badSlipProb, badSlipMult: p.badSlipMult }) },
+        { key: 'missedWin',     label: 'Пропущені угоди',       apply: p => ({ missedWin: p.missedWin }) },
+      ];
+
+      // Only run factors that are actually active (non-neutral)
+      const isActive = (key: string): boolean => {
+        if (key === 'lossAmp')       return params.lossAmp > 1;
+        if (key === 'winReduction')  return params.winReduction < 1;
+        if (key === 'wrDegradation') return params.wrDegradation > 0;
+        if (key === 'slippage')      return params.slippage > 0;
+        if (key === 'humanError')    return params.humanError > 0;
+        if (key === 'fatigue')       return params.fatigue > 0;
+        if (key === 'badSlipProb')   return params.badSlipProb > 0;
+        if (key === 'missedWin')     return params.missedWin > 0;
+        return false;
+      };
+
+      const activeFactors = FACTORS.filter(f => isActive(f.key));
+
+      // Impact per factor per metric
+      type MetricKey = 'return' | 'drawdown' | 'sqn' | 'wr' | 'streak';
+      const METRICS: MetricKey[] = ['return', 'drawdown', 'sqn', 'wr', 'streak'];
+
+      const factorResults = activeFactors.map((f, i) => {
+        const p = { ...neutral, ...f.apply(params) };
+        const res = runSim(p, 100 + i * 17);
+        return { key: f.key, label: f.label, res };
+      });
+
+      // For each metric: compute |delta| per factor, normalize to %
+      const impact: Record<MetricKey, { key: string; label: string; pct: number; delta: number }[]> = {
+        return: [], drawdown: [], sqn: [], wr: [], streak: [],
+      };
+
+      for (const metric of METRICS) {
+        const deltas = factorResults.map(f => ({
+          key: f.key,
+          label: f.label,
+          delta: f.res[metric] - baseline[metric],
+        }));
+        const totalAbs = deltas.reduce((s, d) => s + Math.abs(d.delta), 0) || 1;
+        impact[metric] = deltas
+          .map(d => ({ ...d, pct: Math.round(Math.abs(d.delta) / totalAbs * 100) }))
+          .filter(d => d.pct > 0)
+          .sort((a, b) => b.pct - a.pct);
+      }
+
+      return c.json({ impact, baseline }, 200);
+    }
+  )
+
   // ─── LIVE TRADES ──────────────────────────────────────────────────────────
   .get('/live-trades', async (c) => {
     const uid = Number(c.req.query('userId') ?? 0);

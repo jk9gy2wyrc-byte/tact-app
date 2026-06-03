@@ -417,6 +417,25 @@ export default function Charts() {
   const [scfOpen, setScfOpen] = useState<Set<string>>(new Set());
   const toggleScf = (k: string) => setScfOpen(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
 
+  type ImpactEntry = { key: string; label: string; pct: number; delta: number };
+  type ImpactResult = { impact: Record<string, ImpactEntry[]>; baseline: Record<string, number> };
+  const [impactData, setImpactData] = useState<ImpactResult | null>(null);
+  const [impactLoading, setImpactLoading] = useState(false);
+  const fetchImpact = async () => {
+    if (impactData || impactLoading) return;
+    setImpactLoading(true);
+    try {
+      const res = await fetch(`/api/mc-stress-impact${uidParam()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(stressParams),
+      });
+      if (res.ok) setImpactData(await res.json());
+    } finally {
+      setImpactLoading(false);
+    }
+  };
+
   // Load saved combos from DB on mount
   useEffect(() => {
     fetch(`/api/prefs/stressCombos${uidParam()}`)
@@ -1909,6 +1928,43 @@ export default function Charts() {
                           {meta.explain}
                         </div>
                       )}
+
+                      {/* ─ factor impact (stress row only) ─ */}
+                      {rowKey === 'stress' && (() => {
+                        const impactKey = `fscf_impact_${meta.key}`;
+                        const impactOpen = scfOpen.has(impactKey);
+                        const metricImpact: { key: string; label: string; pct: number; delta: number }[] =
+                          (impactData?.impact as Record<string, { key: string; label: string; pct: number; delta: number }[]> | undefined)?.[meta.key] ?? [];
+                        return (
+                          <>
+                            <button
+                              onClick={() => { toggleScf(impactKey); fetchImpact(); }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 8px', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+                            >
+                              <span style={{ fontSize: 9, color: 'var(--text2)' }}>{impactOpen ? '▲' : '▼'} Які фактори впливали</span>
+                            </button>
+                            {impactOpen && (
+                              <div style={{ fontSize: 10, color: 'var(--text2)', borderTop: '1px solid var(--border)', paddingTop: 6 }}>
+                                {impactLoading && <div style={{ color: 'var(--text2)', fontStyle: 'italic' }}>Розраховую...</div>}
+                                {!impactLoading && metricImpact.length === 0 && (
+                                  <div style={{ fontStyle: 'italic' }}>Усі фактори нейтральні</div>
+                                )}
+                                {!impactLoading && metricImpact.map(f => (
+                                  <div key={f.key} style={{ marginBottom: 5 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                                      <span>{f.label}</span>
+                                      <span style={{ fontFamily: 'monospace', color: 'var(--text)', fontWeight: 600 }}>{f.pct}%</span>
+                                    </div>
+                                    <div style={{ background: 'var(--bg)', borderRadius: 3, height: 4, overflow: 'hidden' }}>
+                                      <div style={{ width: `${f.pct}%`, height: '100%', background: '#f87171', borderRadius: 3 }} />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   );
                 };
@@ -1923,7 +1979,7 @@ export default function Charts() {
                     <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
                       {rowLabel}
                     </div>
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start' }}>
                       {METRICS.map(m => (
                         <MetricCard key={m.key} meta={m} box={box[m.key]} rowKey={rowKey} />
                       ))}
