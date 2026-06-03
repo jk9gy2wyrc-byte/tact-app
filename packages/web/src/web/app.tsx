@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
 import { Route, Switch, Link, useRoute, useLocation } from "wouter";
 import Dashboard from "./pages/dashboard";
@@ -330,6 +330,46 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
   );
 }
 
+// ─── ANIMATED PAGE WRAPPER ───────────────────────────────────────────────────
+function PageTransition({ children, routeKey }: { children: React.ReactNode; routeKey: string }) {
+  const [visible, setVisible] = useState(false);
+  const [displayKey, setDisplayKey] = useState(routeKey);
+  const [content, setContent] = useState(children);
+  const prevKey = useRef(routeKey);
+
+  useLayoutEffect(() => {
+    if (routeKey === prevKey.current) {
+      setVisible(true);
+      return;
+    }
+    // fade out
+    setVisible(false);
+    const t = setTimeout(() => {
+      prevKey.current = routeKey;
+      setDisplayKey(routeKey);
+      setContent(children);
+      // fade in on next frame
+      requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
+    }, 150);
+    return () => clearTimeout(t);
+  }, [routeKey]);
+
+  // keep content updated when same route re-renders
+  useEffect(() => {
+    if (routeKey === prevKey.current) setContent(children);
+  }, [children, routeKey]);
+
+  return (
+    <div key={displayKey} style={{
+      opacity: visible ? 1 : 0,
+      transition: 'opacity 0.18s ease',
+      minHeight: '100%',
+    }}>
+      {content}
+    </div>
+  );
+}
+
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [session, setSessionState] = useState<Session | null>(() => getSession());
@@ -337,6 +377,7 @@ export default function App() {
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const isMobile = useIsMobile();
   const hasAccess = useAccessCheck(session);
+  const [location] = useLocation();
 
   useEffect(() => { fetch('/api/auth/seed').catch(() => {}); }, []);
   useEffect(() => { if (!isMobile) setDrawerOpen(false); }, [isMobile]);
@@ -443,6 +484,7 @@ export default function App() {
         marginTop: isMobile ? 48 : 0,
         flex: 1, minHeight: '100vh', background: 'var(--bg)',
       }}>
+        <PageTransition routeKey={location}>
         <Switch>
           <Route path="/">
             {hasAccess === false
@@ -473,6 +515,7 @@ export default function App() {
           )}
           <Route path="/subscription" component={Subscription} />
         </Switch>
+        </PageTransition>
       </main>
 
       {editProfileOpen && (
