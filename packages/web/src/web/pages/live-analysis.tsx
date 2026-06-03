@@ -250,7 +250,7 @@ function CompareView({ allTrades, monthA, monthB, onClose, isMobile }: {
     const d = ((b - a) / Math.abs(a)) * 100;
     return (d >= 0 ? "+" : "") + d.toFixed(1) + "%";
   };
-  const deltaColor = (d: string) => d.startsWith("+") ? "#7eb8f7" : d === "0" || d === "0.0%" || d === "+0.0%" ? "#666" : "#f0a070";
+  const deltaColor = (d: string) => d === "—" ? "#666" : d.startsWith("+") ? "#7eb8f7" : d === "0" || d === "0.0%" || d === "+0.0%" ? "#666" : "#f0a070";
 
   // Stat row: fixed columns — metric | A | B | delta
   function Row({ label, vA, vB, delta, cA, cB, cD }: {
@@ -383,7 +383,12 @@ function CompareView({ allTrades, monthA, monthB, onClose, isMobile }: {
           <Row label="Profit Factor"
             vA={pfFmt(sA.profitFactor)} vB={pfFmt(sB.profitFactor)}
             cA={sA.profitFactor >= 1 ? "#7eb8f7" : "#f0a070"} cB={sB.profitFactor >= 1 ? "#7eb8f7" : "#f0a070"}
-            delta={pctDelta(sB.profitFactor === Infinity ? 9999 : sB.profitFactor, sA.profitFactor === Infinity ? 9999 : sA.profitFactor)} />
+            delta={
+              sB.profitFactor === Infinity && sA.profitFactor === Infinity ? "0%"
+              : sB.profitFactor === Infinity ? "+∞"
+              : sA.profitFactor === Infinity ? "—"
+              : pctDelta(sB.profitFactor, sA.profitFactor)
+            } />
 
           <Row label="Max Drawdown"
             vA={`-${sA.maxDd.toFixed(2)}R`} vB={`-${sB.maxDd.toFixed(2)}R`}
