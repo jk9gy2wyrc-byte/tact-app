@@ -21,7 +21,7 @@ function TrialExpiredOverlay({ children }: { children: React.ReactNode }) {
         {children}
       </div>
       <div style={{
-        position: 'absolute', inset: 0,
+        position: 'fixed', inset: 0,
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         background: 'rgba(13,15,17,0.55)',
@@ -39,7 +39,7 @@ function TrialExpiredOverlay({ children }: { children: React.ReactNode }) {
           <button
             onClick={() => navigate('/subscription')}
             style={{
-              background: 'var(--primary)', color: '#fff',
+              background: '#4a4f5e', color: '#c0c4d0',
               border: 'none', borderRadius: 10,
               padding: '12px 32px', fontSize: 14, fontWeight: 600,
               cursor: 'pointer', letterSpacing: 0.2,
