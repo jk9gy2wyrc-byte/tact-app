@@ -163,6 +163,7 @@ const app = new Hono()
       db.run(sql`ALTER TABLE users ADD COLUMN email TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN country TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN ip TEXT`).catch(() => {}),
+      db.run(sql`ALTER TABLE users ADD COLUMN fp TEXT`).catch(() => {}),
     ]);
     // Ensure admin user exists with correct role
     const existing = await db.select().from(users).where(eq(users.login, 'whatif')).get();
@@ -1673,6 +1674,7 @@ export default app;
       db.run(sql`ALTER TABLE users ADD COLUMN email TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN country TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN ip TEXT`).catch(() => {}),
+      db.run(sql`ALTER TABLE users ADD COLUMN fp TEXT`).catch(() => {}),
     ]);
     // Ensure admin user exists with correct role
     const existing = await db.select().from(users).where(eq(users.login, 'whatif')).get();
