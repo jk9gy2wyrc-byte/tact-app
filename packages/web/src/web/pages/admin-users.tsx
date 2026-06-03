@@ -154,7 +154,7 @@ function RoleDropdown({
 }
 
 // ─── SVG Growth Chart ─────────────────────────────────────────────────────────
-function GrowthChart({ data }: { data: { date: string; total: number }[] }) {
+function GrowthChart({ data, labelRange }: { data: { date: string; total: number }[]; labelRange: string }) {
   const W = 800, H = 140, PL = 36, PR = 16, PT = 16, PB = 28;
   const w = W - PL - PR;
   const h = H - PT - PB;
@@ -164,7 +164,6 @@ function GrowthChart({ data }: { data: { date: string; total: number }[] }) {
   const toX = (i: number) => PL + (i / (data.length - 1)) * w;
   const toY = (v: number) => PT + h - ((v - minVal) / (maxVal - minVal)) * h;
 
-  // smooth bezier path
   const points = data.map((d, i) => ({ x: toX(i), y: toY(d.total) }));
   const path = points.reduce((acc, pt, i) => {
     if (i === 0) return `M ${pt.x},${pt.y}`;
@@ -174,11 +173,8 @@ function GrowthChart({ data }: { data: { date: string; total: number }[] }) {
   }, '');
   const fillPath = path + ` L ${points[points.length-1].x},${PT+h} L ${points[0].x},${PT+h} Z`;
 
-  // x-axis labels: show ~6 evenly spaced
   const step = Math.max(1, Math.floor(data.length / 6));
   const xLabels = data.filter((_, i) => i % step === 0 || i === data.length - 1);
-
-  // y-axis ticks: 0, mid, max
   const yTicks = [0, Math.round(maxVal / 2), maxVal].filter((v, i, a) => a.indexOf(v) === i);
 
   return (
@@ -186,8 +182,11 @@ function GrowthChart({ data }: { data: { date: string; total: number }[] }) {
       background: 'var(--surface)', border: '1px solid var(--border)',
       borderRadius: 12, padding: '16px 20px', marginBottom: 20,
     }}>
-      <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
-        User growth
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          User growth
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text3)' }}>{labelRange}</div>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block', overflow: 'visible' }}>
         <defs>
@@ -319,27 +318,27 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
   const regulars = users.filter((u) => u.role !== 'admin');
 
   // ─── build growth chart data ─────────────────────────────────────────────
-  const growthData = React.useMemo(() => {
-    if (!users.length) return [];
-    const sorted = [...users]
-      .filter(u => u.createdAt)
+  const growthMeta = React.useMemo(() => {
+    const sorted = users
+      .filter(u => u.createdAt && u.login !== OWNER_LOGIN)
       .sort((a, b) => new Date(a.createdAt!).getTime() - new Date(b.createdAt!).getTime());
-    if (!sorted.length) return [];
+    if (!sorted.length) return { data: [] as { date: string; total: number }[], range: '' };
 
     const first = new Date(sorted[0].createdAt!);
-    const last = new Date();
-    // build day buckets from first registration to today
+    const last = new Date(sorted[sorted.length - 1].createdAt!);
     const dayMs = 86400_000;
     const startDay = new Date(first.getFullYear(), first.getMonth(), first.getDate()).getTime();
     const endDay = new Date(last.getFullYear(), last.getMonth(), last.getDate()).getTime();
-    const days: { date: string; total: number }[] = [];
+    const data: { date: string; total: number }[] = [];
     for (let t = startDay; t <= endDay; t += dayMs) {
       const d = new Date(t);
       const label = d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' });
       const count = sorted.filter(u => new Date(u.createdAt!).getTime() <= t + dayMs - 1).length;
-      days.push({ date: label, total: count });
+      data.push({ date: label, total: count });
     }
-    return days;
+
+    const fmt = (dt: Date) => dt.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    return { data, range: `(from ${fmt(first)} to ${fmt(last)})` };
   }, [users]);
 
   return (
@@ -383,8 +382,8 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
           </div>
 
           {/* Growth chart */}
-          {growthData.length >= 2 && (
-            <GrowthChart data={growthData} />
+          {growthMeta.data.length >= 2 && (
+            <GrowthChart data={growthMeta.data} labelRange={growthMeta.range} />
           )}
 
           {/* Mobile: cards */}
