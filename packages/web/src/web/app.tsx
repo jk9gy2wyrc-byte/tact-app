@@ -251,7 +251,6 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
 
   const handleLogin = async () => {
     if (!loginVal || !passwordVal) return;
-    if (!loginVal.includes('@')) { setLoginErr('Введіть коректний email'); return; }
     setLoading(true); setLoginErr('');
     try {
       const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: loginVal, password: passwordVal }) });
@@ -305,7 +304,7 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
         {mode === 'login' && (<>
           <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 24, textAlign: 'center' }}>TSCT</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input type="email" placeholder="Email" value={loginVal} onChange={e => setLoginVal(e.target.value)}
+            <input type="text" placeholder="Login or email" value={loginVal} onChange={e => setLoginVal(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleLogin()} style={inputStyle} />
             <input type="password" placeholder="Пароль" value={passwordVal} onChange={e => setPasswordVal(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleLogin()} style={inputStyle} />
