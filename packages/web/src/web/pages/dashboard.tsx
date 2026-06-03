@@ -114,9 +114,12 @@ function NewsWidget({ selectedAssets }: { selectedAssets: string[] }) {
                 let rowBg = '#1a1d24', rowBorder = '#2a2d36';
                 if (isLive) { rowBg = 'rgba(22,163,74,0.13)'; rowBorder = 'rgba(22,163,74,0.5)'; }
                 else if (isSoon) { rowBg = 'rgba(249,115,22,0.09)'; rowBorder = 'rgba(249,115,22,0.30)'; }
-                // Display time in UTC+3
-                const utc3 = new Date(item.dt.getTime() + 3 * 3600_000);
-                const localTime = `${utc3.getUTCHours().toString().padStart(2,'0')}:${utc3.getUTCMinutes().toString().padStart(2,'0')}`;
+                const localTime = new Intl.DateTimeFormat('uk-UA', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false,
+                  timeZone: 'Europe/Kyiv',
+                }).format(item.dt);
                 return (
                   <div key={i} style={{
                     display: 'flex', alignItems: 'center', gap: 8,
