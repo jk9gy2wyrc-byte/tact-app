@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useMobile } from "../hooks/useMobile";
 
 type RoleOptionValue = 'admin' | 'paid' | 'free-trial' | 'free' | 'no-access';
@@ -38,6 +38,118 @@ interface UserRow {
   country: string | null;
   ip: string | null;
   createdAt: string | null;
+}
+
+function RoleDropdown({
+  u, currentLogin, roleMenuOpen, setRoleMenuOpen,
+  draftRoles, setDraftRoles, updateRoleMutation, isTrialExpired,
+}: {
+  u: UserRow;
+  currentLogin: string;
+  roleMenuOpen: number | null;
+  setRoleMenuOpen: (id: number | null) => void;
+  draftRoles: Record<number, RoleOptionValue>;
+  setDraftRoles: React.Dispatch<React.SetStateAction<Record<number, RoleOptionValue>>>;
+  updateRoleMutation: { mutate: (args: { id: number; role: RoleOptionValue }) => void };
+  isTrialExpired: (u: UserRow) => boolean;
+}) {
+  const visualRole = (draftRoles[u.id] ?? mapBackendRoleToVisual(u.role)) as RoleOptionValue;
+  const expired = isTrialExpired(u);
+  const meta = expired
+    ? { bg: 'rgba(248,113,113,0.15)', border: 'rgba(248,113,113,0.45)', text: '#f87171' }
+    : ROLE_BADGES[visualRole];
+  const label = ROLE_OPTIONS.find(opt => opt.value === visualRole)?.label ?? '—';
+  const isSelfAdmin = u.login === currentLogin && visualRole === 'admin';
+
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+
+  if (isSelfAdmin) {
+    return (
+      <div style={{
+        padding: '6px 12px', borderRadius: 10,
+        background: meta.bg, border: `1px solid ${meta.border}`,
+        color: meta.text, fontSize: 12, fontWeight: 600,
+      }}>
+        {label}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ position: 'relative', display: 'inline-flex' }}>
+      <button
+        ref={btnRef}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (roleMenuOpen === u.id) {
+            setRoleMenuOpen(null);
+            setMenuPos(null);
+          } else {
+            const rect = btnRef.current?.getBoundingClientRect();
+            if (rect) setMenuPos({ top: rect.bottom + 6, left: rect.right });
+            setRoleMenuOpen(u.id);
+          }
+        }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '6px 12px', borderRadius: 10,
+          background: meta.bg, border: `1px solid ${meta.border}`,
+          color: meta.text, fontSize: 12, fontWeight: 600,
+          cursor: 'pointer', minWidth: 140,
+          justifyContent: 'space-between',
+        }}
+      >
+        <span>{label}</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"
+          style={{ transform: roleMenuOpen === u.id ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+          <path d="M3 4.5L6 7.5L9 4.5" stroke={meta.text} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {roleMenuOpen === u.id && menuPos && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            top: menuPos.top,
+            left: menuPos.left - 180,
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: 12, boxShadow: '0 15px 30px rgba(0,0,0,0.4)',
+            minWidth: 180, zIndex: 9999, padding: 6,
+          }}
+        >
+          {ROLE_OPTIONS.map((opt) => {
+            const active = opt.value === visualRole;
+            return (
+              <button
+                key={opt.value}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDraftRoles((prev) => ({ ...prev, [u.id]: opt.value }));
+                  updateRoleMutation.mutate({ id: u.id, role: opt.value });
+                  setRoleMenuOpen(null);
+                }}
+                style={{
+                  width: '100%', textAlign: 'left', border: 'none',
+                  background: active ? 'var(--surface2)' : 'transparent',
+                  color: active ? 'var(--text)' : 'var(--text2)', borderRadius: 8,
+                  padding: '8px 10px', fontSize: 12, fontWeight: active ? 600 : 500,
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
+                }}
+              >
+                {opt.label}
+                {active && <span style={{ fontSize: 18, color: '#4ade80' }}>•</span>}
+              </button>
+            );
+          })}
+          <div style={{ fontSize: 10, color: '#4ade80', padding: '6px 8px 0', borderTop: '1px solid var(--border)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ display: 'inline-block', width: 4, height: 4, borderRadius: '50%', background: '#4ade80' }}></span>
+            <span>Зберігається автоматично</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
@@ -134,105 +246,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
   const admins = users.filter((u) => u.role === 'admin');
   const regulars = users.filter((u) => u.role !== 'admin');
 
-  const RoleDropdown = ({ u }: { u: UserRow }) => {
-    const visualRole = (draftRoles[u.id] ?? mapBackendRoleToVisual(u.role)) as RoleOptionValue;
-    const expired = isTrialExpired(u);
-    const meta = expired
-      ? { bg: 'rgba(248,113,113,0.15)', border: 'rgba(248,113,113,0.45)', text: '#f87171' }
-      : ROLE_BADGES[visualRole];
-    const label = ROLE_OPTIONS.find(opt => opt.value === visualRole)?.label ?? '—';
-    const isSelfAdmin = u.login === currentLogin && visualRole === 'admin';
 
-    const btnRef = useRef<HTMLButtonElement>(null);
-    const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
-
-    if (isSelfAdmin) {
-      return (
-        <div style={{
-          padding: '6px 12px', borderRadius: 10,
-          background: meta.bg, border: `1px solid ${meta.border}`,
-          color: meta.text, fontSize: 12, fontWeight: 600,
-        }}>
-          {label}
-        </div>
-      );
-    }
-
-    return (
-      <div style={{ position: 'relative', display: 'inline-flex' }}>
-        <button
-          ref={btnRef}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (roleMenuOpen === u.id) {
-              setRoleMenuOpen(null);
-              setMenuPos(null);
-            } else {
-              const rect = btnRef.current?.getBoundingClientRect();
-              if (rect) setMenuPos({ top: rect.bottom + 6, left: rect.right });
-              setRoleMenuOpen(u.id);
-            }
-          }}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '6px 12px', borderRadius: 10,
-            background: meta.bg, border: `1px solid ${meta.border}`,
-            color: meta.text, fontSize: 12, fontWeight: 600,
-            cursor: 'pointer', minWidth: 140,
-            justifyContent: 'space-between',
-          }}
-        >
-          <span>{label}</span>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"
-            style={{ transform: roleMenuOpen === u.id ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-            <path d="M3 4.5L6 7.5L9 4.5" stroke={meta.text} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-        {roleMenuOpen === u.id && menuPos && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              position: 'fixed',
-              top: menuPos.top,
-              left: menuPos.left - 180,
-              background: 'var(--surface)', border: '1px solid var(--border)',
-              borderRadius: 12, boxShadow: '0 15px 30px rgba(0,0,0,0.4)',
-              minWidth: 180, zIndex: 9999, padding: 6,
-            }}
-          >
-            {ROLE_OPTIONS.map((opt) => {
-              const active = opt.value === visualRole;
-              return (
-                <button
-                  key={opt.value}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDraftRoles((prev) => ({ ...prev, [u.id]: opt.value }));
-                    updateRoleMutation.mutate({ id: u.id, role: opt.value });
-                    setRoleMenuOpen(null);
-                  }}
-                  style={{
-                    width: '100%', textAlign: 'left', border: 'none',
-                    background: active ? 'var(--surface2)' : 'transparent',
-                    color: active ? 'var(--text)' : 'var(--text2)', borderRadius: 8,
-                    padding: '8px 10px', fontSize: 12, fontWeight: active ? 600 : 500,
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
-                  }}
-                >
-                  {opt.label}
-                  {active && <span style={{ fontSize: 18, color: '#4ade80' }}>•</span>}
-                </button>
-              );
-            })}
-            <div style={{ fontSize: 10, color: '#4ade80', padding: '6px 8px 0', borderTop: '1px solid var(--border)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ display: 'inline-block', width: 4, height: 4, borderRadius: '50%', background: '#4ade80' }}></span>
-              <span>Зберігається автоматично</span>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
 
   return (
     <div style={{ padding: isMobile ? '16px' : '24px 28px' }}>
@@ -324,7 +338,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                     <code style={{ fontSize: 12, color: '#e2e8f0', background: 'var(--surface2)', padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)' }}>
                       {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '••••••••' : u.password}
                     </code>
-                    <RoleDropdown u={u} />
+                    <RoleDropdown u={u} currentLogin={currentLogin} roleMenuOpen={roleMenuOpen} setRoleMenuOpen={setRoleMenuOpen} draftRoles={draftRoles} setDraftRoles={setDraftRoles} updateRoleMutation={updateRoleMutation} isTrialExpired={isTrialExpired} />
                   </div>
                 </div>
               ))}
@@ -376,7 +390,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                         </code>
                       </td>
                       <td style={{ padding: '10px 16px' }}>
-                        <RoleDropdown u={u} />
+                        <RoleDropdown u={u} currentLogin={currentLogin} roleMenuOpen={roleMenuOpen} setRoleMenuOpen={setRoleMenuOpen} draftRoles={draftRoles} setDraftRoles={setDraftRoles} updateRoleMutation={updateRoleMutation} isTrialExpired={isTrialExpired} />
                       </td>
                       <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)' }}>
                         {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '—' : u.country ? (
