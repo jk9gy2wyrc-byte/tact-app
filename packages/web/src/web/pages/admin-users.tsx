@@ -57,6 +57,24 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
     refetchInterval: 10_000,
   });
 
+  const { data: subSettings } = useQuery<{ plans: { firstPurchase: { freeWeeks: number } } }>({
+    queryKey: ['subscription-settings'],
+    queryFn: async () => {
+      const res = await fetch('/api/subscription/settings');
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+  const freeWeeks = subSettings?.plans?.firstPurchase?.freeWeeks ?? 2;
+
+  const isTrialExpired = (u: UserRow) => {
+    if (u.role !== 'free-trial') return false;
+    if (!u.createdAt) return false;
+    const created = Date.parse(u.createdAt.includes('T') ? u.createdAt : u.createdAt.replace(' ', 'T') + 'Z');
+    if (isNaN(created)) return false;
+    return Date.now() > created + freeWeeks * 7 * 24 * 3600 * 1000;
+  };
+
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       const res = await fetch(`/api/admin/users/${id}?asLogin=${encodeURIComponent(currentLogin)}`, { method: 'DELETE' });
@@ -118,7 +136,10 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
 
   const RoleDropdown = ({ u }: { u: UserRow }) => {
     const visualRole = (draftRoles[u.id] ?? mapBackendRoleToVisual(u.role)) as RoleOptionValue;
-    const meta = ROLE_BADGES[visualRole];
+    const expired = isTrialExpired(u);
+    const meta = expired
+      ? { bg: 'rgba(248,113,113,0.15)', border: 'rgba(248,113,113,0.45)', text: '#f87171' }
+      : ROLE_BADGES[visualRole];
     const label = ROLE_OPTIONS.find(opt => opt.value === visualRole)?.label ?? '—';
     const isSelfAdmin = u.login === currentLogin && visualRole === 'admin';
 
