@@ -548,11 +548,9 @@ export default function Charts() {
               <line x1="4" y1="42" x2="44" y2="42" stroke="white" strokeWidth="1" opacity="0.2"/>
             </svg>
           </div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}>Немає даних для аналізу</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}>No data to analyse</div>
           <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6 }}>
-            Спочатку внесіть угоди у розділах<br />
-            <strong style={{ color: 'var(--text)' }}>Backtest</strong> та <strong style={{ color: 'var(--text)' }}>Live</strong>,<br />
-            після цього аналітика відобразиться тут.
+            Add trades to <strong style={{ color: 'var(--text)' }}>Live Database</strong> and <strong style={{ color: 'var(--text)' }}>Backtest DB</strong>,<br />then the analysis will appear here.
           </div>
         </div>
       </div>

@@ -242,7 +242,25 @@ export default function BacktestAnalysis() {
 
   if (isLoading) return <div style={{ padding: 32, color: "var(--text2)" }}>Loading...</div>;
 
-  const isBlocked = Boolean(accessData && !accessData.hasAccess);
+  if (!rawTrades.length) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '32px 40px', textAlign: 'center', maxWidth: 360 }}>
+        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}>
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <polyline points="4,38 14,22 22,30 32,12 44,20" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.9"/>
+            <circle cx="4" cy="38" r="2.5" fill="white" opacity="0.5"/><circle cx="14" cy="22" r="2.5" fill="white" opacity="0.5"/>
+            <circle cx="22" cy="30" r="2.5" fill="white" opacity="0.5"/><circle cx="32" cy="12" r="2.5" fill="white" opacity="0.5"/>
+            <circle cx="44" cy="20" r="2.5" fill="white" opacity="0.5"/>
+            <line x1="4" y1="42" x2="44" y2="42" stroke="white" strokeWidth="1" opacity="0.2"/>
+          </svg>
+        </div>
+        <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}>No data to analyse</div>
+        <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6 }}>
+          Add trades to <strong style={{ color: 'var(--text)' }}>Backtest DB</strong> first,<br />then the analysis will appear here.
+        </div>
+      </div>
+    </div>
+  );
   
 
   // Check access - admin always has access
