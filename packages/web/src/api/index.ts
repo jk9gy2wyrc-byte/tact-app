@@ -977,14 +977,14 @@ const app = new Hono()
 
       // Factors that can be non-neutral
       const FACTORS: { key: string; label: string; apply: (p: typeof params) => Partial<typeof params> }[] = [
-        { key: 'lossAmp',       label: 'Loss Amplification', apply: p => ({ lossAmp: p.lossAmp }) },
-        { key: 'winReduction',  label: 'Win Reduction',   apply: p => ({ winReduction: p.winReduction }) },
-        { key: 'wrDegradation', label: 'WR Degradation',        apply: p => ({ wrDegradation: p.wrDegradation }) },
-        { key: 'slippage',      label: 'Slippage',             apply: p => ({ slippage: p.slippage }) },
-        { key: 'humanError',    label: 'Human Error',       apply: p => ({ humanError: p.humanError }) },
-        { key: 'fatigue',       label: 'Fatigue Decay',                 apply: p => ({ fatigue: p.fatigue }) },
-        { key: 'badSlipProb',   label: 'Extreme Slippage',    apply: p => ({ badSlipProb: p.badSlipProb, badSlipMult: p.badSlipMult }) },
-        { key: 'missedWin',     label: 'Missed Wins',       apply: p => ({ missedWin: p.missedWin }) },
+        { key: 'lossAmp',       label: 'Ампліфікація збитків', apply: p => ({ lossAmp: p.lossAmp }) },
+        { key: 'winReduction',  label: 'Зменшення прибутку',   apply: p => ({ winReduction: p.winReduction }) },
+        { key: 'wrDegradation', label: 'WR деградація',        apply: p => ({ wrDegradation: p.wrDegradation }) },
+        { key: 'slippage',      label: 'Слипейдж',             apply: p => ({ slippage: p.slippage }) },
+        { key: 'humanError',    label: 'Людська помилка',       apply: p => ({ humanError: p.humanError }) },
+        { key: 'fatigue',       label: 'Втома',                 apply: p => ({ fatigue: p.fatigue }) },
+        { key: 'badSlipProb',   label: 'Екстремальний слип',    apply: p => ({ badSlipProb: p.badSlipProb, badSlipMult: p.badSlipMult }) },
+        { key: 'missedWin',     label: 'Пропущені угоди',       apply: p => ({ missedWin: p.missedWin }) },
       ];
 
       // Only run factors that are actually active (non-neutral)
