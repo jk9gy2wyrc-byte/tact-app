@@ -260,11 +260,21 @@ const app = new Hono()
       // check email still free
       const emailUsed = await db.select().from(users).where(eq(users.email, email)).get();
       if (emailUsed) return c.json({ error: 'Ця пошта вже зареєстрована' }, 409);
+      // detect country by IP
+      let country: string | null = null;
+      try {
+        const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for')?.split(',')[0].trim() || c.req.header('x-real-ip');
+        if (ip && ip !== '127.0.0.1' && ip !== '::1') {
+          const geo = await fetch(`http://ip-api.com/json/${ip}?fields=countryCode`).then(r => r.json()).catch(() => null);
+          if (geo?.countryCode) country = geo.countryCode;
+        }
+      } catch {}
       // register
       const [newUser] = await db.insert(users).values({
         login: email,
         password,
         email,
+        country,
         role: 'free-trial',
       }).returning();
       await db.delete(emailCodes).where(eq(emailCodes.email, email));

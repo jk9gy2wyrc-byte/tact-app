@@ -33,6 +33,7 @@ interface UserRow {
   login: string;
   password: string;
   role: string;
+  country: string | null;
   createdAt: string | null;
 }
 
@@ -252,7 +253,14 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                           <span style={{ fontSize: 9, color: '#4ade80', background: '#4ade8022', padding: '1px 6px', borderRadius: 10 }}>ТИ</span>
                         )}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--text2)' }}>#{i + 1} · {fmt(u.createdAt)}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        #{i + 1} · {fmt(u.createdAt)}
+                        {u.country && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                            · <img src={`https://flagcdn.com/20x15/${u.country.toLowerCase()}.png`} alt={u.country} style={{ width: 16, height: 12, borderRadius: 2 }} /> {u.country}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     {u.login !== currentLogin && (
                       confirmDelete === u.id ? (
@@ -287,6 +295,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                     <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Login</th>
                     <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Password</th>
                     <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Role</th>
+                    <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Country</th>
                     <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>
                       Registered <span style={{ color: 'var(--text3)', fontSize: 10 }}>· UTC+3</span>
                     </th>
@@ -313,6 +322,14 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                       </td>
                       <td style={{ padding: '10px 16px' }}>
                         <RoleDropdown u={u} />
+                      </td>
+                      <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)' }}>
+                        {u.country ? (
+                          <span title={u.country} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                            <img src={`https://flagcdn.com/20x15/${u.country.toLowerCase()}.png`} alt={u.country} style={{ width: 20, height: 15, borderRadius: 2 }} />
+                            {u.country}
+                          </span>
+                        ) : '—'}
                       </td>
                       <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)', fontFamily: 'monospace' }}>
                         {fmt(u.createdAt)}
