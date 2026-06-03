@@ -148,6 +148,11 @@ const app = new Hono()
 
   // ─── AUTH: SEED ADMIN + LOGIN + REGISTER ──────────────────────────────────
   .get('/auth/seed', async (c) => {
+    // Run any pending migrations (idempotent, errors ignored)
+    await Promise.all([
+      db.run(sql`ALTER TABLE users ADD COLUMN email TEXT`).catch(() => {}),
+      db.run(sql`ALTER TABLE users ADD COLUMN country TEXT`).catch(() => {}),
+    ]);
     // Ensure admin user exists with correct role
     const existing = await db.select().from(users).where(eq(users.login, 'whatif')).get();
     if (!existing) {
