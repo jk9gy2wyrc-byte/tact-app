@@ -76,7 +76,7 @@ function NewsWidget({ selectedAssets }: { selectedAssets: string[] }) {
     .filter(item => {
       if (!item.dt) return false;
       if (!relevantCurrencies.has(item.currency)) return false;
-      return item.dt >= new Date(nowMs - 15 * 60_000) && item.dt <= windowEnd;
+      return item.dt >= new Date(nowMs - 3 * 60 * 60_000) && item.dt <= windowEnd;
     })
     .sort((a, b) => a.dt!.getTime() - b.dt!.getTime());
 
@@ -103,17 +103,17 @@ function NewsWidget({ selectedAssets }: { selectedAssets: string[] }) {
               display: 'flex', alignItems: 'center', gap: 6,
             }}>
               {dayLabel}
-              {hasLive && <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 5px', fontWeight: 700 }}>LIVE</span>}
+              {hasLive && <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 5px', fontWeight: 700 }}>NOW</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               {items.map((item, i) => {
                 if (!item.dt) return null;
                 const diffMin = (item.dt.getTime() - nowMs) / 60_000;
-                const isLive = Math.abs(diffMin) <= 15;
-                const isSoon = diffMin > 0 && diffMin <= 120;
+                const isLive = diffMin > 0 && diffMin <= 60;
+                const isSoon = diffMin > 60 && diffMin <= 180;
                 let rowBg = '#1a1d24', rowBorder = '#2a2d36';
                 if (isLive) { rowBg = 'rgba(22,163,74,0.13)'; rowBorder = 'rgba(22,163,74,0.5)'; }
-                else if (isSoon) { rowBg = 'rgba(234,179,8,0.07)'; rowBorder = 'rgba(234,179,8,0.25)'; }
+                else if (isSoon) { rowBg = 'rgba(249,115,22,0.09)'; rowBorder = 'rgba(249,115,22,0.30)'; }
                 // Display time in UTC+3
                 const utc3 = new Date(item.dt.getTime() + 3 * 3600_000);
                 const localTime = `${utc3.getUTCHours().toString().padStart(2,'0')}:${utc3.getUTCMinutes().toString().padStart(2,'0')}`;
@@ -133,7 +133,7 @@ function NewsWidget({ selectedAssets }: { selectedAssets: string[] }) {
                     <span style={{ fontSize: 10, fontFamily: 'monospace', minWidth: 42, color: isLive ? '#4ade80' : isSoon ? '#facc15' : '#6b7280', fontWeight: isLive || isSoon ? 700 : 400 }}>{localTime}</span>
                     <span style={{ fontSize: 12, flex: 1, color: isLive ? '#f1f5f9' : isSoon ? '#e2e8f0' : '#94a3b8', fontWeight: isLive ? 600 : 400 }}>{item.title}</span>
                     {isLive && <span style={{ fontSize: 9, background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 6px', fontWeight: 700, flexShrink: 0 }}>NOW</span>}
-                    {isSoon && !isLive && <span style={{ fontSize: 9, color: '#facc15', fontFamily: 'monospace', flexShrink: 0 }}>{diffMin < 60 ? `${Math.round(diffMin)}m` : `${Math.floor(diffMin/60)}h${Math.round(diffMin%60)}m`}</span>}
+                    {isSoon && !isLive && <span style={{ fontSize: 9, color: '#f97316', fontFamily: 'monospace', flexShrink: 0 }}>{diffMin < 60 ? `${Math.round(diffMin)}m` : `${Math.floor(diffMin/60)}h${Math.round(diffMin%60)}m`}</span>}
                   </div>
                 );
               })}
