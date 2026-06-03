@@ -332,37 +332,30 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
 
 // ─── ANIMATED PAGE WRAPPER ───────────────────────────────────────────────────
 function PageTransition({ children, routeKey }: { children: React.ReactNode; routeKey: string }) {
-  const [visible, setVisible] = useState(false);
-  const [displayKey, setDisplayKey] = useState(routeKey);
+  const [key, setKey] = useState(routeKey);
   const [content, setContent] = useState(children);
+  const [animating, setAnimating] = useState(false);
   const prevKey = useRef(routeKey);
 
   useLayoutEffect(() => {
-    if (routeKey === prevKey.current) {
-      setVisible(true);
-      return;
-    }
-    // fade out
-    setVisible(false);
-    const t = setTimeout(() => {
-      prevKey.current = routeKey;
-      setDisplayKey(routeKey);
-      setContent(children);
-      // fade in on next frame
-      requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
-    }, 150);
+    if (routeKey === prevKey.current) return;
+    prevKey.current = routeKey;
+    setAnimating(true);
+    setKey(routeKey);
+    setContent(children);
+    const t = setTimeout(() => setAnimating(false), 10);
     return () => clearTimeout(t);
   }, [routeKey]);
 
-  // keep content updated when same route re-renders
   useEffect(() => {
     if (routeKey === prevKey.current) setContent(children);
   }, [children, routeKey]);
 
   return (
-    <div key={displayKey} style={{
-      opacity: visible ? 1 : 0,
-      transition: 'opacity 0.18s ease',
+    <div key={key} style={{
+      opacity: animating ? 0 : 1,
+      transform: animating ? 'translateY(8px)' : 'translateY(0)',
+      transition: 'opacity 0.2s ease, transform 0.2s ease',
       minHeight: '100%',
     }}>
       {content}
