@@ -415,7 +415,7 @@ export default function Subscription() {
               <textarea
                 value={editContactMessage}
                 onChange={(e) => setEditContactMessage(e.target.value)}
-                placeholder="e.g. Response time: 1-2 hours. Mention your username."
+                placeholder="e.g. Pricing will change next month by 10%"
                 rows={3}
                 style={{
                   width: '100%', padding: '10px 12px', borderRadius: 8,
