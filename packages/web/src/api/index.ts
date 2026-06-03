@@ -841,6 +841,112 @@ const app = new Hono()
     }, 200);
   })
 
+  // ─── MC CUSTOM DATE RANGE ────────────────────────────────────────────────
+  .get('/mc-custom', async (c) => {
+    const uid    = Number(c.req.query('userId') ?? 0);
+    const btFrom = c.req.query('btFrom') ?? '';   // YYYY-MM
+    const btTo   = c.req.query('btTo')   ?? '';
+    const lvFrom = c.req.query('lvFrom') ?? '';
+    const lvTo   = c.req.query('lvTo')   ?? '';
+
+    const allBt = await db.select().from(backtestTrades).where(eq(backtestTrades.userId, uid)).orderBy(asc(backtestTrades.id)).all();
+    const allLv = await db.select().from(liveTrades).where(eq(liveTrades.userId, uid)).orderBy(asc(liveTrades.id)).all();
+
+    const inRange = (month: string | null, from: string, to: string) => {
+      const m = (month ?? '').slice(0, 7);
+      if (!m) return true;
+      if (from && m < from) return false;
+      if (to   && m > to)   return false;
+      return true;
+    };
+
+    const bt = btFrom || btTo ? allBt.filter(t => inRange(t.month, btFrom, btTo)) : allBt;
+    const lv = lvFrom || lvTo ? allLv.filter(t => inRange(t.month, lvFrom, lvTo)) : allLv;
+
+    // available month ranges for UI
+    const btMonths = Array.from(new Set(allBt.map(t => (t.month ?? '').slice(0, 7)).filter(Boolean))).sort();
+    const lvMonths = Array.from(new Set(allLv.map(t => (t.month ?? '').slice(0, 7)).filter(Boolean))).sort();
+
+    const btNetRArr = bt.map(t => t.netR ?? 0);
+    const btIsTP    = bt.map(t => t.result === 'tp');
+    const btRR      = bt.map(t => (t.rr != null && t.rr > 0) ? t.rr : null);
+
+    const N_SIM = 1000;
+    const N_TRADES_MC = bt.length || 50;
+    const WIN_BT = 20;
+
+    const rng = (seed: number) => {
+      let s = seed;
+      return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
+    };
+    const rand = rng(42);
+
+    type SimRow2 = { eq: number };
+    const byTrade2: SimRow2[][] = Array.from({ length: N_TRADES_MC }, () => []);
+    const simFinals2: { totalR: number }[] = [];
+
+    for (let si = 0; si < N_SIM; si++) {
+      let acc = 0;
+      for (let j = 0; j < N_TRADES_MC; j++) {
+        if (btNetRArr.length === 0) break;
+        const idx = Math.floor(rand() * btNetRArr.length);
+        acc += btNetRArr[idx];
+        byTrade2[j].push({ eq: Math.round(acc * 100) / 100 });
+      }
+      simFinals2.push({ totalR: acc });
+    }
+
+    const pctOf2 = (arr: number[], p: number) => {
+      const s = arr.slice().sort((a, b) => a - b);
+      return s[Math.floor(s.length * p)] ?? 0;
+    };
+
+    const N_PTS = 100;
+    const step2 = Math.max(1, Math.floor(N_TRADES_MC / N_PTS));
+    const sampleIdx2: number[] = [];
+    for (let ti = step2 - 1; ti < N_TRADES_MC; ti += step2) sampleIdx2.push(ti);
+
+    const mcMedian: number[] = [];
+    const mcp5: number[] = [];
+    const mcp95: number[] = [];
+
+    for (const ti of sampleIdx2) {
+      const rows = byTrade2[ti] ?? [];
+      const eqArr = rows.map(r => r.eq);
+      mcMedian.push(pctOf2(eqArr, 0.50));
+      mcp5.push(pctOf2(eqArr, 0.05));
+      mcp95.push(pctOf2(eqArr, 0.95));
+    }
+
+    const mcPathsSample = Array.from({ length: 100 }, (_, i) => {
+      const rnd2 = rng(i + 1000);
+      const path: number[] = [];
+      let acc2 = 0;
+      for (let j = 0; j < N_TRADES_MC; j++) {
+        if (btNetRArr.length === 0) break;
+        acc2 += btNetRArr[Math.floor(rnd2() * btNetRArr.length)];
+        if (sampleIdx2.includes(j)) path.push(Math.round(acc2 * 100) / 100);
+      }
+      return path;
+    });
+
+    const lvEquity: number[] = [];
+    let lvCum = 0;
+    for (const t of lv) { lvCum += t.netR ?? 0; lvEquity.push(Math.round(lvCum * 100) / 100); }
+
+    const finals = simFinals2.map(s => s.totalR);
+    const ruinPaths   = finals.filter(v => v < 0).length;
+    const profitPaths = finals.filter(v => v > 0).length;
+
+    return c.json({
+      mcMedian, mcp5, mcp95, mcPathsSample, lvEquity,
+      btCount: bt.length, lvCount: lv.length,
+      ruinPct: N_SIM > 0 ? ruinPaths / N_SIM : 0,
+      profitPct: N_SIM > 0 ? profitPaths / N_SIM : 0,
+      btMonths, lvMonths,
+    });
+  })
+
   // ─── MC STRESS TEST ───────────────────────────────────────────────────────
   .post('/mc-stress',
     zValidator('json', z.object({
