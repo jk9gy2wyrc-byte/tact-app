@@ -411,7 +411,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                         #{i + 1} · {fmt(u.createdAt)}
                         {u.country && !(u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN) && (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                            · <img src={`https://flagcdn.com/20x15/${u.country.toLowerCase()}.png`} alt={u.country} style={{ width: 16, height: 12, borderRadius: 2 }} /> {u.country}
+                            · {u.country}
                           </span>
                         )}
                         {u.ip && !(u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN) && (
@@ -492,10 +492,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                       </td>
                       <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)' }}>
                         {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '—' : u.country ? (
-                          <span title={u.country} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                            <img src={`https://flagcdn.com/20x15/${u.country.toLowerCase()}.png`} alt={u.country} style={{ width: 20, height: 15, borderRadius: 2 }} />
-                            {u.country}
-                          </span>
+                          <span>{u.country}</span>
                         ) : '—'}
                       </td>
                       <td style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text2)', fontFamily: 'monospace' }}>
