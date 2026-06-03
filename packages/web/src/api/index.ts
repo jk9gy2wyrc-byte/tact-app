@@ -269,7 +269,7 @@ const app = new Hono()
             'api-key': brevoKey,
           },
           body: JSON.stringify({
-            sender: { name: 'TSCT', email: 'andrewdroopsi@gmail.com' },
+            sender: { name: 'TSCT', email: 'tsctsupport@gmail.com' },
             to: [{ email }],
             subject: 'Код підтвердження TSCT',
             htmlContent: `
