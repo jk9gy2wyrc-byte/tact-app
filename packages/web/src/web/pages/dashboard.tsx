@@ -429,6 +429,159 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 const INSTRUMENTS = ['EUR', 'GER', 'XAU'];
 
+// ── Profitability ─────────────────────────────────────────────────────────────
+function Profitability({ trades }: { trades: any[] }) {
+  const n = trades.length;
+  if (!n) return <div style={{ color: 'var(--text2)', fontSize: 13 }}>No live trades yet.</div>;
+  const won = trades.filter(t => t.result === 'tp').length;
+  const lost = trades.filter(t => t.result === 'sl').length;
+  const be = trades.filter(t => t.result === 'be').length;
+  const wonPct = (won / n) * 100;
+  const lostPct = (lost / n) * 100;
+  const bePct = (be / n) * 100;
+
+  const Bar = ({ label, pct, color, count }: { label: string; pct: number; color: string; count: number }) => (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+        <span style={{ fontSize: 12, color: 'var(--text2)' }}>{label}</span>
+        <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text)' }}>
+          {pct.toFixed(1)}% <span style={{ color: 'var(--text2)', fontSize: 11 }}>({count})</span>
+        </span>
+      </div>
+      <div style={{ height: 8, borderRadius: 4, background: 'var(--surface)', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, borderRadius: 4, background: color, transition: 'width 0.4s ease' }} />
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ maxWidth: 420 }}>
+      <Bar label="Won" pct={wonPct} color="#7eb8f7" count={won} />
+      <Bar label="Lost" pct={lostPct} color="#f0a070" count={lost} />
+      {be > 0 && <Bar label="Break Even" pct={bePct} color="#888" count={be} />}
+      <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>{n} total trades</div>
+    </div>
+  );
+}
+
+// ── Session Win Rates ─────────────────────────────────────────────────────────
+function SessionWinRates({ trades }: { trades: any[] }) {
+  if (!trades.length) return <div style={{ color: 'var(--text2)', fontSize: 13 }}>No live trades yet.</div>;
+
+  const bySess: Record<string, { total: number; wins: number; netR: number }> = {};
+  for (const t of trades) {
+    const k = (t.session as string | null)?.trim() || 'Other';
+    if (!bySess[k]) bySess[k] = { total: 0, wins: 0, netR: 0 };
+    bySess[k].total++;
+    if (t.result === 'tp') bySess[k].wins++;
+    bySess[k].netR += t.netR ?? 0;
+  }
+
+  const rows = Object.entries(bySess)
+    .map(([k, v]) => ({ key: k, wr: v.total ? (v.wins / v.total) * 100 : 0, n: v.total, netR: Math.round(v.netR * 100) / 100 }))
+    .sort((a, b) => b.n - a.n);
+
+  const SESS_COLORS: Record<string, string> = {
+    London: '#7eb8f7', 'New York': '#a78bfa', NY: '#a78bfa',
+    Asia: '#f0c070', Asian: '#f0c070', Other: '#888',
+  };
+  const getColor = (k: string) => SESS_COLORS[k] ?? '#7eb8f7';
+
+  return (
+    <div style={{ maxWidth: 420 }}>
+      {rows.map(r => (
+        <div key={r.key} style={{ marginBottom: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+            <span style={{ fontSize: 12, color: 'var(--text2)' }}>{r.key}</span>
+            <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text)' }}>
+              {r.wr.toFixed(1)}% WR
+              <span style={{ color: 'var(--text2)', fontSize: 11 }}> · {r.n} trades · </span>
+              <span style={{ color: r.netR >= 0 ? '#7eb8f7' : '#f0a070', fontSize: 11 }}>
+                {r.netR >= 0 ? '+' : ''}{r.netR.toFixed(2)}R
+              </span>
+            </span>
+          </div>
+          <div style={{ height: 8, borderRadius: 4, background: 'var(--surface)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${r.wr}%`, borderRadius: 4, background: getColor(r.key), transition: 'width 0.4s ease' }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Most Traded Instruments ───────────────────────────────────────────────────
+function MostTradedInstruments({ trades }: { trades: any[] }) {
+  if (!trades.length) return <div style={{ color: 'var(--text2)', fontSize: 13 }}>No live trades yet.</div>;
+
+  const byInst: Record<string, { n: number; wins: number; netR: number }> = {};
+  for (const t of trades) {
+    const k = (t.instrument as string | null) ?? '—';
+    if (!byInst[k]) byInst[k] = { n: 0, wins: 0, netR: 0 };
+    byInst[k].n++;
+    if (t.result === 'tp') byInst[k].wins++;
+    byInst[k].netR += t.netR ?? 0;
+  }
+
+  const total = trades.length;
+  const rows = Object.entries(byInst)
+    .map(([k, v]) => ({ key: k, pct: (v.n / total) * 100, n: v.n, wr: v.n ? (v.wins / v.n) * 100 : 0, netR: Math.round(v.netR * 100) / 100 }))
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 6);
+
+  const PALETTE = ['#7eb8f7', '#a78bfa', '#f0c070', '#7dd3b0', '#f0a070', '#94a3b8'];
+
+  // simple SVG donut
+  const size = 120;
+  const r = 44;
+  const cx = size / 2, cy = size / 2;
+  const circumference = 2 * Math.PI * r;
+  let offset = 0;
+  const slices = rows.map((row, i) => {
+    const dash = (row.pct / 100) * circumference;
+    const gap = circumference - dash;
+    const slice = { dash, gap, offset, color: PALETTE[i] ?? '#555', key: row.key };
+    offset += dash;
+    return slice;
+  });
+
+  return (
+    <div style={{ display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
+      {/* Donut */}
+      <svg width={size} height={size} style={{ flexShrink: 0 }}>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--surface)" strokeWidth={18} />
+        {slices.map(s => (
+          <circle key={s.key} cx={cx} cy={cy} r={r} fill="none"
+            stroke={s.color} strokeWidth={18}
+            strokeDasharray={`${s.dash} ${s.gap}`}
+            strokeDashoffset={-s.offset + circumference / 4}
+            style={{ transition: 'stroke-dasharray 0.4s ease' }}
+          />
+        ))}
+        <text x={cx} y={cy + 4} textAnchor="middle" style={{ fontSize: 13, fill: 'var(--text2)', fontFamily: 'monospace' }}>
+          {total}
+        </text>
+        <text x={cx} y={cy + 16} textAnchor="middle" style={{ fontSize: 9, fill: 'var(--text2)' }}>
+          trades
+        </text>
+      </svg>
+
+      {/* Legend */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {rows.map((row, i) => (
+          <div key={row.key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: PALETTE[i] ?? '#555', flexShrink: 0 }} />
+            <span style={{ fontSize: 12, fontWeight: 600, minWidth: 48 }}>{row.key}</span>
+            <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text2)' }}>{row.pct.toFixed(1)}%</span>
+            <span style={{ fontSize: 11, color: 'var(--text2)' }}>({row.n})</span>
+            <span style={{ fontSize: 11, color: row.netR >= 0 ? '#7eb8f7' : '#f0a070' }}>{row.netR >= 0 ? '+' : ''}{row.netR.toFixed(2)}R</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Weak Spots ────────────────────────────────────────────────────────────────
 function WeakSpots({ trades }: { trades: any[] }) {
   if (!trades.length) return <div style={{ color: 'var(--text2)', fontSize: 13 }}>No live trades yet.</div>;
@@ -714,6 +867,21 @@ export default function Dashboard() {
             btAvgRR={bt?.avgRR ?? 0}
             lvAvgRR={lv?.avgRR ?? 0}
           />
+        </Section>
+
+        {/* PROFITABILITY + SESSIONS — side by side on desktop */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
+          <Section title="Profitability — Live">
+            <Profitability trades={liveTrades as any[]} />
+          </Section>
+          <Section title="Session Win Rates — Live">
+            <SessionWinRates trades={liveTrades as any[]} />
+          </Section>
+        </div>
+
+        {/* MOST TRADED INSTRUMENTS */}
+        <Section title="Most Traded Instruments — Live">
+          <MostTradedInstruments trades={liveTrades as any[]} />
         </Section>
 
       </div>
