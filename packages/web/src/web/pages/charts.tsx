@@ -414,6 +414,8 @@ export default function Charts() {
   const [savedCombosOpen, setSavedCombosOpen] = useState(false);
   const [savedCombos, setSavedCombos] = useState<Array<{id: string; name: string; params: typeof defaultStress}>>([]);
   const [stressDescOpen, setStressDescOpen] = useState<Set<string>>(new Set());
+  const [scfOpen, setScfOpen] = useState<Set<string>>(new Set());
+  const toggleScf = (k: string) => setScfOpen(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
 
   // Load saved combos from DB on mount
   useEffect(() => {
@@ -1772,12 +1774,7 @@ export default function Charts() {
                   const devLabel = meta.deviationLabel(dev, liveVal, box.med);
 
                   const explainKey = `fscf_exp_${rowKey}_${meta.key}`;
-                  const devKey     = `fscf_dev_${rowKey}_${meta.key}`;
-                  const explainOpen = stressDescOpen.has(explainKey);
-                  const devOpen     = stressDescOpen.has(devKey);
-                  const toggle = (k: string) => setStressDescOpen(prev => {
-                    const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s;
-                  });
+                  const explainOpen = scfOpen.has(explainKey);
 
                   // sparkline data: for each metric derive a series from lvEquity / btEquity
                   // return→lvEq, drawdown→running dd from lvEq, wr→rolling 20-trade, sqn→rolling, streak→rolling
@@ -1902,7 +1899,7 @@ export default function Charts() {
 
                       {/* ─ explain toggle ─ */}
                       <button
-                        onClick={() => toggle(explainKey)}
+                        onClick={() => toggleScf(explainKey)}
                         style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 8px', cursor: 'pointer', textAlign: 'left', width: '100%' }}
                       >
                         <span style={{ fontSize: 9, color: 'var(--text2)' }}>{explainOpen ? '▲' : '▼'} Пояснення</span>
