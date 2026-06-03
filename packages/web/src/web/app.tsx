@@ -433,13 +433,13 @@ export default function App() {
                 borderRadius: 6, padding: '4px 10px', cursor: 'pointer', textAlign: 'left',
               }}
             >
-              {session.login} {session.role === 'admin' && '★'}
+              {session.login}
             </button>
             <button
               onClick={handleLogout}
               style={{ fontSize: 10, color: 'var(--text2)', background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', textAlign: 'left' }}
             >
-              вийти
+              log out
             </button>
           </div>
         </div>
