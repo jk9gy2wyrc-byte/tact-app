@@ -869,7 +869,7 @@ function ConsistencyScore({ trades, btAvgRR, lvAvgRR }: { trades: any[]; btAvgRR
             <input
               type="number" min="0.1" step="0.1" value={manualRR}
               onChange={e => setManualRR(e.target.value)}
-              style={{ width: 64, padding: '3px 8px', fontSize: 12, borderRadius: 6, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'monospace' }}
+              style={{ width: 64, padding: '3px 8px', fontSize: 12, borderRadius: 6, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'monospace', MozAppearance: 'textfield' } as any}
               placeholder="2.0"
             />
           )}
