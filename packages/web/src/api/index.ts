@@ -384,9 +384,9 @@ const app = new Hono()
       return c.json(all, 200);
     } catch {
       // Fallback: column may not exist yet in prod DB — return without it
-      const all = await db.run(sql`SELECT id, login, role, email, created_at as createdAt FROM users ORDER BY created_at DESC`);
+      const all = await db.run(sql`SELECT id, login, role, email, created_at as createdAt, country, ip FROM users ORDER BY created_at DESC`);
       return c.json(all.rows.map((r: any) => ({
-        id: r[0], login: r[1], role: r[2], email: r[3], createdAt: r[4], country: null,
+        id: r[0], login: r[1], role: r[2], email: r[3], createdAt: r[4], country: r[5] ?? null, ip: r[6] ?? null,
       })), 200);
     }
   })
