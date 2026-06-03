@@ -9,6 +9,7 @@ export const users = sqliteTable("users", {
   email: text("email"),
   country: text("country"),
   ip: text("ip"),
+  fp: text("fp"),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
 });
 

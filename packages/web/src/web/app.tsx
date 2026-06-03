@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import FingerprintJS from '@fingerprintjs/fingerprintjs';
 import { Route, Switch, Link, useRoute, useLocation } from "wouter";
 import Dashboard from "./pages/dashboard";
 import LiveTrades from "./pages/live-trades";
@@ -244,6 +245,11 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
+  const [fp, setFp] = useState<string | null>(null);
+
+  useEffect(() => {
+    FingerprintJS.load().then(agent => agent.get()).then(result => setFp(result.visitorId)).catch(() => {});
+  }, []);
 
   const inputStyle: React.CSSProperties = {
     width: '100%', fontSize: 14, borderRadius: 10, padding: '12px 14px',
@@ -290,7 +296,7 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
     if (password1 !== password2) { setErr('Паролі не співпадають'); return; }
     setLoading(true); setErr('');
     try {
-      const r = await fetch('/api/auth/register-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code, password: password1 }) });
+      const r = await fetch('/api/auth/register-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code, password: password1, ...(fp ? { fp } : {}) }) });
       const data = await r.json();
       if (data.error) { setErr(data.error); if (data.error.includes('код')) setMode('reg-code'); }
       else onAuth({ id: data.id, login: data.login, role: data.role, createdAt: data.createdAt });

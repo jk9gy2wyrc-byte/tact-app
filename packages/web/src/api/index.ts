@@ -9,6 +9,14 @@ import * as XLSX from "xlsx";
 import { DEFAULT_SUBSCRIPTION_SETTINGS } from "../shared/subscription";
 // Resend loaded lazily inside handler to avoid crash if key missing
 
+// ─── disposable email domains list ───────────────────────────────────────────
+import disposableDomains from 'disposable-email-domains';
+const DISPOSABLE_SET = new Set<string>(disposableDomains as string[]);
+const isDisposableEmail = (email: string) => {
+  const domain = email.split('@')[1]?.toLowerCase();
+  return domain ? DISPOSABLE_SET.has(domain) : false;
+};
+
 type UserRoleName = 'admin' | 'free' | 'paid' | 'free-trial' | 'no-access';
 
 const normalizeRole = (role: string | null | undefined): UserRoleName => {
@@ -62,6 +70,7 @@ const ensureEmailTables = async () => {
       db.run(sql`ALTER TABLE users ADD COLUMN email TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN country TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN ip TEXT`).catch(() => {}),
+      db.run(sql`ALTER TABLE users ADD COLUMN fp TEXT`).catch(() => {}),
       db.run(sql`
         CREATE TABLE IF NOT EXISTS email_codes (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -184,11 +193,17 @@ const app = new Hono()
   )
 
   .post('/auth/register',
-    zValidator('json', z.object({ login: z.string().min(3).max(32), password: z.string().min(4) })),
+    zValidator('json', z.object({ login: z.string().min(3).max(32), password: z.string().min(4), fp: z.string().optional() })),
     async (c) => {
-      const { login, password } = c.req.valid('json');
+      await ensureEmailTables();
+      const { login, password, fp } = c.req.valid('json');
       const existing = await db.select().from(users).where(eq(users.login, login)).get();
       if (existing) return c.json({ error: 'Логін вже зайнятий' }, 409);
+      // fingerprint check
+      if (fp) {
+        const fpUsed = await db.select().from(users).where(eq(users.fp, fp)).get();
+        if (fpUsed) return c.json({ error: 'Пробний період для цього пристрою вже використано' }, 403);
+      }
       let regIp: string | null = null;
       let regCountry: string | null = null;
       try {
@@ -205,6 +220,7 @@ const app = new Hono()
         role: 'free-trial',
         ip: regIp,
         country: regCountry,
+        fp: fp ?? null,
       }).returning();
       return c.json({
         id: newUser.id,
@@ -221,6 +237,8 @@ const app = new Hono()
     async (c) => {
       await ensureEmailTables();
       const { email } = c.req.valid('json');
+      // block disposable emails
+      if (isDisposableEmail(email)) return c.json({ error: 'Тимчасові поштові адреси не дозволені' }, 400);
       // check email not already used
       const existing = await db.select().from(users).where(eq(users.email, email)).get();
       if (existing) return c.json({ error: 'Ця пошта вже зареєстрована' }, 409);
@@ -265,10 +283,11 @@ const app = new Hono()
       email: z.string().email(),
       code: z.string().length(4),
       password: z.string().min(4),
+      fp: z.string().optional(),
     })),
     async (c) => {
       await ensureEmailTables();
-      const { email, code, password } = c.req.valid('json');
+      const { email, code, password, fp } = c.req.valid('json');
       // cleanup expired codes
       await db.delete(emailCodes).where(lt(emailCodes.expiresAt, Date.now()));
       const record = await db.select().from(emailCodes)
@@ -282,6 +301,11 @@ const app = new Hono()
       // check email still free
       const emailUsed = await db.select().from(users).where(eq(users.email, email)).get();
       if (emailUsed) return c.json({ error: 'Ця пошта вже зареєстрована' }, 409);
+      // fingerprint check: block if same device already had a trial
+      if (fp) {
+        const fpUsed = await db.select().from(users).where(eq(users.fp, fp)).get();
+        if (fpUsed) return c.json({ error: 'Пробний період для цього пристрою вже використано' }, 403);
+      }
       // detect country by IP
       let country: string | null = null;
       let userIp: string | null = null;
@@ -300,6 +324,7 @@ const app = new Hono()
         email,
         country,
         ip: userIp,
+        fp: fp ?? null,
         role: 'free-trial',
       }).returning();
       await db.delete(emailCodes).where(eq(emailCodes.email, email));
