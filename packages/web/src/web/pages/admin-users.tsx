@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMobile } from "../hooks/useMobile";
 
 type RoleOptionValue = 'admin' | 'paid' | 'free-trial' | 'free' | 'no-access';
@@ -155,12 +155,23 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
       );
     }
 
+    const btnRef = useRef<HTMLButtonElement>(null);
+    const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+
     return (
       <div style={{ position: 'relative', display: 'inline-flex' }}>
         <button
+          ref={btnRef}
           onClick={(e) => {
             e.stopPropagation();
-            setRoleMenuOpen(prev => prev === u.id ? null : u.id);
+            if (roleMenuOpen === u.id) {
+              setRoleMenuOpen(null);
+              setMenuPos(null);
+            } else {
+              const rect = btnRef.current?.getBoundingClientRect();
+              if (rect) setMenuPos({ top: rect.bottom + 6, left: rect.right });
+              setRoleMenuOpen(u.id);
+            }
           }}
           style={{
             display: 'flex', alignItems: 'center', gap: 8,
@@ -177,14 +188,16 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
             <path d="M3 4.5L6 7.5L9 4.5" stroke={meta.text} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
-        {roleMenuOpen === u.id && (
+        {roleMenuOpen === u.id && menuPos && (
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+              position: 'fixed',
+              top: menuPos.top,
+              left: menuPos.left - 180,
               background: 'var(--surface)', border: '1px solid var(--border)',
               borderRadius: 12, boxShadow: '0 15px 30px rgba(0,0,0,0.4)',
-              minWidth: 180, zIndex: 100, padding: 6,
+              minWidth: 180, zIndex: 9999, padding: 6,
             }}
           >
             {ROLE_OPTIONS.map((opt) => {
