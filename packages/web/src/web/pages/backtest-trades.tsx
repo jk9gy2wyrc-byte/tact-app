@@ -11,8 +11,7 @@ async function fetchBT() {
 const SESSIONS = ['Asia', 'Frankfurt', 'London', 'Overlap', 'New York'];
 const DIRECTIONS = ['long', 'short'];
 const RESULTS = ['tp', 'sl', 'be'];
-const INSTRUMENTS = ['EUR', 'GER', 'XAU'];
-const FILTER_INSTRUMENTS = ['ALL', 'EUR', 'GER', 'XAU'];
+const DEFAULT_INSTRUMENTS = ['EUR', 'GER', 'XAU'];
 const PRESET_INSTRUMENTS = ['EUR', 'GBP', 'GER', 'XAU'];
 
 const labelStyle: React.CSSProperties = {
@@ -261,8 +260,8 @@ function ToggleGroup({ value, options, onChange, small }: {
   );
 }
 
-function EditModal({ trade, onClose, onSave, isPending }: {
-  trade: any; onClose: () => void; onSave: (body: any) => void; isPending: boolean;
+function EditModal({ trade, onClose, onSave, isPending, instruments: instList = DEFAULT_INSTRUMENTS }: {
+  trade: any; onClose: () => void; onSave: (body: any) => void; isPending: boolean; instruments?: string[];
 }) {
   const [form, setForm] = useState({
     date: trade.month ?? today(),
@@ -306,7 +305,7 @@ function EditModal({ trade, onClose, onSave, isPending }: {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Date</div>{inp('date', 'date')}</div>
-            <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Instrument</div><ToggleGroup value={form.instrument} options={INSTRUMENTS} onChange={v => setField('instrument', v)} small /></div>
+            <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Instrument</div><ToggleGroup value={form.instrument} options={instList} onChange={v => setField('instrument', v)} small /></div>
           </div>
           <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Direction</div><ToggleGroup value={form.direction} options={DIRECTIONS} onChange={v => setField('direction', v)} /></div>
           <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Session</div><ToggleGroup value={form.session} options={SESSIONS} onChange={v => setField('session', v)} small /></div>
@@ -363,12 +362,26 @@ export default function BacktestTrades() {
   const isMobile = useMobile();
   const qc = useQueryClient();
   const { data: trades = [], isLoading } = useQuery({ queryKey: ['backtest-trades'], queryFn: fetchBT });
+  const [instruments, setInstruments] = useState<string[]>(DEFAULT_INSTRUMENTS);
+  const [showAddInst, setShowAddInst] = useState(false);
+  const [newInstVal, setNewInstVal] = useState('');
   const [filterInst, setFilterInst] = useState('ALL');
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ ...emptyForm });
   const [editTrade, setEditTrade] = useState<any | null>(null);
   const [error, setError] = useState('');
+
+  const addInstrument = () => {
+    const val = newInstVal.trim().toUpperCase();
+    if (!val) return;
+    if (!instruments.includes(val)) {
+      setInstruments(prev => [...prev, val]);
+    }
+    setForm(f => ({ ...f, instrument: val }));
+    setNewInstVal('');
+    setShowAddInst(false);
+  };
   const fileRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const [showModal, setShowModal] = useState(false);
@@ -585,7 +598,7 @@ export default function BacktestTrades() {
       {editTrade && (
         <EditModal trade={editTrade} onClose={() => setEditTrade(null)}
           onSave={body => editMutation.mutate({ id: editTrade.id, body })}
-          isPending={editMutation.isPending} />
+          isPending={editMutation.isPending} instruments={instruments} />
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
@@ -766,7 +779,32 @@ export default function BacktestTrades() {
             </div>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Instrument</div>
-              <ToggleGroup value={form.instrument} options={INSTRUMENTS} onChange={v => setForm(f => ({ ...f, instrument: v }))} small />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: 3 }}>
+                {instruments.map(inst => {
+                  const active = form.instrument === inst;
+                  return (
+                    <button key={inst} type="button" onClick={() => setForm(f => ({ ...f, instrument: inst }))}
+                      style={{ padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: active ? 600 : 400, cursor: 'pointer', border: 'none', background: active ? '#4b5263' : 'transparent', color: active ? '#fff' : 'var(--text2)', transition: 'background 0.15s' }}>
+                      {inst}
+                    </button>
+                  );
+                })}
+                {showAddInst ? (
+                  <input
+                    autoFocus
+                    value={newInstVal}
+                    onChange={e => setNewInstVal(e.target.value.toUpperCase())}
+                    onKeyDown={e => { if (e.key === 'Enter') addInstrument(); if (e.key === 'Escape') { setShowAddInst(false); setNewInstVal(''); } }}
+                    onBlur={addInstrument}
+                    placeholder="BTC…"
+                    style={{ width: 52, fontSize: 11, padding: '2px 6px', borderRadius: 6, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', fontFamily: 'monospace' }}
+                  />
+                ) : (
+                  <button type="button" onClick={() => setShowAddInst(true)}
+                    style={{ padding: '2px 7px', borderRadius: 6, fontSize: 13, border: 'none', background: 'transparent', color: 'var(--text2)', cursor: 'pointer', lineHeight: 1, fontWeight: 300 }}
+                    title="Add instrument">+</button>
+                )}
+              </div>
             </div>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>RR</div>
@@ -809,7 +847,7 @@ export default function BacktestTrades() {
       {/* Filters */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {FILTER_INSTRUMENTS.map(inst => (
+          {['ALL', ...instruments].map(inst => (
             <button key={inst} className={filterInst === inst ? 'btn-primary' : 'btn-ghost'}
               style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => setFilterInst(inst)}>{inst}</button>
           ))}
