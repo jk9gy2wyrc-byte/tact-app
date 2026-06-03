@@ -814,11 +814,11 @@ export default function LiveTrades() {
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                     {tLinks.map((lk: Attachment, i: number) => lk.type === 'image' ? (
                                       <button key={i} onClick={e => { e.stopPropagation(); setPreviewImg(lk.url); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text2)', textAlign: 'left', padding: 0, whiteSpace: 'nowrap' }}>
-                                        🖼 {lk.label.length > 20 ? lk.label.slice(0, 20) + '…' : lk.label}
+                                        {lk.label.length > 20 ? lk.label.slice(0, 20) + '…' : lk.label}
                                       </button>
                                     ) : (
                                       <a key={i} href={lk.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 11, color: 'var(--text2)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                                        🔗 {lk.label.length > 20 ? lk.label.slice(0, 20) + '…' : lk.label}
+                                        {lk.label.length > 20 ? lk.label.slice(0, 20) + '…' : lk.label}
                                       </a>
                                     ))}
                                   </div>
