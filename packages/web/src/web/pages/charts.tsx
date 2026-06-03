@@ -1281,7 +1281,7 @@ export default function Charts() {
                   return (
                     <>
                       <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, fontWeight: 600 }}>Загальні метрики</div>
-                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20, alignItems: 'flex-start' }}>
                         {normalCards.map(card => {
                           const isOpen    = stressDescOpen.has('nm_' + card.label);
                           const isDevOpen = stressDescOpen.has('nd_' + card.label);
@@ -1304,7 +1304,7 @@ export default function Charts() {
                           return (
                             <div key={card.label} style={{
                               background: 'var(--surface2)', border: '1px solid var(--border)',
-                              borderRadius: 10, padding: '10px 14px', minWidth: 110, flex: isMobile ? 'none' : 1, width: isMobile ? '100%' : undefined, boxSizing: 'border-box',
+                              borderRadius: 10, padding: '10px 14px', width: isMobile ? '100%' : 'calc(25% - 8px)', flexShrink: 0, boxSizing: 'border-box',
                             }}>
                               <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{card.label}</div>
                               <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
