@@ -429,6 +429,175 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 const INSTRUMENTS = ['EUR', 'GER', 'XAU'];
 
+// ── Weak Spots ────────────────────────────────────────────────────────────────
+function WeakSpots({ trades }: { trades: any[] }) {
+  if (!trades.length) return <div style={{ color: 'var(--text2)', fontSize: 13 }}>No live trades yet.</div>;
+
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  function groupStats(items: any[]) {
+    const n = items.length;
+    if (!n) return { n: 0, totalR: 0, wr: 0 };
+    const totalR = Math.round(items.reduce((a, t) => a + (t.netR ?? 0), 0) * 100) / 100;
+    const wins = items.filter(t => t.result === 'tp').length;
+    return { n, totalR, wr: wins / n };
+  }
+
+  // by instrument
+  const byInst: Record<string, any[]> = {};
+  for (const t of trades) { const k = t.instrument ?? '—'; (byInst[k] ??= []).push(t); }
+  const instRows = Object.entries(byInst)
+    .map(([k, arr]) => ({ key: k, ...groupStats(arr) }))
+    .sort((a, b) => a.totalR - b.totalR).slice(0, 3);
+
+  // by session
+  const bySess: Record<string, any[]> = {};
+  for (const t of trades) { const k = t.session ?? '—'; (bySess[k] ??= []).push(t); }
+  const sessRows = Object.entries(bySess)
+    .map(([k, arr]) => ({ key: k, ...groupStats(arr) }))
+    .sort((a, b) => a.totalR - b.totalR).slice(0, 3);
+
+  // by day of week (from createdAt)
+  const byDay: Record<string, any[]> = {};
+  for (const t of trades) {
+    const d = t.createdAt ? (DAYS[new Date(t.createdAt).getDay()] ?? '—') : '—';
+    (byDay[d] ??= []).push(t);
+  }
+  const dayRows = Object.entries(byDay)
+    .map(([k, arr]) => ({ key: k, ...groupStats(arr) }))
+    .sort((a, b) => a.totalR - b.totalR).slice(0, 3);
+
+  const col = (r: number) => r >= 0 ? 'var(--green)' : 'var(--red)';
+
+  function MiniTable({ rows, label }: { rows: { key: string; n: number; totalR: number; wr: number }[]; label: string }) {
+    return (
+      <div style={{ flex: 1, minWidth: 160 }}>
+        <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{label}</div>
+        <table style={{ width: '100%' }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', fontSize: 10, color: 'var(--text2)', fontWeight: 400, paddingBottom: 4 }}></th>
+              <th style={{ textAlign: 'right', fontSize: 10, color: 'var(--text2)', fontWeight: 400, paddingBottom: 4 }}>R</th>
+              <th style={{ textAlign: 'right', fontSize: 10, color: 'var(--text2)', fontWeight: 400, paddingBottom: 4 }}>WR</th>
+              <th style={{ textAlign: 'right', fontSize: 10, color: 'var(--text2)', fontWeight: 400, paddingBottom: 4 }}>N</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.key}>
+                <td style={{ fontSize: 12, fontWeight: 600, paddingRight: 8, paddingBottom: 3 }}>{r.key}</td>
+                <td style={{ fontFamily: 'monospace', fontSize: 12, textAlign: 'right', color: col(r.totalR), paddingBottom: 3 }}>{r.totalR >= 0 ? '+' : ''}{r.totalR.toFixed(2)}</td>
+                <td style={{ fontFamily: 'monospace', fontSize: 12, textAlign: 'right', color: 'var(--text2)', paddingBottom: 3 }}>{(r.wr * 100).toFixed(0)}%</td>
+                <td style={{ fontFamily: 'monospace', fontSize: 12, textAlign: 'right', color: 'var(--text2)', paddingBottom: 3 }}>{r.n}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+      <MiniTable rows={instRows} label="By Instrument" />
+      <MiniTable rows={sessRows} label="By Session" />
+      <MiniTable rows={dayRows} label="By Day" />
+    </div>
+  );
+}
+
+// ── Consistency Score ─────────────────────────────────────────────────────────
+function ConsistencyScore({ trades, btAvgRR, lvAvgRR }: { trades: any[]; btAvgRR: number; lvAvgRR: number }) {
+  type TargetMode = 'manual' | 'backtest' | 'live';
+  const [mode, setMode] = useState<TargetMode>(() => (localStorage.getItem('cs_mode') as TargetMode) ?? 'live');
+  const [manualRR, setManualRR] = useState(() => localStorage.getItem('cs_manual_rr') ?? '2');
+
+  useEffect(() => { localStorage.setItem('cs_mode', mode); }, [mode]);
+  useEffect(() => { localStorage.setItem('cs_manual_rr', manualRR); }, [manualRR]);
+
+  const targetRR = mode === 'manual' ? parseFloat(manualRR) || 0
+    : mode === 'backtest' ? btAvgRR
+    : lvAvgRR;
+
+  const n = trades.length;
+  if (!n) return <div style={{ color: 'var(--text2)', fontSize: 13 }}>No live trades yet.</div>;
+
+  const netrArr = trades.map(t => t.netR ?? 0);
+  const mean = netrArr.reduce((a, b) => a + b, 0) / n;
+  const variance = netrArr.reduce((a, r) => a + (r - mean) ** 2, 0) / n;
+  const std = Math.sqrt(variance);
+
+  // % trades within [0, targetRR] for wins, or [-targetRR, 0) for losses (i.e. within plan)
+  const inRange = targetRR > 0
+    ? trades.filter(t => {
+        const r = t.netR ?? 0;
+        return r >= -targetRR && r <= targetRR;
+      }).length
+    : 0;
+  const inRangePct = targetRR > 0 ? (inRange / n) * 100 : null;
+
+  // score 0-100: penalise high std, reward in-range %
+  const stdScore = Math.max(0, 100 - std * 20);
+  const rangeScore = inRangePct ?? stdScore;
+  const score = inRangePct != null ? Math.round((stdScore + rangeScore) / 2) : Math.round(stdScore);
+
+  const scoreColor = score >= 70 ? '#7eb8f7' : score >= 40 ? '#f0c070' : '#f0a070';
+  const scoreLabel = score >= 70 ? 'Consistent' : score >= 40 ? 'Moderate' : 'Inconsistent';
+
+  const btnStyle = (active: boolean): React.CSSProperties => ({
+    padding: '3px 10px', fontSize: 11, borderRadius: 6, cursor: 'pointer',
+    background: active ? 'var(--blue)' : 'var(--surface)',
+    border: `1px solid ${active ? 'var(--blue)' : 'var(--border)'}`,
+    color: active ? '#fff' : 'var(--text2)',
+  });
+
+  return (
+    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+      {/* Score */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 80 }}>
+        <div style={{ fontSize: 36, fontWeight: 700, fontFamily: 'monospace', color: scoreColor, lineHeight: 1 }}>{score}</div>
+        <div style={{ fontSize: 11, color: scoreColor }}>{scoreLabel}</div>
+        <div style={{ fontSize: 10, color: 'var(--text2)' }}>/ 100</div>
+      </div>
+
+      {/* Breakdown */}
+      <div style={{ flex: 1, minWidth: 180 }}>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>Std Dev R</div>
+            <div style={{ fontFamily: 'monospace', fontSize: 14, color: std <= 1 ? '#7eb8f7' : std <= 2 ? '#f0c070' : '#f0a070' }}>{std.toFixed(2)}</div>
+          </div>
+          {inRangePct != null && (
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>In Range</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 14, color: inRangePct >= 70 ? '#7eb8f7' : inRangePct >= 50 ? '#f0c070' : '#f0a070' }}>{inRangePct.toFixed(0)}%</div>
+            </div>
+          )}
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>Target RR</div>
+            <div style={{ fontFamily: 'monospace', fontSize: 14, color: 'var(--text)' }}>{targetRR > 0 ? targetRR.toFixed(2) : '—'}</div>
+          </div>
+        </div>
+
+        {/* Target selector */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button style={btnStyle(mode === 'live')} onClick={() => setMode('live')}>Avg Live RR</button>
+          <button style={btnStyle(mode === 'backtest')} onClick={() => setMode('backtest')}>Avg BT RR</button>
+          <button style={btnStyle(mode === 'manual')} onClick={() => setMode('manual')}>Manual</button>
+          {mode === 'manual' && (
+            <input
+              type="number" min="0.1" step="0.1" value={manualRR}
+              onChange={e => setManualRR(e.target.value)}
+              style={{ width: 64, padding: '3px 8px', fontSize: 12, borderRadius: 6, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'monospace' }}
+              placeholder="2.0"
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function calcQuickStats(trades: any[]) {
   const n = trades.length;
   if (n === 0) return null;
@@ -531,6 +700,20 @@ export default function Dashboard() {
         {/* WEEKLY CHANGES */}
         <Section title="Weekly Change">
           <WeeklyChanges selected={selectedAssets} toggle={toggleAsset} />
+        </Section>
+
+        {/* WEAK SPOTS */}
+        <Section title="Weak Spots — Live">
+          <WeakSpots trades={liveTrades as any[]} />
+        </Section>
+
+        {/* CONSISTENCY */}
+        <Section title="Consistency Score — Live">
+          <ConsistencyScore
+            trades={liveTrades as any[]}
+            btAvgRR={bt?.avgRR ?? 0}
+            lvAvgRR={lv?.avgRR ?? 0}
+          />
         </Section>
 
       </div>
