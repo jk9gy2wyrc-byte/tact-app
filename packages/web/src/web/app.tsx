@@ -423,20 +423,20 @@ export default function App() {
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: '0.06em' }}>TSCT</div>
           <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 3 }}>Trading Analysis Tool</div>
           <div style={{ fontSize: 9, color: 'var(--text2)', marginTop: 1, opacity: 0.6 }}>(trading strategy crash test)</div>
-          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <button
               onClick={() => setEditProfileOpen(true)}
               style={{
                 fontSize: 11, color: session.role === 'admin' ? '#facc15' : 'var(--text2)',
                 background: 'var(--surface2)', border: '1px solid var(--border)',
-                borderRadius: 6, padding: '4px 10px', cursor: 'pointer',
+                borderRadius: 6, padding: '4px 10px', cursor: 'pointer', textAlign: 'left',
               }}
             >
               {session.login} {session.role === 'admin' && '★'}
             </button>
             <button
               onClick={handleLogout}
-              style={{ fontSize: 9, color: 'var(--text2)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              style={{ fontSize: 10, color: 'var(--text2)', background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', textAlign: 'left' }}
             >
               вийти
             </button>

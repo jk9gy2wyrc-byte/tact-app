@@ -528,6 +528,26 @@ export default function Charts() {
   const d = data as any;
   const btEq: number[] = d.btEquity ?? [];
   const lvEq: number[] = d.lvEquity ?? [];
+
+  // ── No data guard ─────────────────────────────────────────────────────────
+  if (btEq.length === 0 && lvEq.length === 0) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <div style={{
+          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16,
+          padding: '32px 40px', textAlign: 'center', maxWidth: 360,
+        }}>
+          <div style={{ fontSize: 32, marginBottom: 16 }}>📊</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}>Немає даних для аналізу</div>
+          <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6 }}>
+            Спочатку внесіть угоди у розділах<br />
+            <strong style={{ color: 'var(--text)' }}>Backtest</strong> та <strong style={{ color: 'var(--text)' }}>Live</strong>,<br />
+            після цього аналітика відобразиться тут.
+          </div>
+        </div>
+      </div>
+    );
+  }
   const mcMed: number[] = d.mcMedian ?? [];
   const mcp5: number[] = d.mcp5 ?? [];
   const mcp95: number[] = d.mcp95 ?? [];
