@@ -100,7 +100,8 @@ function computeStats(trades: any[]) {
   const beCount = trades.filter(t => t.result === "be").length;
   const wr = total ? Math.round((tpCount / total) * 100) : 0;
   const wins = trades.filter(t => (t.netR ?? 0) > 0).map(t => t.netR ?? 0);
-  const losses = trades.filter(t => (t.netR ?? 0) < 0).map(t => t.netR ?? 0);
+  const slTrades = trades.filter(t => t.result === "sl").map(t => t.netR ?? 0);
+  const losses = slTrades; // avg loss = only SL trades
   const avgWin = wins.length ? Math.round((wins.reduce((a, b) => a + b, 0) / wins.length) * 100) / 100 : 0;
   const avgLoss = losses.length ? Math.round((losses.reduce((a, b) => a + b, 0) / losses.length) * 100) / 100 : 0;
   const profitFactor = losses.length && avgLoss !== 0
@@ -212,12 +213,15 @@ function CompareView({ allTrades, monthA, monthB, onClose, isMobile }: {
   const sA = computeStats(tradesA);
   const sB = computeStats(tradesB);
 
-  // Build merged equity chart (reindex both to 1..N)
+  const mA = monthLabel(monthA);
+  const mB = monthLabel(monthB);
+
+  // Merged equity chart
   const maxLen = Math.max(sA.equity.length, sB.equity.length);
   const equityMerged = Array.from({ length: maxLen }, (_, i) => ({
     i: i + 1,
-    [monthLabel(monthA)]: sA.equity[i]?.net ?? null,
-    [monthLabel(monthB)]: sB.equity[i]?.net ?? null,
+    [mA]: sA.equity[i]?.net ?? null,
+    [mB]: sB.equity[i]?.net ?? null,
   }));
 
   // P&L by market merged
@@ -228,19 +232,37 @@ function CompareView({ allTrades, monthA, monthB, onClose, isMobile }: {
     return { asset, netA: a?.net ?? 0, netB: b?.net ?? 0 };
   }).sort((x, y) => Math.abs(y.netA) - Math.abs(x.netA));
 
-  const pfFmt = (v: number | typeof Infinity) => v === Infinity ? "∞" : v.toFixed(2);
+  const pfFmt = (v: number) => v === Infinity ? "∞" : v.toFixed(2);
 
-  function StatRow({ label, vA, vB, colorFn }: { label: string; vA: string | number; vB: string | number; colorFn?: (v: number) => string }) {
-    const numA = typeof vA === "number" ? vA : parseFloat(String(vA));
-    const numB = typeof vB === "number" ? vB : parseFloat(String(vB));
-    const diff = !isNaN(numA) && !isNaN(numB) ? diffPct(numA, numB) : null;
-    const diffColor = diff ? (diff.startsWith("+") ? "#7eb8f7" : diff === "0%" ? "#666" : "#f0a070") : undefined;
+  // Delta helpers — all deltas are B - A (absolute), sign shows direction
+  const absDelta = (b: number, a: number) => {
+    const d = b - a;
+    return (d >= 0 ? "+" : "") + (Number.isInteger(d) ? d : d.toFixed(2));
+  };
+  const pctPtDelta = (b: number, a: number) => {
+    // for % metrics — show absolute pp difference
+    const d = b - a;
+    return (d >= 0 ? "+" : "") + d.toFixed(1) + "%";
+  };
+  const pctDelta = (b: number, a: number) => {
+    // for ratio metrics — % change relative to A
+    if (a === 0) return "—";
+    const d = ((b - a) / Math.abs(a)) * 100;
+    return (d >= 0 ? "+" : "") + d.toFixed(1) + "%";
+  };
+  const deltaColor = (d: string) => d.startsWith("+") ? "#7eb8f7" : d === "0" || d === "0.0%" || d === "+0.0%" ? "#666" : "#f0a070";
+
+  // Stat row: fixed columns — metric | A | B | delta
+  function Row({ label, vA, vB, delta, cA, cB, cD }: {
+    label: string; vA: string | number; vB: string | number; delta: string;
+    cA?: string; cB?: string; cD?: string;
+  }) {
     return (
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 8, alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "160px 1fr 1fr 80px", gap: 8, alignItems: "center", padding: "9px 20px", borderBottom: "1px solid var(--border)" }}>
         <div style={{ fontSize: 11, color: "var(--text2)" }}>{label}</div>
-        <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "monospace", color: colorFn && typeof vA === "number" ? colorFn(vA) : "var(--text)" }}>{vA}</div>
-        <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "monospace", color: colorFn && typeof vB === "number" ? colorFn(vB) : "var(--text)" }}>{vB}</div>
-        {diff && <div style={{ fontSize: 10, color: diffColor, fontFamily: "monospace", textAlign: "right" }}>{diff}</div>}
+        <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "monospace", color: cA ?? "var(--text)" }}>{vA}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "monospace", color: cB ?? "var(--text)" }}>{vB}</div>
+        <div style={{ fontSize: 11, fontFamily: "monospace", textAlign: "right", color: cD ?? deltaColor(delta) }}>{delta}</div>
       </div>
     );
   }
@@ -252,14 +274,12 @@ function CompareView({ allTrades, monthA, monthB, onClose, isMobile }: {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ fontSize: 18, fontWeight: 700 }}>Compare</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ background: "#7eb8f722", color: "#7eb8f7", border: "1px solid #7eb8f744", borderRadius: 8, padding: "4px 12px", fontSize: 13, fontWeight: 600 }}>{monthLabel(monthA)}</span>
+            <span style={{ background: "#7eb8f722", color: "#7eb8f7", border: "1px solid #7eb8f744", borderRadius: 8, padding: "4px 12px", fontSize: 13, fontWeight: 600 }}>{mA}</span>
             <span style={{ color: "var(--text2)", fontSize: 12 }}>vs</span>
-            <span style={{ background: "#f0a07022", color: "#f0a070", border: "1px solid #f0a07044", borderRadius: 8, padding: "4px 12px", fontSize: 13, fontWeight: 600 }}>{monthLabel(monthB)}</span>
+            <span style={{ background: "#f0a07022", color: "#f0a070", border: "1px solid #f0a07044", borderRadius: 8, padding: "4px 12px", fontSize: 13, fontWeight: 600 }}>{mB}</span>
           </div>
         </div>
-        <button onClick={onClose} style={{ padding: "6px 16px", borderRadius: 8, background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text2)", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
-          ← Back
-        </button>
+        <button onClick={onClose} style={{ padding: "6px 16px", borderRadius: 8, background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text2)", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>← Back</button>
       </div>
 
       {/* Equity Curve Overlay */}
@@ -268,11 +288,11 @@ function CompareView({ allTrades, monthA, monthB, onClose, isMobile }: {
         <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
             <div style={{ width: 20, height: 2, background: "#7eb8f7", borderRadius: 2 }} />
-            <span style={{ color: "#7eb8f7" }}>{monthLabel(monthA)}: {sA.totalNet >= 0 ? "+" : ""}{sA.totalNet.toFixed(2)}R</span>
+            <span style={{ color: "#7eb8f7" }}>{mA}: {sA.totalNet >= 0 ? "+" : ""}{sA.totalNet.toFixed(2)}R</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
-            <div style={{ width: 20, height: 2, background: "#f0a070", borderRadius: 2, borderTop: "2px dashed #f0a070" }} />
-            <span style={{ color: "#f0a070" }}>{monthLabel(monthB)}: {sB.totalNet >= 0 ? "+" : ""}{sB.totalNet.toFixed(2)}R</span>
+            <div style={{ width: 20, height: 2, background: "#f0a070", borderRadius: 2 }} />
+            <span style={{ color: "#f0a070" }}>{mB}: {sB.totalNet >= 0 ? "+" : ""}{sB.totalNet.toFixed(2)}R</span>
           </div>
         </div>
         <ResponsiveContainer width="100%" height={220}>
@@ -282,8 +302,8 @@ function CompareView({ allTrades, monthA, monthB, onClose, isMobile }: {
             <YAxis tick={{ fontSize: 10, fill: "#8b9098" }} width={36} />
             <Tooltip content={<ChartTooltip />} />
             <ReferenceLine y={0} stroke="#444" strokeDasharray="3 3" />
-            <Line type="monotone" dataKey={monthLabel(monthA)} stroke="#7eb8f7" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
-            <Line type="monotone" dataKey={monthLabel(monthB)} stroke="#f0a070" strokeWidth={2} strokeDasharray="5 3" dot={false} isAnimationActive={false} connectNulls />
+            <Line type="monotone" dataKey={mA} stroke="#7eb8f7" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+            <Line type="monotone" dataKey={mB} stroke="#f0a070" strokeWidth={2} strokeDasharray="5 3" dot={false} isAnimationActive={false} connectNulls />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -291,24 +311,31 @@ function CompareView({ allTrades, monthA, monthB, onClose, isMobile }: {
       {/* P&L by Market */}
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
         <SectionTitle>P&L by Market (Net R)</SectionTitle>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 240, overflowY: "auto" }}>
+        {/* legend */}
+        <div style={{ display: "flex", gap: 16, marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "#7eb8f7" }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#7eb8f766" }} />{mA}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "#f0a070" }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#f0a07066" }} />{mB}</div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 260, overflowY: "auto" }}>
           {mktMerged.map(m => {
             const maxAbs = Math.max(...mktMerged.map(x => Math.max(Math.abs(x.netA), Math.abs(x.netB)))) || 1;
             const pctA = Math.abs(m.netA) / maxAbs * 100;
             const pctB = Math.abs(m.netB) / maxAbs * 100;
             return (
               <div key={m.asset} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11 }}>
-                <div style={{ width: 52, textAlign: "right", color: "var(--text2)", fontFamily: "monospace", fontSize: 10 }}>{m.asset}</div>
+                <div style={{ width: 48, textAlign: "right", color: "var(--text2)", fontFamily: "monospace", fontSize: 10 }}>{m.asset}</div>
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
-                  <div style={{ background: "#1c1f23", borderRadius: 3, height: 10, position: "relative", overflow: "hidden" }}>
+                  <div style={{ background: "#1c1f23", borderRadius: 3, height: 9, position: "relative", overflow: "hidden" }}>
                     <div style={{ position: "absolute", top: 0, bottom: 0, left: m.netA >= 0 ? "50%" : `${50 - pctA / 2}%`, width: `${pctA / 2}%`, background: m.netA >= 0 ? "#7eb8f766" : "#f0a07066" }} />
+                    <div style={{ position: "absolute", top: 0, bottom: 0, left: "50%", width: 1, background: "#444" }} />
                   </div>
-                  <div style={{ background: "#1c1f23", borderRadius: 3, height: 10, position: "relative", overflow: "hidden" }}>
+                  <div style={{ background: "#1c1f23", borderRadius: 3, height: 9, position: "relative", overflow: "hidden" }}>
                     <div style={{ position: "absolute", top: 0, bottom: 0, left: m.netB >= 0 ? "50%" : `${50 - pctB / 2}%`, width: `${pctB / 2}%`, background: m.netB >= 0 ? "#f0a07066" : "#f0a07066" }} />
+                    <div style={{ position: "absolute", top: 0, bottom: 0, left: "50%", width: 1, background: "#444" }} />
                   </div>
                 </div>
-                <div style={{ width: 44, fontFamily: "monospace", color: colorNet(m.netA), fontSize: 10 }}>{m.netA >= 0 ? "+" : ""}{m.netA.toFixed(2)}</div>
-                <div style={{ width: 44, fontFamily: "monospace", color: colorNet(m.netB), fontSize: 10 }}>{m.netB >= 0 ? "+" : ""}{m.netB.toFixed(2)}</div>
+                <div style={{ width: 42, fontFamily: "monospace", color: colorNet(m.netA), fontSize: 10 }}>{m.netA >= 0 ? "+" : ""}{m.netA.toFixed(2)}</div>
+                <div style={{ width: 42, fontFamily: "monospace", color: colorNet(m.netB), fontSize: 10 }}>{m.netB >= 0 ? "+" : ""}{m.netB.toFixed(2)}</div>
               </div>
             );
           })}
@@ -318,31 +345,94 @@ function CompareView({ allTrades, monthA, monthB, onClose, isMobile }: {
       {/* Stats comparison */}
       <div>
         <SectionTitle>Statistics</SectionTitle>
-        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "0 20px" }}>
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
           {/* Column headers */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 8, padding: "10px 0 6px", borderBottom: "2px solid var(--border)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "160px 1fr 1fr 80px", gap: 8, padding: "10px 20px", background: "var(--surface2)", borderBottom: "2px solid var(--border)" }}>
             <div style={{ fontSize: 10, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Metric</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#7eb8f7" }}>{monthLabel(monthA)}</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#f0a070" }}>{monthLabel(monthB)}</div>
-            <div style={{ fontSize: 10, color: "var(--text2)", textAlign: "right" }}>Δ%</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#7eb8f7" }}>{mA}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#f0a070" }}>{mB}</div>
+            <div style={{ fontSize: 10, color: "var(--text2)", textAlign: "right" }}>Δ</div>
           </div>
-          <StatRow label="Total Trades" vA={sA.total} vB={sB.total} />
-          <StatRow label="Net R" vA={sA.totalNet} vB={sB.totalNet} colorFn={colorNet} />
-          <StatRow label="Win Rate" vA={`${sA.wr}%`} vB={`${sB.wr}%`} />
-          <StatRow label="Avg Trade" vA={sA.avgNet.toFixed(3)} vB={sB.avgNet.toFixed(3)} colorFn={colorNet} />
-          <StatRow label="Avg Win" vA={sA.avgWin.toFixed(2)} vB={sB.avgWin.toFixed(2)} colorFn={colorNet} />
-          <StatRow label="Avg Loss" vA={sA.avgLoss.toFixed(2)} vB={sB.avgLoss.toFixed(2)} colorFn={colorNet} />
-          <StatRow label="Profit Factor" vA={pfFmt(sA.profitFactor)} vB={pfFmt(sB.profitFactor)} />
-          <StatRow label="Max Drawdown" vA={`-${sA.maxDd.toFixed(2)}R`} vB={`-${sB.maxDd.toFixed(2)}R`} />
-          <StatRow label="Best Trade" vA={sA.best.toFixed(2)} vB={sB.best.toFixed(2)} colorFn={colorNet} />
-          <StatRow label="Worst Trade" vA={sA.worst.toFixed(2)} vB={sB.worst.toFixed(2)} colorFn={colorNet} />
-          <StatRow label="Max Win Streak" vA={sA.maxWinStreak} vB={sB.maxWinStreak} />
-          <StatRow label="Max Loss Streak" vA={sA.maxLossStreak} vB={sB.maxLossStreak} />
-          <StatRow label="TP / SL / BE" vA={`${sA.tpCount}/${sA.slCount}/${sA.beCount}`} vB={`${sB.tpCount}/${sB.slCount}/${sB.beCount}`} />
-          <StatRow label="Longs WR" vA={`${sA.longsWR}%`} vB={`${sB.longsWR}%`} />
-          <StatRow label="Shorts WR" vA={`${sA.shortsWR}%`} vB={`${sB.shortsWR}%`} />
-          <StatRow label="Longs Net R" vA={sA.longsNet.toFixed(2)} vB={sB.longsNet.toFixed(2)} colorFn={colorNet} />
-          <StatRow label="Shorts Net R" vA={sA.shortsNet.toFixed(2)} vB={sB.shortsNet.toFixed(2)} colorFn={colorNet} />
+
+          <Row label="Total Trades"
+            vA={sA.total} vB={sB.total}
+            delta={absDelta(sB.total, sA.total)} />
+
+          <Row label="Net R"
+            vA={`${sA.totalNet >= 0 ? "+" : ""}${sA.totalNet.toFixed(2)}R`}
+            vB={`${sB.totalNet >= 0 ? "+" : ""}${sB.totalNet.toFixed(2)}R`}
+            cA={colorNet(sA.totalNet)} cB={colorNet(sB.totalNet)}
+            delta={absDelta(sB.totalNet, sA.totalNet)}
+            cD={deltaColor(absDelta(sB.totalNet, sA.totalNet))} />
+
+          <Row label="Win Rate"
+            vA={`${sA.wr}%`} vB={`${sB.wr}%`}
+            cA={sA.wr >= 50 ? "#7eb8f7" : "#f0a070"} cB={sB.wr >= 50 ? "#7eb8f7" : "#f0a070"}
+            delta={pctPtDelta(sB.wr, sA.wr)} />
+
+          <Row label="Avg Win"
+            vA={`+${sA.avgWin.toFixed(2)}R`} vB={`+${sB.avgWin.toFixed(2)}R`}
+            cA="#7eb8f7" cB="#7eb8f7"
+            delta={pctDelta(sB.avgWin, sA.avgWin)} />
+
+          <Row label="Avg Loss (SL only)"
+            vA={`${sA.avgLoss.toFixed(2)}R`} vB={`${sB.avgLoss.toFixed(2)}R`}
+            cA="#f0a070" cB="#f0a070"
+            delta={pctDelta(sB.avgLoss, sA.avgLoss)} />
+
+          <Row label="Profit Factor"
+            vA={pfFmt(sA.profitFactor)} vB={pfFmt(sB.profitFactor)}
+            cA={sA.profitFactor >= 1 ? "#7eb8f7" : "#f0a070"} cB={sB.profitFactor >= 1 ? "#7eb8f7" : "#f0a070"}
+            delta={pctDelta(sB.profitFactor === Infinity ? 9999 : sB.profitFactor, sA.profitFactor === Infinity ? 9999 : sA.profitFactor)} />
+
+          <Row label="Max Drawdown"
+            vA={`-${sA.maxDd.toFixed(2)}R`} vB={`-${sB.maxDd.toFixed(2)}R`}
+            cA="#f0a070" cB="#f0a070"
+            delta={pctDelta(sB.maxDd, sA.maxDd)} />
+
+          <Row label="Best Trade"
+            vA={`+${sA.best.toFixed(2)}R`} vB={`+${sB.best.toFixed(2)}R`}
+            cA="#7eb8f7" cB="#7eb8f7"
+            delta={absDelta(sB.best, sA.best)} />
+
+          <Row label="Worst Trade"
+            vA={`${sA.worst.toFixed(2)}R`} vB={`${sB.worst.toFixed(2)}R`}
+            cA="#f0a070" cB="#f0a070"
+            delta={absDelta(sB.worst, sA.worst)} />
+
+          <Row label="Max Win Streak"
+            vA={sA.maxWinStreak} vB={sB.maxWinStreak}
+            delta={absDelta(sB.maxWinStreak, sA.maxWinStreak)} />
+
+          <Row label="Max Loss Streak"
+            vA={sA.maxLossStreak} vB={sB.maxLossStreak}
+            delta={absDelta(sB.maxLossStreak, sA.maxLossStreak)} />
+
+          <Row label="TP / SL / BE"
+            vA={`${sA.tpCount}/${sA.slCount}/${sA.beCount}`}
+            vB={`${sB.tpCount}/${sB.slCount}/${sB.beCount}`}
+            delta={`${absDelta(sB.tpCount, sA.tpCount)}/${absDelta(sB.slCount, sA.slCount)}/${absDelta(sB.beCount, sA.beCount)}`}
+            cD="var(--text2)" />
+
+          <Row label="Longs WR"
+            vA={`${sA.longsWR}%`} vB={`${sB.longsWR}%`}
+            delta={pctPtDelta(sB.longsWR, sA.longsWR)} />
+
+          <Row label="Shorts WR"
+            vA={`${sA.shortsWR}%`} vB={`${sB.shortsWR}%`}
+            delta={pctPtDelta(sB.shortsWR, sA.shortsWR)} />
+
+          <Row label="Longs Net R"
+            vA={`${sA.longsNet >= 0 ? "+" : ""}${sA.longsNet.toFixed(2)}R`}
+            vB={`${sB.longsNet >= 0 ? "+" : ""}${sB.longsNet.toFixed(2)}R`}
+            cA={colorNet(sA.longsNet)} cB={colorNet(sB.longsNet)}
+            delta={absDelta(sB.longsNet, sA.longsNet)} />
+
+          <Row label="Shorts Net R"
+            vA={`${sA.shortsNet >= 0 ? "+" : ""}${sA.shortsNet.toFixed(2)}R`}
+            vB={`${sB.shortsNet >= 0 ? "+" : ""}${sB.shortsNet.toFixed(2)}R`}
+            cA={colorNet(sA.shortsNet)} cB={colorNet(sB.shortsNet)}
+            delta={absDelta(sB.shortsNet, sA.shortsNet)} />
         </div>
       </div>
     </div>
