@@ -4,6 +4,8 @@ import { useMobile } from "../hooks/useMobile";
 
 type RoleOptionValue = 'admin' | 'paid' | 'free-trial' | 'free' | 'no-access';
 
+const OWNER_LOGIN = 'whatif';
+
 const ROLE_OPTIONS: { value: RoleOptionValue; label: string }[] = [
   { value: 'admin', label: 'Expanded rights' },
   { value: 'paid', label: 'Paid' },
@@ -249,9 +251,14 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{u.login}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                          {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '••••••' : u.login}
+                        </span>
                         {u.login === currentLogin && (
                           <span style={{ fontSize: 9, color: '#4ade80', background: '#4ade8022', padding: '1px 6px', borderRadius: 10 }}>ТИ</span>
+                        )}
+                        {u.login === OWNER_LOGIN && (
+                          <span style={{ fontSize: 9, color: '#fb923c', background: '#fb923c22', padding: '1px 6px', borderRadius: 10, fontWeight: 700 }}>Owner</span>
                         )}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -280,7 +287,9 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <code style={{ fontSize: 12, color: '#e2e8f0', background: 'var(--surface2)', padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)' }}>{u.password}</code>
+                    <code style={{ fontSize: 12, color: '#e2e8f0', background: 'var(--surface2)', padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                      {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '••••••••' : u.password}
+                    </code>
                     <RoleDropdown u={u} />
                   </div>
                 </div>
@@ -316,14 +325,21 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                       <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)' }}>{i + 1}</td>
                       <td style={{ padding: '10px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{u.login}</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                            {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '••••••' : u.login}
+                          </span>
                           {u.login === currentLogin && (
                             <span style={{ fontSize: 9, color: '#4ade80', background: '#4ade8022', padding: '1px 6px', borderRadius: 10 }}>ТИ</span>
+                          )}
+                          {u.login === OWNER_LOGIN && (
+                            <span style={{ fontSize: 9, color: '#fb923c', background: '#fb923c22', padding: '1px 6px', borderRadius: 10, fontWeight: 700 }}>Owner</span>
                           )}
                         </div>
                       </td>
                       <td style={{ padding: '10px 16px' }}>
-                        <code style={{ fontSize: 12, color: '#e2e8f0', background: 'var(--surface2)', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border)' }}>{u.password}</code>
+                        <code style={{ fontSize: 12, color: '#e2e8f0', background: 'var(--surface2)', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                          {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '••••••••' : u.password}
+                        </code>
                       </td>
                       <td style={{ padding: '10px 16px' }}>
                         <RoleDropdown u={u} />
