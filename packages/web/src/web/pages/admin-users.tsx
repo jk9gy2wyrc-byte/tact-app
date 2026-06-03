@@ -16,10 +16,10 @@ const ROLE_OPTIONS: { value: RoleOptionValue; label: string }[] = [
 
 const ROLE_BADGES: Record<RoleOptionValue, { bg: string; border: string; text: string }> = {
   admin: { bg: '#facc1522', border: '#facc1544', text: '#facc15' },
-  paid: { bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.35)', text: '#94a3b8' },
+  paid: { bg: 'rgba(74,222,128,0.12)', border: 'rgba(74,222,128,0.35)', text: '#4ade80' },
   'free-trial': { bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.35)', text: '#94a3b8' },
   free: { bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.35)', text: '#94a3b8' },
-  'no-access': { bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.35)', text: '#94a3b8' },
+  'no-access': { bg: 'rgba(248,113,113,0.15)', border: 'rgba(248,113,113,0.45)', text: '#f87171' },
 };
 
 const mapBackendRoleToVisual = (role: string): RoleOptionValue => {
@@ -55,10 +55,11 @@ function RoleDropdown({
 }) {
   const visualRole = (draftRoles[u.id] ?? mapBackendRoleToVisual(u.role)) as RoleOptionValue;
   const expired = isTrialExpired(u);
-  const meta = expired
+  const meta = (expired || visualRole === 'no-access')
     ? { bg: 'rgba(248,113,113,0.15)', border: 'rgba(248,113,113,0.45)', text: '#f87171' }
     : ROLE_BADGES[visualRole];
-  const label = ROLE_OPTIONS.find(opt => opt.value === visualRole)?.label ?? '—';
+  const baseLabel = ROLE_OPTIONS.find(opt => opt.value === visualRole)?.label ?? '—';
+  const label = expired ? `${baseLabel} (expired)` : baseLabel;
   const isSelfAdmin = u.login === currentLogin && visualRole === 'admin';
 
   const btnRef = useRef<HTMLButtonElement>(null);
