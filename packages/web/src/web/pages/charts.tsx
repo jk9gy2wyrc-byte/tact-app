@@ -1676,24 +1676,29 @@ export default function Charts() {
                 type BoxStat = { p5: number; p25: number; med: number; p75: number; p95: number };
 
                 // ── Mini box-plot component ──────────────────────────────
-                const BoxPlot = ({ label, box, liveVal, higherIsBetter = true }: {
+                const BoxPlot = ({ label, box, liveVal, higherIsBetter = true, pct = false }: {
                   label: string;
                   box: BoxStat;
                   liveVal: number;
                   higherIsBetter?: boolean;
+                  pct?: boolean;
                 }) => {
+                  // if pct, convert 0-1 values to 0-100 for display
+                  const fmt = (v: number) => pct ? (v * 100).toFixed(1) + '%' : (Number.isInteger(v) ? String(v) : v.toFixed(2));
+                  const dispBox: BoxStat = pct ? { p5: box.p5 * 100, p25: box.p25 * 100, med: box.med * 100, p75: box.p75 * 100, p95: box.p95 * 100 } : box;
+                  const dispLive = pct ? liveVal * 100 : liveVal;
                   const H = 90; // total height px of the box area
-                  const min = box.p5;
-                  const max = box.p95;
+                  const min = dispBox.p5;
+                  const max = dispBox.p95;
                   const range = max - min || 1;
-                  const toY = (v: number) => H - ((v - min) / range) * H; // top=bad, bottom=good? no: top=high value
+                  const toY = (v: number) => H - ((v - min) / range) * H;
 
-                  const medY   = toY(box.med);
-                  const p25Y   = toY(box.p25);
-                  const p75Y   = toY(box.p75);
-                  const p5Y    = toY(box.p5);
-                  const p95Y   = toY(box.p95);
-                  const liveY  = Math.max(0, Math.min(H, toY(liveVal)));
+                  const medY   = toY(dispBox.med);
+                  const p25Y   = toY(dispBox.p25);
+                  const p75Y   = toY(dispBox.p75);
+                  const p5Y    = toY(dispBox.p5);
+                  const p95Y   = toY(dispBox.p95);
+                  const liveY  = Math.max(0, Math.min(H, toY(dispLive)));
 
                   // color: is live within 25-75 band?
                   const inBox = liveVal >= box.p25 && liveVal <= box.p75;
@@ -1723,8 +1728,8 @@ export default function Charts() {
                         <circle cx={cx} cy={liveY} r={3.5} fill={liveColor} />
                       </svg>
                       {/* labels */}
-                      <div style={{ fontSize: 9, color: '#60a5fa', fontFamily: 'monospace' }}>med {box.med}</div>
-                      <div style={{ fontSize: 10, color: liveColor, fontFamily: 'monospace', fontWeight: 700 }}>live {typeof liveVal === 'number' ? (Number.isInteger(liveVal) ? liveVal : liveVal.toFixed(2)) : '—'}</div>
+                      <div style={{ fontSize: 9, color: '#60a5fa', fontFamily: 'monospace' }}>med {fmt(box.med)}</div>
+                      <div style={{ fontSize: 10, color: liveColor, fontFamily: 'monospace', fontWeight: 700 }}>live {fmt(liveVal)}</div>
                     </div>
                   );
                 };
@@ -1733,11 +1738,11 @@ export default function Charts() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: titleColor, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 14 }}>{title}</div>
                     <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                      <BoxPlot label="Return (R)"  box={box.return}   liveVal={lvTotalR}       higherIsBetter={true} />
-                      <BoxPlot label="Max DD"      box={box.drawdown} liveVal={lvMaxDD}         higherIsBetter={false} />
-                      <BoxPlot label="Win Rate"    box={{ ...box.wr, p5: Math.round(box.wr.p5 * 100) / 100, p25: Math.round(box.wr.p25 * 100) / 100, med: Math.round(box.wr.med * 100) / 100, p75: Math.round(box.wr.p75 * 100) / 100, p95: Math.round(box.wr.p95 * 100) / 100 }} liveVal={Math.round(lvWR * 100) / 100} higherIsBetter={true} />
-                      <BoxPlot label="SQN"         box={box.sqn}      liveVal={lvSQN}           higherIsBetter={true} />
-                      <BoxPlot label="Loss Streak" box={box.streak}   liveVal={lvStreak}        higherIsBetter={false} />
+                      <BoxPlot label="Return (R)"  box={box.return}   liveVal={lvTotalR}  higherIsBetter={true} />
+                      <BoxPlot label="Max DD"      box={box.drawdown} liveVal={lvMaxDD}   higherIsBetter={false} />
+                      <BoxPlot label="Win Rate"    box={box.wr}       liveVal={lvWR}      higherIsBetter={true}  pct={true} />
+                      <BoxPlot label="SQN"         box={box.sqn}      liveVal={lvSQN}     higherIsBetter={true} />
+                      <BoxPlot label="Loss Streak" box={box.streak}   liveVal={lvStreak}  higherIsBetter={false} />
                     </div>
                   </div>
                 );
