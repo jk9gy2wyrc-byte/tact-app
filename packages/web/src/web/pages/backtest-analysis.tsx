@@ -158,12 +158,20 @@ function BtCompareModal({
     return Boolean(sel.month || sel.year);
   };
 
-  const SelForm = ({ sel, onChange }: { sel: BtSel; onChange: (s: BtSel) => void }) => (
+  const SelForm = ({ sel, onChange }: { sel: BtSel; onChange: (s: BtSel) => void }) => {
+    const instTrades = sel.instrument === "ALL"
+      ? allTrades
+      : allTrades.filter((t: any) => t.instrument === sel.instrument);
+    const selYears = [...new Set(instTrades.map((t: any) => String(t.year ?? (t.month ?? "").slice(0, 4))))].filter(Boolean).sort() as string[];
+    const selMonths = [...new Set(instTrades.map((t: any) => (t.month ?? "").slice(0, 7)))].filter(Boolean).sort() as string[];
+    const uniqueInstruments = ["ALL", ...new Set(allTrades.map((t: any) => t.instrument).filter(Boolean))].sort((a, b) => a === "ALL" ? -1 : b === "ALL" ? 1 : a.localeCompare(b));
+
+    return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div>
         <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Instrument</div>
-        <select value={sel.instrument} onChange={e => onChange({ ...sel, instrument: e.target.value })} style={selectStyle}>
-          {["ALL", "EUR", "GER", "XAU"].map(i => <option key={i} value={i}>{i === "ALL" ? "All instruments" : i}</option>)}
+        <select value={sel.instrument} onChange={e => onChange({ ...sel, instrument: e.target.value, year: "", month: "" })} style={selectStyle}>
+          {uniqueInstruments.map(i => <option key={i} value={i}>{i === "ALL" ? "All instruments" : i}</option>)}
         </select>
       </div>
       {(compareType === "year" || compareType === "custom") && (
@@ -171,7 +179,7 @@ function BtCompareModal({
           <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Year</div>
           <select value={sel.year} onChange={e => onChange({ ...sel, year: e.target.value, month: compareType === "year" ? "" : sel.month })} style={selectStyle}>
             <option value="">— pick year —</option>
-            {allYears.map(y => <option key={y} value={y}>{y}</option>)}
+            {selYears.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
       )}
@@ -184,14 +192,15 @@ function BtCompareModal({
             {compareType === "custom" && <option value="">— all of year —</option>}
             {compareType === "month" && <option value="">— pick month —</option>}
             {(compareType === "custom" && sel.year
-              ? allMonths.filter(m => m.startsWith(sel.year))
-              : allMonths
+              ? selMonths.filter(m => m.startsWith(sel.year))
+              : selMonths
             ).map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
           </select>
         </div>
       )}
     </div>
   );
+  };
 
   const canConfirm = selComplete(selA) && selComplete(selB);
 
