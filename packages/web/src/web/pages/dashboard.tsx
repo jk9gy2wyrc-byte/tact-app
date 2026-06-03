@@ -620,41 +620,41 @@ function WeakSpots({ trades }: { trades: any[] }) {
     .map(([k, arr]) => ({ key: k, ...groupStats(arr) }))
     .sort((a, b) => a.totalR - b.totalR).slice(0, 3);
 
-  const col = (r: number) => r >= 0 ? 'var(--green)' : 'var(--red)';
+  const col = (r: number) => r >= 0 ? '#7eb8f7' : '#f0a070';
 
-  function MiniTable({ rows, label }: { rows: { key: string; n: number; totalR: number; wr: number }[]; label: string }) {
+  function IslandGroup({ rows, label }: { rows: { key: string; n: number; totalR: number; wr: number }[]; label: string }) {
     return (
-      <div style={{ flex: 1, minWidth: 160 }}>
+      <div style={{ flex: 1, minWidth: 180 }}>
         <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{label}</div>
-        <table style={{ width: '100%' }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: 'left', fontSize: 10, color: 'var(--text2)', fontWeight: 400, paddingBottom: 4 }}></th>
-              <th style={{ textAlign: 'right', fontSize: 10, color: 'var(--text2)', fontWeight: 400, paddingBottom: 4 }}>R</th>
-              <th style={{ textAlign: 'right', fontSize: 10, color: 'var(--text2)', fontWeight: 400, paddingBottom: 4 }}>WR</th>
-              <th style={{ textAlign: 'right', fontSize: 10, color: 'var(--text2)', fontWeight: 400, paddingBottom: 4 }}>N</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(r => (
-              <tr key={r.key}>
-                <td style={{ fontSize: 12, fontWeight: 600, paddingRight: 8, paddingBottom: 3 }}>{r.key}</td>
-                <td style={{ fontFamily: 'monospace', fontSize: 12, textAlign: 'right', color: col(r.totalR), paddingBottom: 3 }}>{r.totalR >= 0 ? '+' : ''}{r.totalR.toFixed(2)}</td>
-                <td style={{ fontFamily: 'monospace', fontSize: 12, textAlign: 'right', color: 'var(--text2)', paddingBottom: 3 }}>{(r.wr * 100).toFixed(0)}%</td>
-                <td style={{ fontFamily: 'monospace', fontSize: 12, textAlign: 'right', color: 'var(--text2)', paddingBottom: 3 }}>{r.n}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {rows.map(r => (
+            <div key={r.key} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '8px 12px', background: 'var(--surface)',
+              border: '1px solid var(--border)', borderRadius: 10, gap: 12,
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 600, minWidth: 60 }}>{r.key}</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 13, color: col(r.totalR), minWidth: 56, textAlign: 'right' }}>
+                {r.totalR >= 0 ? '+' : ''}{r.totalR.toFixed(2)}R
+              </span>
+              <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--text2)', minWidth: 36, textAlign: 'right' }}>
+                {(r.wr * 100).toFixed(0)}%
+              </span>
+              <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--text2)', minWidth: 24, textAlign: 'right' }}>
+                {r.n}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-      <MiniTable rows={instRows} label="By Instrument" />
-      <MiniTable rows={sessRows} label="By Session" />
-      <MiniTable rows={dayRows} label="By Day" />
+    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+      <IslandGroup rows={instRows} label="By Instrument" />
+      <IslandGroup rows={sessRows} label="By Session" />
+      <IslandGroup rows={dayRows} label="By Day" />
     </div>
   );
 }
@@ -664,6 +664,7 @@ function ConsistencyScore({ trades, btAvgRR, lvAvgRR }: { trades: any[]; btAvgRR
   type TargetMode = 'manual' | 'backtest' | 'live';
   const [mode, setMode] = useState<TargetMode>(() => (localStorage.getItem('cs_mode') as TargetMode) ?? 'live');
   const [manualRR, setManualRR] = useState(() => localStorage.getItem('cs_manual_rr') ?? '2');
+  const [showInfo, setShowInfo] = useState(false);
 
   useEffect(() => { localStorage.setItem('cs_mode', mode); }, [mode]);
   useEffect(() => { localStorage.setItem('cs_manual_rr', manualRR); }, [manualRR]);
@@ -745,7 +746,33 @@ function ConsistencyScore({ trades, btAvgRR, lvAvgRR }: { trades: any[]; btAvgRR
               placeholder="2.0"
             />
           )}
+          <button
+            onClick={() => setShowInfo(v => !v)}
+            style={{ marginLeft: 4, width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--border)', background: showInfo ? 'var(--blue)' : 'var(--surface)', color: showInfo ? '#fff' : 'var(--text2)', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+          >?</button>
         </div>
+
+        {showInfo && (
+          <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12, color: 'var(--text2)', lineHeight: 1.6 }}>
+            <div style={{ color: 'var(--text)', fontWeight: 600, marginBottom: 6, fontSize: 12 }}>How Consistency Score is calculated</div>
+            <div style={{ marginBottom: 4 }}>
+              <span style={{ color: 'var(--text)' }}>Std Dev Score</span> — based on standard deviation of net R across all trades.
+              Lower deviation = more predictable results. Score: <span style={{ fontFamily: 'monospace' }}>max(0, 100 − stdDev × 20)</span>
+            </div>
+            <div style={{ marginBottom: 4 }}>
+              <span style={{ color: 'var(--text)' }}>In Range Score</span> — % of trades where net R falls within <span style={{ fontFamily: 'monospace' }}>[−targetRR, +targetRR]</span>.
+              Trades outside this range (massive wins or losses) lower the score.
+            </div>
+            <div style={{ marginBottom: 4 }}>
+              <span style={{ color: 'var(--text)' }}>Final Score</span> — average of both: <span style={{ fontFamily: 'monospace' }}>(stdDevScore + inRangeScore) / 2</span>
+            </div>
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 6 }}>
+              <span style={{ color: '#7eb8f7' }}>≥ 70</span> Consistent &nbsp;·&nbsp;
+              <span style={{ color: '#f0c070' }}>40–69</span> Moderate &nbsp;·&nbsp;
+              <span style={{ color: '#f0a070' }}>&lt; 40</span> Inconsistent
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
