@@ -82,6 +82,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 export default function BacktestAnalysis() {
   const isMobile = useMobile();
   const { data: accessData } = useQuery({ queryKey: ['access'], queryFn: fetchAccess, staleTime: 60_000 });
+  const isBlocked = Boolean(accessData && !accessData.hasAccess);
   const { data: rawTrades = [], isLoading } = useQuery({ queryKey: ["backtest-trades"], queryFn: fetchBT });
   const all = rawTrades as any[];
 
