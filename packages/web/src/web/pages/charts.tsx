@@ -387,33 +387,99 @@ const defaultStress = {
   survivalThreshold: 20,
 };
 
-async function fetchMCCustom(btFrom: string, btTo: string, lvFrom: string, lvTo: string) {
-  const params = new URLSearchParams(uidParam().replace('?', ''));
-  if (btFrom) params.set('btFrom', btFrom);
-  if (btTo)   params.set('btTo',   btTo);
-  if (lvFrom) params.set('lvFrom', lvFrom);
-  if (lvTo)   params.set('lvTo',   lvTo);
-  const r = await fetch(`/api/mc-custom?${params.toString()}`);
+async function fetchMCCustom(params: Record<string, string>) {
+  const p = new URLSearchParams(uidParam().replace('?', ''));
+  Object.entries(params).forEach(([k, v]) => { if (v) p.set(k, v); });
+  const r = await fetch(`/api/mc-custom?${p.toString()}`);
   return r.json();
 }
 
-function MonthSelectInline({
-  label, value, onChange, months, placeholder,
-}: {
-  label: string; value: string; onChange: (v: string) => void;
-  months: string[]; placeholder: string;
-}) {
+async function fetchMCFilterOptions() {
+  const r = await fetch(`/api/mc-filter-options${uidParam()}`);
+  return r.json() as Promise<{
+    btTree: Record<string, Record<string, string[]>>;
+    lvTree: Record<string, Record<string, string[]>>;
+  }>;
+}
+
+// Toggle-chip button
+function Chip({ label, active, onClick, color }: { label: string; active: boolean; onClick: () => void; color?: string }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</div>
-      <select value={value} onChange={e => onChange(e.target.value)} style={{
-        background: 'var(--surface2)', border: '1px solid var(--border)',
-        borderRadius: 7, padding: '5px 9px', fontSize: 12, color: 'var(--text)',
-        cursor: 'pointer', minWidth: 105, outline: 'none',
-      }}>
-        <option value="">{placeholder}</option>
-        {months.map(m => <option key={m} value={m}>{m}</option>)}
-      </select>
+    <button onClick={onClick} style={{
+      padding: '4px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
+      border: active ? `1.5px solid ${color ?? '#7c3aed'}` : '1px solid var(--border)',
+      background: active ? (color ? `${color}22` : 'rgba(124,58,237,0.15)') : 'var(--surface2)',
+      color: active ? (color ?? '#a78bfa') : 'var(--text2)',
+      fontWeight: active ? 600 : 400,
+      transition: 'all 0.12s',
+    }}>{label}</button>
+  );
+}
+
+// Multi-select chip row
+function ChipRow({ label, items, selected, onToggle, color, formatLabel }: {
+  label: string; items: string[]; selected: Set<string>;
+  onToggle: (v: string) => void; color?: string;
+  formatLabel?: (v: string) => string;
+}) {
+  if (!items.length) return null;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
+      <span style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.06em', minWidth: 40 }}>{label}</span>
+      {items.map(it => (
+        <Chip key={it} label={formatLabel ? formatLabel(it) : it} active={selected.has(it)} onClick={() => onToggle(it)} color={color} />
+      ))}
+    </div>
+  );
+}
+
+// Toggle helper
+function toggleSet(s: Set<string>, v: string): Set<string> {
+  const n = new Set(s);
+  n.has(v) ? n.delete(v) : n.add(v);
+  return n;
+}
+
+// MCFilterPanel — BT or Live
+function MCFilterPanel({
+  mode, tree, selAssets, selYears, selMonths,
+  onToggleAsset, onToggleYear, onToggleMonth, color, assetLabel, yearLabel, monthLabel,
+}: {
+  mode: 'bt' | 'lv';
+  tree: Record<string, Record<string, string[]>>;
+  selAssets: Set<string>; selYears: Set<string>; selMonths: Set<string>;
+  onToggleAsset: (v: string) => void;
+  onToggleYear: (v: string) => void;
+  onToggleMonth: (v: string) => void;
+  color: string; assetLabel: string; yearLabel: string; monthLabel: string;
+}) {
+  const assets = Object.keys(tree).sort();
+
+  // Which years to show: union of all years across selected assets (or all if none selected)
+  const activeAssets = selAssets.size > 0 ? assets.filter(a => selAssets.has(a)) : assets;
+  const allYears = Array.from(new Set(activeAssets.flatMap(a => Object.keys(tree[a] ?? {})))).sort();
+
+  // Which months to show: union across selected assets × selected years
+  const activeYears = selYears.size > 0 ? allYears.filter(y => selYears.has(y)) : allYears;
+  const allMonths = Array.from(new Set(
+    activeAssets.flatMap(a => activeYears.flatMap(y => tree[a]?.[y] ?? []))
+  )).sort();
+
+  const fmtMonth = (m: string) => {
+    const d = new Date(m + '-01');
+    return isNaN(d.getTime()) ? m : d.toLocaleString('uk-UA', { month: 'short' });
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <ChipRow label={assetLabel} items={assets} selected={selAssets} onToggle={onToggleAsset} color={color} />
+      {allYears.length > 0 && (
+        <ChipRow label={yearLabel} items={allYears} selected={selYears} onToggle={onToggleYear} color={color} />
+      )}
+      {allMonths.length > 0 && (
+        <ChipRow label={monthLabel} items={allMonths} selected={selMonths} onToggle={onToggleMonth} color={color}
+          formatLabel={fmtMonth} />
+      )}
     </div>
   );
 }
@@ -423,16 +489,40 @@ export default function Charts() {
   const { data: accessData } = useQuery({ queryKey: ['access'], queryFn: fetchAccess, staleTime: 60_000 });
   const { data, isLoading, error } = useQuery({ queryKey: ['stats'], queryFn: fetchStats });
 
-  // ── MC custom filter ──────────────────────────────────────────────────────
-  const [mcBtFrom, setMcBtFrom] = useState('');
-  const [mcBtTo,   setMcBtTo]   = useState('');
-  const [mcLvFrom, setMcLvFrom] = useState('');
-  const [mcLvTo,   setMcLvTo]   = useState('');
-  const mcHasFilter = mcBtFrom || mcBtTo || mcLvFrom || mcLvTo;
-  const { data: mcCustomData } = useQuery({
-    queryKey: ['mc-custom', mcBtFrom, mcBtTo, mcLvFrom, mcLvTo],
-    queryFn: () => fetchMCCustom(mcBtFrom, mcBtTo, mcLvFrom, mcLvTo),
+  // ── MC multi-select filter ────────────────────────────────────────────────
+  const [mcBtAssets,  setMcBtAssets]  = useState<Set<string>>(new Set());
+  const [mcBtYears,   setMcBtYears]   = useState<Set<string>>(new Set());
+  const [mcBtMonths,  setMcBtMonths]  = useState<Set<string>>(new Set());
+  const [mcLvAssets,  setMcLvAssets]  = useState<Set<string>>(new Set());
+  const [mcLvYears,   setMcLvYears]   = useState<Set<string>>(new Set());
+  const [mcLvMonths,  setMcLvMonths]  = useState<Set<string>>(new Set());
+
+  const mcHasFilter = mcBtAssets.size || mcBtYears.size || mcBtMonths.size || mcLvAssets.size || mcLvYears.size || mcLvMonths.size;
+
+  const { data: mcFilterOptions } = useQuery({
+    queryKey: ['mc-filter-options'],
+    queryFn: fetchMCFilterOptions,
+    staleTime: 60_000,
   });
+
+  const mcQueryParams = {
+    btInstruments: [...mcBtAssets].join(','),
+    btYears:       [...mcBtYears].join(','),
+    btMonths:      [...mcBtMonths].join(','),
+    lvAssets:      [...mcLvAssets].join(','),
+    lvYears:       [...mcLvYears].join(','),
+    lvMonths:      [...mcLvMonths].join(','),
+  };
+
+  const { data: mcCustomData } = useQuery({
+    queryKey: ['mc-custom', mcQueryParams],
+    queryFn: () => fetchMCCustom(mcQueryParams),
+  });
+
+  const resetMcFilter = () => {
+    setMcBtAssets(new Set()); setMcBtYears(new Set()); setMcBtMonths(new Set());
+    setMcLvAssets(new Set()); setMcLvYears(new Set()); setMcLvMonths(new Set());
+  };
 
   // ── Equity view mode ───────────────────────────────────────────────────────
   const [equityViewMode, setEquityViewMode] = useState<'cumulative' | 'normalized'>('cumulative');
@@ -992,50 +1082,74 @@ export default function Charts() {
       {/* MC EQUITY RANGE */}
       <div style={chartStyle(isMobile)}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600 }}>Monte Carlo — Expected Equity Range</div>
             <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>
-              500 симуляцій на основі розподілу Net R з бектесту. Білий = медіана, помаранчевий = p5/p95.
-              {mcHasFilter && <span style={{ marginLeft: 8, color: 'var(--primary)', fontWeight: 600 }}>· фільтр активний</span>}
+              1000 симуляцій bootstrap на основі вибраних бектестів · Білий = медіана, помаранчевий = p5/p95
+              {mcHasFilter ? <span style={{ marginLeft: 8, color: '#a78bfa', fontWeight: 600 }}>· фільтр активний</span> : null}
             </div>
           </div>
+          {mcHasFilter ? (
+            <button onClick={resetMcFilter} style={{
+              background: 'rgba(255,77,106,0.12)', border: '1px solid rgba(255,77,106,0.35)',
+              color: 'var(--red)', borderRadius: 7, padding: '4px 12px',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            }}>Скинути</button>
+          ) : null}
         </div>
 
-        {/* Date filters */}
+        {/* BT Filter */}
         <div style={{
-          background: 'var(--surface2)', border: '1px solid var(--border)',
-          borderRadius: 10, padding: '12px 16px', marginBottom: 14,
-          display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-end',
+          background: 'var(--surface2)', border: '1px solid rgba(167,139,250,0.25)',
+          borderRadius: 10, padding: '12px 14px', marginBottom: 10,
+          display: 'flex', flexDirection: 'column', gap: 10,
         }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.07em' }}>BT діапазон</div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <MonthSelectInline label="Від" value={mcBtFrom} onChange={setMcBtFrom}
-                months={(mcCustomData as any)?.btMonths ?? (d as any)?.btMonths ?? []} placeholder="Початок" />
-              <MonthSelectInline label="До"  value={mcBtTo}   onChange={setMcBtTo}
-                months={(mcCustomData as any)?.btMonths ?? (d as any)?.btMonths ?? []} placeholder="Кінець" />
-            </div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Backtest — вибір даних
           </div>
-          <div style={{ width: 1, background: 'var(--border)', alignSelf: 'stretch', display: isMobile ? 'none' : 'block' }} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Live діапазон</div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <MonthSelectInline label="Від" value={mcLvFrom} onChange={setMcLvFrom}
-                months={(mcCustomData as any)?.lvMonths ?? (d as any)?.lvMonths ?? []} placeholder="Початок" />
-              <MonthSelectInline label="До"  value={mcLvTo}   onChange={setMcLvTo}
-                months={(mcCustomData as any)?.lvMonths ?? (d as any)?.lvMonths ?? []} placeholder="Кінець" />
-            </div>
+          {mcFilterOptions?.btTree ? (
+            <MCFilterPanel
+              mode="bt"
+              tree={mcFilterOptions.btTree}
+              selAssets={mcBtAssets} selYears={mcBtYears} selMonths={mcBtMonths}
+              onToggleAsset={v => { setMcBtAssets(s => toggleSet(s, v)); setMcBtYears(new Set()); setMcBtMonths(new Set()); }}
+              onToggleYear={v => { setMcBtYears(s => toggleSet(s, v)); setMcBtMonths(new Set()); }}
+              onToggleMonth={v => setMcBtMonths(s => toggleSet(s, v))}
+              color="#a78bfa"
+              assetLabel="Актив"
+              yearLabel="Рік"
+              monthLabel="Місяць"
+            />
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>
+          )}
+        </div>
+
+        {/* Live Filter */}
+        <div style={{
+          background: 'var(--surface2)', border: '1px solid rgba(74,222,128,0.2)',
+          borderRadius: 10, padding: '12px 14px', marginBottom: 14,
+          display: 'flex', flexDirection: 'column', gap: 10,
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Live — вибір даних
           </div>
-          {mcHasFilter && (
-            <button onClick={() => { setMcBtFrom(''); setMcBtTo(''); setMcLvFrom(''); setMcLvTo(''); }}
-              style={{
-                background: 'rgba(255,77,106,0.12)', border: '1px solid rgba(255,77,106,0.35)',
-                color: 'var(--red)', borderRadius: 7, padding: '5px 12px',
-                fontSize: 12, fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-end',
-              }}>
-              Скинути
-            </button>
+          {mcFilterOptions?.lvTree ? (
+            <MCFilterPanel
+              mode="lv"
+              tree={mcFilterOptions.lvTree}
+              selAssets={mcLvAssets} selYears={mcLvYears} selMonths={mcLvMonths}
+              onToggleAsset={v => { setMcLvAssets(s => toggleSet(s, v)); setMcLvYears(new Set()); setMcLvMonths(new Set()); }}
+              onToggleYear={v => { setMcLvYears(s => toggleSet(s, v)); setMcLvMonths(new Set()); }}
+              onToggleMonth={v => setMcLvMonths(s => toggleSet(s, v))}
+              color="#4ade80"
+              assetLabel="Актив"
+              yearLabel="Рік"
+              monthLabel="Місяць"
+            />
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>
           )}
         </div>
 

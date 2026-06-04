@@ -841,29 +841,80 @@ const app = new Hono()
     }, 200);
   })
 
-  // ─── MC CUSTOM DATE RANGE ────────────────────────────────────────────────
+  // ─── MC FILTER OPTIONS ───────────────────────────────────────────────────
+  .get('/mc-filter-options', async (c) => {
+    const uid = Number(c.req.query('userId') ?? 0);
+    const allBt = await db.select().from(backtestTrades).where(eq(backtestTrades.userId, uid)).all();
+    const allLv = await db.select().from(liveTrades).where(eq(liveTrades.userId, uid)).all();
+
+    // BT: group by instrument -> year -> months
+    const btTree: Record<string, Record<string, string[]>> = {};
+    for (const t of allBt) {
+      const inst = (t.instrument ?? 'OTHER').toUpperCase();
+      const m = (t.month ?? '').slice(0, 7);
+      if (!m) continue;
+      const yr = m.slice(0, 4);
+      if (!btTree[inst]) btTree[inst] = {};
+      if (!btTree[inst][yr]) btTree[inst][yr] = [];
+      if (!btTree[inst][yr].includes(m)) btTree[inst][yr].push(m);
+    }
+    for (const inst of Object.keys(btTree))
+      for (const yr of Object.keys(btTree[inst]))
+        btTree[inst][yr].sort();
+
+    // Live: group by asset -> year -> months
+    const lvTree: Record<string, Record<string, string[]>> = {};
+    for (const t of allLv) {
+      const asset = (t.asset ?? 'OTHER').toUpperCase();
+      const m = (t.month ?? '').slice(0, 7);
+      if (!m) continue;
+      const yr = m.slice(0, 4);
+      if (!lvTree[asset]) lvTree[asset] = {};
+      if (!lvTree[asset][yr]) lvTree[asset][yr] = [];
+      if (!lvTree[asset][yr].includes(m)) lvTree[asset][yr].push(m);
+    }
+    for (const asset of Object.keys(lvTree))
+      for (const yr of Object.keys(lvTree[asset]))
+        lvTree[asset][yr].sort();
+
+    return c.json({ btTree, lvTree });
+  })
+
+  // ─── MC CUSTOM FILTER ────────────────────────────────────────────────────
   .get('/mc-custom', async (c) => {
-    const uid    = Number(c.req.query('userId') ?? 0);
-    const btFrom = c.req.query('btFrom') ?? '';   // YYYY-MM
-    const btTo   = c.req.query('btTo')   ?? '';
-    const lvFrom = c.req.query('lvFrom') ?? '';
-    const lvTo   = c.req.query('lvTo')   ?? '';
+    const uid = Number(c.req.query('userId') ?? 0);
+    // New multi-select params (comma-separated)
+    const btInstrumentsRaw = c.req.query('btInstruments') ?? ''; // "EUR,GER"
+    const btYearsRaw       = c.req.query('btYears')       ?? ''; // "2024,2025"
+    const btMonthsRaw      = c.req.query('btMonths')      ?? ''; // "2024-01,2024-02"
+    const lvAssetsRaw      = c.req.query('lvAssets')      ?? '';
+    const lvYearsRaw       = c.req.query('lvYears')       ?? '';
+    const lvMonthsRaw      = c.req.query('lvMonths')      ?? '';
+
+    const split = (s: string) => s ? s.split(',').map(x => x.trim()).filter(Boolean) : [];
+    const btInstruments = split(btInstrumentsRaw);
+    const btYears       = split(btYearsRaw);
+    const btMonthsSel   = split(btMonthsRaw);
+    const lvAssets      = split(lvAssetsRaw);
+    const lvYears       = split(lvYearsRaw);
+    const lvMonthsSel   = split(lvMonthsRaw);
 
     const allBt = await db.select().from(backtestTrades).where(eq(backtestTrades.userId, uid)).orderBy(asc(backtestTrades.id)).all();
     const allLv = await db.select().from(liveTrades).where(eq(liveTrades.userId, uid)).orderBy(asc(liveTrades.id)).all();
 
-    const inRange = (month: string | null, from: string, to: string) => {
-      const m = (month ?? '').slice(0, 7);
-      if (!m) return true;
-      if (from && m < from) return false;
-      if (to   && m > to)   return false;
-      return true;
-    };
+    // Filter BT
+    let bt = allBt;
+    if (btInstruments.length) bt = bt.filter(t => btInstruments.includes((t.instrument ?? '').toUpperCase()));
+    if (btYears.length)       bt = bt.filter(t => btYears.includes(String(t.year)));
+    if (btMonthsSel.length)   bt = bt.filter(t => btMonthsSel.includes((t.month ?? '').slice(0, 7)));
 
-    const bt = btFrom || btTo ? allBt.filter(t => inRange(t.month, btFrom, btTo)) : allBt;
-    const lv = lvFrom || lvTo ? allLv.filter(t => inRange(t.month, lvFrom, lvTo)) : allLv;
+    // Filter Live
+    let lv = allLv;
+    if (lvAssets.length)    lv = lv.filter(t => lvAssets.includes((t.asset ?? 'OTHER').toUpperCase()));
+    if (lvYears.length)     lv = lv.filter(t => lvYears.includes((t.month ?? '').slice(0, 4)));
+    if (lvMonthsSel.length) lv = lv.filter(t => lvMonthsSel.includes((t.month ?? '').slice(0, 7)));
 
-    // available month ranges for UI
+    // legacy month ranges for old code (not used in new UI but kept for compat)
     const btMonths = Array.from(new Set(allBt.map(t => (t.month ?? '').slice(0, 7)).filter(Boolean))).sort();
     const lvMonths = Array.from(new Set(allLv.map(t => (t.month ?? '').slice(0, 7)).filter(Boolean))).sort();
 
