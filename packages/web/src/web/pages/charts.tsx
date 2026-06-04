@@ -833,38 +833,25 @@ export default function Charts() {
   };
   const eqData: any[] = [];
   if (equityViewMode === 'normalized') {
-    // Y = avg R/trade at each % point — comparable regardless of total trade count
-    for (let p = 1; p <= 100; p++) {
-      const t = p / 100;
-      const btVal  = interpArr(btEq,  t);
-      const lvVal  = lvEq.length  > 0 ? interpArr(lvEq,  t) : null;
-      const mcVal  = interpArr(mcMed, t);
-      const p5Val  = interpArr(mcp5,  t);
-      const p95Val = interpArr(mcp95, t);
-      const btN = Math.max(1, t * btEq.length);
-      const lvN = Math.max(1, t * (lvEq.length || btEq.length));
+    // Y = running avg R/trade — comparable regardless of total trade count
+    // BT: all trades; Live: all trades; both on X = trade index (absolute)
+    const maxLen = Math.max(btEq.length, lvEq.length);
+    for (let i = 0; i < maxLen; i++) {
+      const n = i + 1;
       eqData.push({
-        trade: p,
-        BT:       btVal  != null ? btVal  / btN : null,
-        Live:     lvVal  != null ? lvVal  / lvN : null,
-        'MC p50': mcVal  != null ? mcVal  / btN : null,
-        'MC p5':  p5Val  != null ? p5Val  / btN : null,
-        'MC p95': p95Val != null ? p95Val / btN : null,
+        trade: n,
+        BT:   i < btEq.length ? btEq[i] / n : null,
+        Live: i < lvEq.length ? lvEq[i] / n : null,
       });
     }
   } else {
-    const btStep = Math.max(1, Math.floor(btEq.length / N_PTS));
-    const nBtPts = Math.ceil(btEq.length / btStep);
-    for (let i = 0; i < nBtPts; i++) {
-      const btIdx = i * btStep;
-      const lvIdx = Math.min(Math.round(i * lvEq.length / Math.max(nBtPts, 1)), lvEq.length - 1);
+    // Cumulative: BT all trades, Live all trades, X = trade index
+    const maxLen = Math.max(btEq.length, lvEq.length);
+    for (let i = 0; i < maxLen; i++) {
       eqData.push({
-        trade: (i + 1) * btStep,
-        BT:       btIdx < btEq.length ? btEq[btIdx] : null,
-        Live:     lvIdx >= 0 && lvIdx < lvEq.length ? lvEq[lvIdx] : null,
-        'MC p50': interpMC(mcMed, i, nBtPts),
-        'MC p5':  interpMC(mcp5, i, nBtPts),
-        'MC p95': interpMC(mcp95, i, nBtPts),
+        trade: i + 1,
+        BT:   i < btEq.length ? btEq[i] : null,
+        Live: i < lvEq.length ? lvEq[i] : null,
       });
     }
   }
@@ -973,9 +960,6 @@ export default function Charts() {
                 <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} tickFormatter={equityViewMode === 'normalized' ? (v: number) => `${v.toFixed(2)}R` : undefined} />
                 <Tooltip content={<DeviationTooltip />} />
                 <ReferenceLine y={0} stroke="#2a2d33" strokeDasharray="4 4" />
-                <Line type="monotone" dataKey="MC p5"  stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
-                <Line type="monotone" dataKey="MC p95" stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
-                <Line type="monotone" dataKey="MC p50" stroke={MC_MED_COLOR}  strokeWidth={1.5} strokeDasharray="6 3" dot={false} connectNulls />
                 <Line type="monotone" dataKey="BT"     stroke={BT_COLOR}      strokeWidth={2}   dot={false} connectNulls />
                 <Line type="monotone" dataKey="Live"   stroke={LIVE_COLOR}    strokeWidth={2.5} dot={false} connectNulls />
               </LineChart>
