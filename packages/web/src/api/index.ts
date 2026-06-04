@@ -624,7 +624,11 @@ const app = new Hono()
     const btIsTP     = bt.map(t => t.result === 'tp');
     const btRR       = bt.map(t => (t.rr != null && t.rr > 0) ? t.rr : null);
     const N_SIM = 1000;
-    const N_TRADES_MC = bt.length || 50;
+    // MC simulates "one year forward" — use avg trades/year from bt
+    const btYearSet = new Set(bt.map(t => String(t.year)).filter(Boolean));
+    const nBtYears = btYearSet.size || 1;
+    const avgTradesPerYear = Math.max(10, Math.round(bt.length / nBtYears));
+    const N_TRADES_MC = avgTradesPerYear;
     const WIN_BT = 20;
 
     const rng = (seed: number) => {
@@ -923,7 +927,11 @@ const app = new Hono()
     const btRR      = bt.map(t => (t.rr != null && t.rr > 0) ? t.rr : null);
 
     const N_SIM = 1000;
-    const N_TRADES_MC = bt.length || 50;
+    // MC simulates "one year forward" — use avg trades/year from filtered bt
+    const btYearSet2 = new Set(bt.map(t => String(t.year)).filter(Boolean));
+    const nBtYears2 = btYearSet2.size || 1;
+    const avgTradesPerYear2 = Math.max(10, Math.round(bt.length / nBtYears2));
+    const N_TRADES_MC = avgTradesPerYear2;
     const WIN_BT = 20;
 
     const rng = (seed: number) => {
