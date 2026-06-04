@@ -831,27 +831,58 @@ export default function Charts() {
     const lo = Math.floor(t), hi = Math.min(Math.ceil(t), arr.length - 1);
     return arr[lo]! + (arr[hi]! - arr[lo]!) * (t - lo);
   };
+  // helper: interpolate MC band (100 pts) to any index i out of totalPts
+  const mcAtIdx = (arr: number[], i: number, totalPts: number): number | null => {
+    if (!arr.length || totalPts <= 0) return null;
+    const t = i / Math.max(totalPts - 1, 1);
+    const fi = t * (arr.length - 1);
+    const lo = Math.floor(fi), hi = Math.ceil(fi);
+    return (arr[lo] ?? 0) + ((arr[hi] ?? 0) - (arr[lo] ?? 0)) * (fi - lo);
+  };
+
   const eqData: any[] = [];
   if (equityViewMode === 'normalized') {
-    // Y = running avg R/trade — comparable regardless of total trade count
-    // BT: all trades; Live: all trades; both on X = trade index (absolute)
-    const maxLen = Math.max(btEq.length, lvEq.length);
+    // Y = running avg R/trade
+    // Live: extend last value to bt.length so the line reaches the end
+    const maxLen = btEq.length;
+    const lastLv = lvEq.length > 0 ? lvEq[lvEq.length - 1] : null;
     for (let i = 0; i < maxLen; i++) {
       const n = i + 1;
+      // live: use real value if exists, else extend last value / bt-equivalent n
+      let liveVal: number | null = null;
+      if (i < lvEq.length) {
+        liveVal = lvEq[i] / n;
+      } else if (lastLv != null) {
+        // extend flat: last live avg R/trade stays constant
+        liveVal = lastLv / lvEq.length;
+      }
+      const mcMed_ = mcAtIdx(mcMed, i, maxLen);
+      const mcP5_  = mcAtIdx(mcp5,  i, maxLen);
+      const mcP95_ = mcAtIdx(mcp95, i, maxLen);
       eqData.push({
         trade: n,
-        BT:   i < btEq.length ? btEq[i] / n : null,
-        Live: i < lvEq.length ? lvEq[i] / n : null,
+        BT:       btEq[i] / n,
+        Live:     liveVal,
+        'MC p50': mcMed_ != null ? mcMed_ / n : null,
+        'MC p5':  mcP5_  != null ? mcP5_  / n : null,
+        'MC p95': mcP95_ != null ? mcP95_ / n : null,
       });
     }
   } else {
-    // Cumulative: BT all trades, Live all trades, X = trade index
-    const maxLen = Math.max(btEq.length, lvEq.length);
+    // Cumulative: BT all trades, Live all trades + extend to bt.length
+    const maxLen = btEq.length;
+    const lastLv = lvEq.length > 0 ? lvEq[lvEq.length - 1] : null;
     for (let i = 0; i < maxLen; i++) {
+      let liveVal: number | null = null;
+      if (i < lvEq.length) liveVal = lvEq[i];
+      else if (lastLv != null) liveVal = lastLv; // flat extension
       eqData.push({
         trade: i + 1,
-        BT:   i < btEq.length ? btEq[i] : null,
-        Live: i < lvEq.length ? lvEq[i] : null,
+        BT:       btEq[i],
+        Live:     liveVal,
+        'MC p50': mcAtIdx(mcMed, i, maxLen),
+        'MC p5':  mcAtIdx(mcp5,  i, maxLen),
+        'MC p95': mcAtIdx(mcp95, i, maxLen),
       });
     }
   }
@@ -960,6 +991,9 @@ export default function Charts() {
                 <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} tickFormatter={equityViewMode === 'normalized' ? (v: number) => `${v.toFixed(2)}R` : undefined} />
                 <Tooltip content={<DeviationTooltip />} />
                 <ReferenceLine y={0} stroke="#2a2d33" strokeDasharray="4 4" />
+                <Line type="monotone" dataKey="MC p5"  stroke={MC_BAND_COLOR} strokeWidth={1}   strokeDasharray="3 3" dot={false} connectNulls />
+                <Line type="monotone" dataKey="MC p95" stroke={MC_BAND_COLOR} strokeWidth={1}   strokeDasharray="3 3" dot={false} connectNulls />
+                <Line type="monotone" dataKey="MC p50" stroke={MC_MED_COLOR}  strokeWidth={1}   strokeDasharray="6 3" dot={false} connectNulls />
                 <Line type="monotone" dataKey="BT"     stroke={BT_COLOR}      strokeWidth={2}   dot={false} connectNulls />
                 <Line type="monotone" dataKey="Live"   stroke={LIVE_COLOR}    strokeWidth={2.5} dot={false} connectNulls />
               </LineChart>
