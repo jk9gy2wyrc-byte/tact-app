@@ -734,7 +734,7 @@ const app = new Hono()
     }
 
     const mcPathsSample = Array.from({ length: 100 }, (_, i) =>
-      byTrade.map(tradeRows => tradeRows[i * 10]?.eq ?? 0)
+      sampleIndices.map(ti => byTrade[ti][i * 10]?.eq ?? 0)
     );
 
     const liveByMonth: Record<string, { n: number; totalR: number; wr: number; avgRR: number }> = {};
