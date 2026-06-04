@@ -1269,19 +1269,22 @@ export default function Charts() {
           const _lvEq:   number[]   = mcD ? (mcD.lvEquity  ?? []) : lvEq;
           const _btEq:   number[]   = mcD ? (mcD.btEquity  ?? []) : btEq; // real bt equity for overlay
           const nPts = _mcMed.length;
+          // X-axis: % of trades completed (1..100), so bt/live/MC all on same scale
           const _chartData = Array.from({ length: nPts }, (_, i) => {
+            const pct = Math.round(((i + 1) / nPts) * 100); // 1..100
             const pt: Record<string, number | null> = {
-              trade: i + 1,
+              pct,
               'MC p50': _mcMed[i] ?? null,
               'MC p5':  _mcp5[i]  ?? null,
               'MC p95': _mcp95[i] ?? null,
             };
             _paths.forEach((path, pi) => { pt[`path_${pi}`] = path[i] ?? null; });
-            // backtest equity downsampled to nPts
+            // bt equity: downsample to nPts points (same % progress)
             if (_btEq.length > 0) {
               const btIdx = Math.round((i / Math.max(nPts - 1, 1)) * (_btEq.length - 1));
               pt['Backtest'] = _btEq[btIdx] ?? null;
             }
+            // live equity: downsample to nPts points (same % progress)
             if (_lvEq.length > 0) {
               const lvIdx = Math.round((i / Math.max(nPts - 1, 1)) * (_lvEq.length - 1));
               pt['Live'] = _lvEq[lvIdx] ?? null;
@@ -1295,13 +1298,13 @@ export default function Charts() {
               <ResponsiveContainer width="100%" height={isMobile ? 200 : 280}>
                 <LineChart data={_chartData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
-                  <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
+                  <XAxis dataKey="pct" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} tickFormatter={(v) => `${v}%`} label={{ value: '% trades', position: 'insideBottomRight', offset: -4, fontSize: 9, fill: '#5a5f6a' }} />
                   <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
                   <Tooltip content={<SimpleTooltip />} />
                   <ReferenceLine y={0} stroke="#555" />
-                  {_paths.map((_, pi) => (
-                    <Line key={`path_${pi}`} type="monotone" dataKey={`path_${pi}`}
-                      stroke="#1e3550" strokeWidth={0.7} dot={false} isAnimationActive={false} legendType="none" connectNulls />
+                  {_paths.filter((_, pi) => pi % 5 === 0).map((_, pi) => (
+                    <Line key={`path_${pi * 5}`} type="monotone" dataKey={`path_${pi * 5}`}
+                      stroke="#2a5580" strokeWidth={0.8} dot={false} isAnimationActive={false} legendType="none" connectNulls />
                   ))}
                   <Line type="monotone" dataKey="MC p5"    stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
                   <Line type="monotone" dataKey="MC p95"   stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
@@ -1310,7 +1313,7 @@ export default function Charts() {
                   <Line type="monotone" dataKey="Live"     stroke={LIVE_COLOR}     strokeWidth={2.5} dot={false} connectNulls />
                 </LineChart>
               </ResponsiveContainer>
-              <Explanation text="Тьмяні сині лінії — 100 симуляцій (bootstrap з поверненням). Білий = медіана MC, помаранчеві = p5/p95. Фіолетова = реальний бектест-equity (послідовний порядок). Зелена = Live. MC показує діапазон можливих результатів якби трейди йшли в іншому порядку — бектест може бути будь-де всередині цього діапазону." />
+              <Explanation text="X-вісь = % виконаних трейдів (0–100%). Так bt (300+ trades) і live (70–80 trades) порівнюються на одній шкалі по прогресу, а не по абсолютній кількості трейдів. Сині лінії — 20 прикладів симуляцій. Білий = медіана, помаранчеві = p5/p95 діапазон. Фіолетова = реальний bt-equity, блакитна = live." />
             </>
           );
         })()}
@@ -1871,7 +1874,7 @@ export default function Charts() {
                       <ResponsiveContainer width="100%" height={isMobile ? 200 : 260}>
                         <LineChart data={stressEqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
-                          <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
+                          <XAxis dataKey="pct" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} tickFormatter={(v) => `${v}%`} label={{ value: '% trades', position: 'insideBottomRight', offset: -4, fontSize: 9, fill: '#5a5f6a' }} />
                           <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
                           <Tooltip content={<SimpleTooltip />} />
                           <ReferenceLine y={0} stroke="#555" strokeDasharray="4 4" />
