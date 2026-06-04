@@ -1266,7 +1266,7 @@ export default function Charts() {
           const _mcp5:   number[]   = mcD ? (mcD.mcp5     ?? []) : mcp5;
           const _mcp95:  number[]   = mcD ? (mcD.mcp95    ?? []) : mcp95;
           const _paths:  number[][] = mcD ? (mcD.mcPathsSample ?? []) : mcPathsSample;
-          const _lvEq:   number[]   = mcD ? (mcD.lvEquity  ?? []) : [];
+          const _lvEq:   number[]   = mcD ? (mcD.lvEquity  ?? []) : lvEq;
           const _btEq:   number[]   = mcD ? (mcD.btEquity  ?? []) : btEq; // real bt equity for overlay
           const nPts = _mcMed.length;
           const _chartData = Array.from({ length: nPts }, (_, i) => {
