@@ -902,17 +902,17 @@ const app = new Hono()
     const allBt = await db.select().from(backtestTrades).where(eq(backtestTrades.userId, uid)).orderBy(asc(backtestTrades.id)).all();
     const allLv = await db.select().from(liveTrades).where(eq(liveTrades.userId, uid)).orderBy(asc(liveTrades.id)).all();
 
-    // Filter BT
+    // Filter BT — months take priority over years (months already encode year)
     let bt = allBt;
     if (btInstruments.length) bt = bt.filter(t => btInstruments.includes((t.instrument ?? '').toUpperCase()));
-    if (btYears.length)       bt = bt.filter(t => btYears.includes(String(t.year)));
     if (btMonthsSel.length)   bt = bt.filter(t => btMonthsSel.includes((t.month ?? '').slice(0, 7)));
+    else if (btYears.length)  bt = bt.filter(t => btYears.includes(String(t.year)));
 
-    // Filter Live
+    // Filter Live — same priority logic
     let lv = allLv;
     if (lvAssets.length)    lv = lv.filter(t => lvAssets.includes((t.asset ?? 'OTHER').toUpperCase()));
-    if (lvYears.length)     lv = lv.filter(t => lvYears.includes((t.month ?? '').slice(0, 4)));
     if (lvMonthsSel.length) lv = lv.filter(t => lvMonthsSel.includes((t.month ?? '').slice(0, 7)));
+    else if (lvYears.length) lv = lv.filter(t => lvYears.includes((t.month ?? '').slice(0, 4)));
 
     // legacy month ranges for old code (not used in new UI but kept for compat)
     const btMonths = Array.from(new Set(allBt.map(t => (t.month ?? '').slice(0, 7)).filter(Boolean))).sort();

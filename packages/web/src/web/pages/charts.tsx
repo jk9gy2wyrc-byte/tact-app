@@ -402,84 +402,110 @@ async function fetchMCFilterOptions() {
   }>;
 }
 
-// Toggle-chip button
+// Toggle helper
+function toggleSet(s: Set<string>, v: string): Set<string> {
+  const n = new Set(s); n.has(v) ? n.delete(v) : n.add(v); return n;
+}
+
+// Chip button
 function Chip({ label, active, onClick, color }: { label: string; active: boolean; onClick: () => void; color?: string }) {
   return (
     <button onClick={onClick} style={{
-      padding: '4px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
+      padding: '3px 9px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
       border: active ? `1.5px solid ${color ?? '#7c3aed'}` : '1px solid var(--border)',
-      background: active ? (color ? `${color}22` : 'rgba(124,58,237,0.15)') : 'var(--surface2)',
+      background: active ? `${color ?? '#7c3aed'}22` : 'var(--surface)',
       color: active ? (color ?? '#a78bfa') : 'var(--text2)',
       fontWeight: active ? 600 : 400,
       transition: 'all 0.12s',
+      whiteSpace: 'nowrap',
     }}>{label}</button>
   );
 }
 
-// Multi-select chip row
-function ChipRow({ label, items, selected, onToggle, color, formatLabel }: {
-  label: string; items: string[]; selected: Set<string>;
-  onToggle: (v: string) => void; color?: string;
-  formatLabel?: (v: string) => string;
+function fmtMonth(m: string) {
+  const d = new Date(m + '-01');
+  return isNaN(d.getTime()) ? m : d.toLocaleString('uk-UA', { month: 'short' });
+}
+
+// Per-asset drill-down: shows years, then months per selected year
+function AssetDrillDown({ asset, yearMap, selYears, selMonths, onToggleYear, onToggleMonth, color }: {
+  asset: string;
+  yearMap: Record<string, string[]>; // year -> months[]
+  selYears: Set<string>;
+  selMonths: Set<string>;
+  onToggleYear: (asset: string, year: string) => void;
+  onToggleMonth: (month: string) => void;
+  color: string;
 }) {
-  if (!items.length) return null;
+  const years = Object.keys(yearMap).sort();
+  // years that are selected AND belong to this asset
+  const activeYears = years.filter(y => selYears.has(`${asset}__${y}`));
+
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
-      <span style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.06em', minWidth: 40 }}>{label}</span>
-      {items.map(it => (
-        <Chip key={it} label={formatLabel ? formatLabel(it) : it} active={selected.has(it)} onClick={() => onToggle(it)} color={color} />
-      ))}
+    <div style={{ marginTop: 6, paddingLeft: 8, borderLeft: `2px solid ${color}33`, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {/* year row */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+        <span style={{ fontSize: 11, color, fontWeight: 600, minWidth: 36 }}>{asset}:</span>
+        {years.map(y => (
+          <Chip key={y} label={y} active={selYears.has(`${asset}__${y}`)}
+            onClick={() => onToggleYear(asset, y)} color={color} />
+        ))}
+      </div>
+
+      {/* month rows per active year */}
+      {activeYears.map(y => {
+        const months = yearMap[y] ?? [];
+        return (
+          <div key={y} style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center', paddingLeft: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 500, minWidth: 36 }}>{y}:</span>
+            {months.map(m => (
+              <Chip key={m} label={fmtMonth(m)} active={selMonths.has(m)}
+                onClick={() => onToggleMonth(m)} color={color} />
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-// Toggle helper
-function toggleSet(s: Set<string>, v: string): Set<string> {
-  const n = new Set(s);
-  n.has(v) ? n.delete(v) : n.add(v);
-  return n;
-}
-
-// MCFilterPanel — BT or Live
-function MCFilterPanel({
-  mode, tree, selAssets, selYears, selMonths,
-  onToggleAsset, onToggleYear, onToggleMonth, color, assetLabel, yearLabel, monthLabel,
-}: {
-  mode: 'bt' | 'lv';
+// MCFilterPanel — asset chips on top, drill-downs below
+function MCFilterPanel({ tree, selAssets, selYears, selMonths, onToggleAsset, onToggleYear, onToggleMonth, color }: {
   tree: Record<string, Record<string, string[]>>;
-  selAssets: Set<string>; selYears: Set<string>; selMonths: Set<string>;
+  selAssets: Set<string>;
+  selYears: Set<string>;   // keyed as "ASSET__YEAR"
+  selMonths: Set<string>;  // keyed as "YYYY-MM"
   onToggleAsset: (v: string) => void;
-  onToggleYear: (v: string) => void;
+  onToggleYear: (asset: string, year: string) => void;
   onToggleMonth: (v: string) => void;
-  color: string; assetLabel: string; yearLabel: string; monthLabel: string;
+  color: string;
 }) {
   const assets = Object.keys(tree).sort();
-
-  // Which years to show: union of all years across selected assets (or all if none selected)
-  const activeAssets = selAssets.size > 0 ? assets.filter(a => selAssets.has(a)) : assets;
-  const allYears = Array.from(new Set(activeAssets.flatMap(a => Object.keys(tree[a] ?? {})))).sort();
-
-  // Which months to show: union across selected assets × selected years
-  const activeYears = selYears.size > 0 ? allYears.filter(y => selYears.has(y)) : allYears;
-  const allMonths = Array.from(new Set(
-    activeAssets.flatMap(a => activeYears.flatMap(y => tree[a]?.[y] ?? []))
-  )).sort();
-
-  const fmtMonth = (m: string) => {
-    const d = new Date(m + '-01');
-    return isNaN(d.getTime()) ? m : d.toLocaleString('uk-UA', { month: 'short' });
-  };
+  const activeAssets = assets.filter(a => selAssets.has(a));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <ChipRow label={assetLabel} items={assets} selected={selAssets} onToggle={onToggleAsset} color={color} />
-      {allYears.length > 0 && (
-        <ChipRow label={yearLabel} items={allYears} selected={selYears} onToggle={onToggleYear} color={color} />
-      )}
-      {allMonths.length > 0 && (
-        <ChipRow label={monthLabel} items={allMonths} selected={selMonths} onToggle={onToggleMonth} color={color}
-          formatLabel={fmtMonth} />
-      )}
+      {/* asset row */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
+        <span style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.06em', minWidth: 48 }}>Актив</span>
+        {assets.map(a => (
+          <Chip key={a} label={a} active={selAssets.has(a)} onClick={() => onToggleAsset(a)} color={color} />
+        ))}
+      </div>
+
+      {/* drill-downs for each selected asset */}
+      {activeAssets.map(a => (
+        <AssetDrillDown
+          key={a}
+          asset={a}
+          yearMap={tree[a] ?? {}}
+          selYears={selYears}
+          selMonths={selMonths}
+          onToggleYear={onToggleYear}
+          onToggleMonth={onToggleMonth}
+          color={color}
+        />
+      ))}
     </div>
   );
 }
@@ -505,12 +531,17 @@ export default function Charts() {
     staleTime: 60_000,
   });
 
+  // selYears encoded as "ASSET__YEAR", selMonths as "YYYY-MM"
+  // Build API params: extract unique years and months from the keyed sets
+  const btYearsForApi = Array.from(new Set([...mcBtYears].map(k => k.split('__')[1]).filter(Boolean)));
+  const lvYearsForApi = Array.from(new Set([...mcLvYears].map(k => k.split('__')[1]).filter(Boolean)));
+
   const mcQueryParams = {
     btInstruments: [...mcBtAssets].join(','),
-    btYears:       [...mcBtYears].join(','),
+    btYears:       btYearsForApi.join(','),
     btMonths:      [...mcBtMonths].join(','),
     lvAssets:      [...mcLvAssets].join(','),
-    lvYears:       [...mcLvYears].join(','),
+    lvYears:       lvYearsForApi.join(','),
     lvMonths:      [...mcLvMonths].join(','),
   };
 
@@ -522,6 +553,52 @@ export default function Charts() {
   const resetMcFilter = () => {
     setMcBtAssets(new Set()); setMcBtYears(new Set()); setMcBtMonths(new Set());
     setMcLvAssets(new Set()); setMcLvYears(new Set()); setMcLvMonths(new Set());
+  };
+
+  const handleMcBtToggleAsset = (a: string) => {
+    // when deselecting asset — also remove its years and any months that belonged only to it
+    setMcBtAssets(s => {
+      const ns = toggleSet(s, a);
+      if (!ns.has(a)) {
+        setMcBtYears(prev => { const ny = new Set(prev); [...ny].filter(k => k.startsWith(`${a}__`)).forEach(k => ny.delete(k)); return ny; });
+      }
+      return ns;
+    });
+  };
+
+  const handleMcBtToggleYear = (asset: string, year: string) => {
+    const key = `${asset}__${year}`;
+    setMcBtYears(s => {
+      const ns = toggleSet(s, key);
+      // if deselecting year, remove months that belong to this year
+      if (!ns.has(key) && mcFilterOptions?.btTree) {
+        const months = mcFilterOptions.btTree[asset]?.[year] ?? [];
+        setMcBtMonths(prev => { const nm = new Set(prev); months.forEach(m => nm.delete(m)); return nm; });
+      }
+      return ns;
+    });
+  };
+
+  const handleMcLvToggleAsset = (a: string) => {
+    setMcLvAssets(s => {
+      const ns = toggleSet(s, a);
+      if (!ns.has(a)) {
+        setMcLvYears(prev => { const ny = new Set(prev); [...ny].filter(k => k.startsWith(`${a}__`)).forEach(k => ny.delete(k)); return ny; });
+      }
+      return ns;
+    });
+  };
+
+  const handleMcLvToggleYear = (asset: string, year: string) => {
+    const key = `${asset}__${year}`;
+    setMcLvYears(s => {
+      const ns = toggleSet(s, key);
+      if (!ns.has(key) && mcFilterOptions?.lvTree) {
+        const months = mcFilterOptions.lvTree[asset]?.[year] ?? [];
+        setMcLvMonths(prev => { const nm = new Set(prev); months.forEach(m => nm.delete(m)); return nm; });
+      }
+      return ns;
+    });
   };
 
   // ── Equity view mode ───────────────────────────────────────────────────────
@@ -1103,54 +1180,42 @@ export default function Charts() {
         <div style={{
           background: 'var(--surface2)', border: '1px solid rgba(167,139,250,0.25)',
           borderRadius: 10, padding: '12px 14px', marginBottom: 10,
-          display: 'flex', flexDirection: 'column', gap: 10,
+          display: 'flex', flexDirection: 'column', gap: 6,
         }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
             Backtest — вибір даних
           </div>
           {mcFilterOptions?.btTree ? (
             <MCFilterPanel
-              mode="bt"
               tree={mcFilterOptions.btTree}
               selAssets={mcBtAssets} selYears={mcBtYears} selMonths={mcBtMonths}
-              onToggleAsset={v => { setMcBtAssets(s => toggleSet(s, v)); setMcBtYears(new Set()); setMcBtMonths(new Set()); }}
-              onToggleYear={v => { setMcBtYears(s => toggleSet(s, v)); setMcBtMonths(new Set()); }}
+              onToggleAsset={handleMcBtToggleAsset}
+              onToggleYear={handleMcBtToggleYear}
               onToggleMonth={v => setMcBtMonths(s => toggleSet(s, v))}
               color="#a78bfa"
-              assetLabel="Актив"
-              yearLabel="Рік"
-              monthLabel="Місяць"
             />
-          ) : (
-            <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>
-          )}
+          ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>}
         </div>
 
         {/* Live Filter */}
         <div style={{
           background: 'var(--surface2)', border: '1px solid rgba(74,222,128,0.2)',
           borderRadius: 10, padding: '12px 14px', marginBottom: 14,
-          display: 'flex', flexDirection: 'column', gap: 10,
+          display: 'flex', flexDirection: 'column', gap: 6,
         }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
             Live — вибір даних
           </div>
           {mcFilterOptions?.lvTree ? (
             <MCFilterPanel
-              mode="lv"
               tree={mcFilterOptions.lvTree}
               selAssets={mcLvAssets} selYears={mcLvYears} selMonths={mcLvMonths}
-              onToggleAsset={v => { setMcLvAssets(s => toggleSet(s, v)); setMcLvYears(new Set()); setMcLvMonths(new Set()); }}
-              onToggleYear={v => { setMcLvYears(s => toggleSet(s, v)); setMcLvMonths(new Set()); }}
+              onToggleAsset={handleMcLvToggleAsset}
+              onToggleYear={handleMcLvToggleYear}
               onToggleMonth={v => setMcLvMonths(s => toggleSet(s, v))}
               color="#4ade80"
-              assetLabel="Актив"
-              yearLabel="Рік"
-              monthLabel="Місяць"
             />
-          ) : (
-            <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>
-          )}
+          ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>}
         </div>
 
         {/* Chart */}
