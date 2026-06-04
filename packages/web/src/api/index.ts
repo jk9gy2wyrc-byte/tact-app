@@ -931,20 +931,53 @@ const app = new Hono()
       return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
     };
     const rand = rng(42);
+    const btIsTP = bt.map(t => t.result === 'tp');
+    const btRR   = bt.map(t => (t.rr != null && t.rr > 0) ? t.rr : null);
 
+    // Identical algorithm to /api/stats — full rolling window simulation
     type SimRow2 = { eq: number };
     const byTrade2: SimRow2[][] = Array.from({ length: N_TRADES_MC }, () => []);
     const simFinals2: { totalR: number }[] = [];
 
     for (let si = 0; si < N_SIM; si++) {
       let acc = 0;
+      let winCount = 0, rrSum = 0, rrCount = 0, grossWin = 0, grossLoss = 0;
+      const winBuf: boolean[] = [];
+      const rrBuf: (number | null)[] = [];
+      const netBuf: number[] = [];
+      let simPeak = 0, simCumR = 0, simMaxDD = 0, simSumR = 0, simSumR2 = 0;
+
       for (let j = 0; j < N_TRADES_MC; j++) {
         if (btNetRArr.length === 0) break;
-        const idx = Math.floor(rand() * btNetRArr.length);
-        acc += btNetRArr[idx];
+        const idx   = Math.floor(rand() * btNetRArr.length);
+        const netR  = btNetRArr[idx];
+        const isTP  = btIsTP[idx];
+        const rr    = btRR[idx];
+
+        acc += netR;
+        simCumR += netR;
+        if (simCumR > simPeak) simPeak = simCumR;
+        if (simPeak - simCumR > simMaxDD) simMaxDD = simPeak - simCumR;
+        simSumR += netR; simSumR2 += netR * netR;
+
+        winBuf.push(isTP); rrBuf.push(rr); netBuf.push(netR);
+        if (winBuf.length > WIN_BT) {
+          const rem = winBuf.shift()!; const remRR = rrBuf.shift()!; const remNet = netBuf.shift()!;
+          if (rem) winCount--;
+          if (remRR != null) { rrSum -= remRR; rrCount--; }
+          if (remNet > 0) grossWin -= remNet;
+          else if (remNet < 0) grossLoss -= Math.abs(remNet);
+        }
+        if (isTP) winCount++;
+        if (rr != null) { rrSum += rr; rrCount++; }
+        if (netR > 0) grossWin += netR;
+        else if (netR < 0) grossLoss += Math.abs(netR);
+
         byTrade2[j].push({ eq: Math.round(acc * 100) / 100 });
       }
-      simFinals2.push({ totalR: acc });
+      const simMean = simSumR / N_TRADES_MC;
+      const simStd  = Math.sqrt(Math.max(0, simSumR2 / N_TRADES_MC - simMean * simMean));
+      simFinals2.push({ totalR: acc, maxDD: simMaxDD, stdDev: simStd, sqn: simStd > 0 ? Math.sqrt(N_TRADES_MC) * simMean / simStd : 0 } as any);
     }
 
     const pctOf2 = (arr: number[], p: number) => {
@@ -969,7 +1002,6 @@ const app = new Hono()
       mcp95.push(pctOf2(eqArr, 0.95));
     }
 
-    // Use sims 0,10,20,...,990 from byTrade2 — same approach as /api/stats for consistency
     const mcPathsSample = Array.from({ length: 100 }, (_, i) =>
       sampleIdx2.map(ti => byTrade2[ti][i * 10]?.eq ?? 0)
     );
@@ -978,17 +1010,16 @@ const app = new Hono()
     let lvCum = 0;
     for (const t of lv) { lvCum += t.netR ?? 0; lvEquity.push(Math.round(lvCum * 100) / 100); }
 
-    // BT actual equity, downsampled to same N_PTS as MC for alignment on chart
+    // BT actual equity downsampled to match MC points
     const btEquityFull: number[] = [];
     let btCum = 0;
     for (const t of bt) { btCum += t.netR ?? 0; btEquityFull.push(Math.round(btCum * 100) / 100); }
-    // Downsample btEquity to match sampleIdx2 length
     const btEquity: number[] = sampleIdx2.map(ti => {
       const idx = Math.min(ti, btEquityFull.length - 1);
       return btEquityFull[idx] ?? 0;
     });
 
-    const finals = simFinals2.map(s => s.totalR);
+    const finals = simFinals2.map((s: any) => s.totalR);
     const ruinPaths   = finals.filter(v => v < 0).length;
     const profitPaths = finals.filter(v => v > 0).length;
 
