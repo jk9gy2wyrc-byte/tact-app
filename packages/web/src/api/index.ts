@@ -969,17 +969,10 @@ const app = new Hono()
       mcp95.push(pctOf2(eqArr, 0.95));
     }
 
-    const mcPathsSample = Array.from({ length: 100 }, (_, i) => {
-      const rnd2 = rng(i + 1000);
-      const path: number[] = [];
-      let acc2 = 0;
-      for (let j = 0; j < N_TRADES_MC; j++) {
-        if (btNetRArr.length === 0) break;
-        acc2 += btNetRArr[Math.floor(rnd2() * btNetRArr.length)];
-        if (sampleIdx2.includes(j)) path.push(Math.round(acc2 * 100) / 100);
-      }
-      return path;
-    });
+    // Use sims 0,10,20,...,990 from byTrade2 — same approach as /api/stats for consistency
+    const mcPathsSample = Array.from({ length: 100 }, (_, i) =>
+      sampleIdx2.map(ti => byTrade2[ti][i * 10]?.eq ?? 0)
+    );
 
     const lvEquity: number[] = [];
     let lvCum = 0;
