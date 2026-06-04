@@ -978,12 +978,22 @@ const app = new Hono()
     let lvCum = 0;
     for (const t of lv) { lvCum += t.netR ?? 0; lvEquity.push(Math.round(lvCum * 100) / 100); }
 
+    // BT actual equity, downsampled to same N_PTS as MC for alignment on chart
+    const btEquityFull: number[] = [];
+    let btCum = 0;
+    for (const t of bt) { btCum += t.netR ?? 0; btEquityFull.push(Math.round(btCum * 100) / 100); }
+    // Downsample btEquity to match sampleIdx2 length
+    const btEquity: number[] = sampleIdx2.map(ti => {
+      const idx = Math.min(ti, btEquityFull.length - 1);
+      return btEquityFull[idx] ?? 0;
+    });
+
     const finals = simFinals2.map(s => s.totalR);
     const ruinPaths   = finals.filter(v => v < 0).length;
     const profitPaths = finals.filter(v => v > 0).length;
 
     return c.json({
-      mcMedian, mcp5, mcp95, mcPathsSample, lvEquity,
+      mcMedian, mcp5, mcp95, mcPathsSample, lvEquity, btEquity,
       btCount: bt.length, lvCount: lv.length,
       ruinPct: N_SIM > 0 ? ruinPaths / N_SIM : 0,
       profitPct: N_SIM > 0 ? profitPaths / N_SIM : 0,

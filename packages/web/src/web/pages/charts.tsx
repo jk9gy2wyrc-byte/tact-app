@@ -434,7 +434,7 @@ function AssetDrillDown({ asset, yearMap, selYears, selMonths, onToggleYear, onT
   selYears: Set<string>;
   selMonths: Set<string>;
   onToggleYear: (asset: string, year: string) => void;
-  onToggleMonth: (month: string) => void;
+  onToggleMonth: (asset: string, month: string) => void;
   color: string;
 }) {
   const years = Object.keys(yearMap).sort();
@@ -459,8 +459,9 @@ function AssetDrillDown({ asset, yearMap, selYears, selMonths, onToggleYear, onT
           <div key={y} style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center', paddingLeft: 8 }}>
             <span style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 500, minWidth: 36 }}>{y}:</span>
             {months.map(m => (
-              <Chip key={m} label={fmtMonth(m)} active={selMonths.has(m)}
-                onClick={() => onToggleMonth(m)} color={color} />
+              // key and active use asset-scoped key to avoid cross-asset collision
+              <Chip key={m} label={fmtMonth(m)} active={selMonths.has(`${asset}__${m}`)}
+                onClick={() => onToggleMonth(asset, m)} color={color} />
             ))}
           </div>
         );
@@ -474,10 +475,10 @@ function MCFilterPanel({ tree, selAssets, selYears, selMonths, onToggleAsset, on
   tree: Record<string, Record<string, string[]>>;
   selAssets: Set<string>;
   selYears: Set<string>;   // keyed as "ASSET__YEAR"
-  selMonths: Set<string>;  // keyed as "YYYY-MM"
+  selMonths: Set<string>;  // keyed as "ASSET__YYYY-MM"
   onToggleAsset: (v: string) => void;
   onToggleYear: (asset: string, year: string) => void;
-  onToggleMonth: (v: string) => void;
+  onToggleMonth: (asset: string, month: string) => void;
   color: string;
 }) {
   const assets = Object.keys(tree).sort();
@@ -531,23 +532,27 @@ export default function Charts() {
     staleTime: 60_000,
   });
 
-  // selYears encoded as "ASSET__YEAR", selMonths as "YYYY-MM"
-  // Build API params: extract unique years and months from the keyed sets
-  const btYearsForApi = Array.from(new Set([...mcBtYears].map(k => k.split('__')[1]).filter(Boolean)));
-  const lvYearsForApi = Array.from(new Set([...mcLvYears].map(k => k.split('__')[1]).filter(Boolean)));
+  // selYears encoded as "ASSET__YEAR", selMonths as "ASSET__YYYY-MM"
+  // Build API params: strip asset prefix
+  const btYearsForApi  = Array.from(new Set([...mcBtYears].map(k => k.split('__')[1]).filter(Boolean)));
+  const lvYearsForApi  = Array.from(new Set([...mcLvYears].map(k => k.split('__')[1]).filter(Boolean)));
+  // months: "ASSET__YYYY-MM" → "YYYY-MM"
+  const btMonthsForApi = Array.from(new Set([...mcBtMonths].map(k => k.split('__').slice(1).join('__')).filter(Boolean)));
+  const lvMonthsForApi = Array.from(new Set([...mcLvMonths].map(k => k.split('__').slice(1).join('__')).filter(Boolean)));
 
   const mcQueryParams = {
     btInstruments: [...mcBtAssets].join(','),
     btYears:       btYearsForApi.join(','),
-    btMonths:      [...mcBtMonths].join(','),
+    btMonths:      btMonthsForApi.join(','),
     lvAssets:      [...mcLvAssets].join(','),
     lvYears:       lvYearsForApi.join(','),
-    lvMonths:      [...mcLvMonths].join(','),
+    lvMonths:      lvMonthsForApi.join(','),
   };
 
   const { data: mcCustomData } = useQuery({
     queryKey: ['mc-custom', mcQueryParams],
     queryFn: () => fetchMCCustom(mcQueryParams),
+    enabled: !!(mcBtAssets.size || mcLvAssets.size),
   });
 
   const resetMcFilter = () => {
@@ -555,50 +560,80 @@ export default function Charts() {
     setMcLvAssets(new Set()); setMcLvYears(new Set()); setMcLvMonths(new Set());
   };
 
+  // Select asset → auto-select all years and months for that asset
   const handleMcBtToggleAsset = (a: string) => {
-    // when deselecting asset — also remove its years and any months that belonged only to it
-    setMcBtAssets(s => {
-      const ns = toggleSet(s, a);
-      if (!ns.has(a)) {
-        setMcBtYears(prev => { const ny = new Set(prev); [...ny].filter(k => k.startsWith(`${a}__`)).forEach(k => ny.delete(k)); return ny; });
-      }
-      return ns;
-    });
+    const tree = mcFilterOptions?.btTree ?? {};
+    const yearMap = tree[a] ?? {};
+    const assetSelected = mcBtAssets.has(a);
+    if (assetSelected) {
+      // deselect: remove asset, its years, its months
+      setMcBtAssets(s => { const ns = new Set(s); ns.delete(a); return ns; });
+      setMcBtYears(prev => { const ny = new Set(prev); [...ny].filter(k => k.startsWith(`${a}__`)).forEach(k => ny.delete(k)); return ny; });
+      setMcBtMonths(prev => { const nm = new Set(prev); [...nm].filter(k => k.startsWith(`${a}__`)).forEach(k => nm.delete(k)); return nm; });
+    } else {
+      // select: add asset + all its years + all its months
+      setMcBtAssets(s => { const ns = new Set(s); ns.add(a); return ns; });
+      setMcBtYears(prev => {
+        const ny = new Set(prev);
+        Object.keys(yearMap).forEach(y => ny.add(`${a}__${y}`));
+        return ny;
+      });
+      setMcBtMonths(prev => {
+        const nm = new Set(prev);
+        Object.entries(yearMap).forEach(([, months]) => months.forEach(m => nm.add(`${a}__${m}`)));
+        return nm;
+      });
+    }
   };
 
+  // Toggle year → also toggle all its months for that asset
   const handleMcBtToggleYear = (asset: string, year: string) => {
     const key = `${asset}__${year}`;
-    setMcBtYears(s => {
-      const ns = toggleSet(s, key);
-      // if deselecting year, remove months that belong to this year
-      if (!ns.has(key) && mcFilterOptions?.btTree) {
-        const months = mcFilterOptions.btTree[asset]?.[year] ?? [];
-        setMcBtMonths(prev => { const nm = new Set(prev); months.forEach(m => nm.delete(m)); return nm; });
-      }
-      return ns;
-    });
+    const yearSelected = mcBtYears.has(key);
+    const months = mcFilterOptions?.btTree?.[asset]?.[year] ?? [];
+    if (yearSelected) {
+      setMcBtYears(prev => { const ny = new Set(prev); ny.delete(key); return ny; });
+      setMcBtMonths(prev => { const nm = new Set(prev); months.forEach(m => nm.delete(`${asset}__${m}`)); return nm; });
+    } else {
+      setMcBtYears(prev => { const ny = new Set(prev); ny.add(key); return ny; });
+      setMcBtMonths(prev => { const nm = new Set(prev); months.forEach(m => nm.add(`${asset}__${m}`)); return nm; });
+    }
   };
 
   const handleMcLvToggleAsset = (a: string) => {
-    setMcLvAssets(s => {
-      const ns = toggleSet(s, a);
-      if (!ns.has(a)) {
-        setMcLvYears(prev => { const ny = new Set(prev); [...ny].filter(k => k.startsWith(`${a}__`)).forEach(k => ny.delete(k)); return ny; });
-      }
-      return ns;
-    });
+    const tree = mcFilterOptions?.lvTree ?? {};
+    const yearMap = tree[a] ?? {};
+    const assetSelected = mcLvAssets.has(a);
+    if (assetSelected) {
+      setMcLvAssets(s => { const ns = new Set(s); ns.delete(a); return ns; });
+      setMcLvYears(prev => { const ny = new Set(prev); [...ny].filter(k => k.startsWith(`${a}__`)).forEach(k => ny.delete(k)); return ny; });
+      setMcLvMonths(prev => { const nm = new Set(prev); [...nm].filter(k => k.startsWith(`${a}__`)).forEach(k => nm.delete(k)); return nm; });
+    } else {
+      setMcLvAssets(s => { const ns = new Set(s); ns.add(a); return ns; });
+      setMcLvYears(prev => {
+        const ny = new Set(prev);
+        Object.keys(yearMap).forEach(y => ny.add(`${a}__${y}`));
+        return ny;
+      });
+      setMcLvMonths(prev => {
+        const nm = new Set(prev);
+        Object.entries(yearMap).forEach(([, months]) => months.forEach(m => nm.add(`${a}__${m}`)));
+        return nm;
+      });
+    }
   };
 
   const handleMcLvToggleYear = (asset: string, year: string) => {
     const key = `${asset}__${year}`;
-    setMcLvYears(s => {
-      const ns = toggleSet(s, key);
-      if (!ns.has(key) && mcFilterOptions?.lvTree) {
-        const months = mcFilterOptions.lvTree[asset]?.[year] ?? [];
-        setMcLvMonths(prev => { const nm = new Set(prev); months.forEach(m => nm.delete(m)); return nm; });
-      }
-      return ns;
-    });
+    const yearSelected = mcLvYears.has(key);
+    const months = mcFilterOptions?.lvTree?.[asset]?.[year] ?? [];
+    if (yearSelected) {
+      setMcLvYears(prev => { const ny = new Set(prev); ny.delete(key); return ny; });
+      setMcLvMonths(prev => { const nm = new Set(prev); months.forEach(m => nm.delete(`${asset}__${m}`)); return nm; });
+    } else {
+      setMcLvYears(prev => { const ny = new Set(prev); ny.add(key); return ny; });
+      setMcLvMonths(prev => { const nm = new Set(prev); months.forEach(m => nm.add(`${asset}__${m}`)); return nm; });
+    }
   };
 
   // ── Equity view mode ───────────────────────────────────────────────────────
@@ -1191,7 +1226,7 @@ export default function Charts() {
               selAssets={mcBtAssets} selYears={mcBtYears} selMonths={mcBtMonths}
               onToggleAsset={handleMcBtToggleAsset}
               onToggleYear={handleMcBtToggleYear}
-              onToggleMonth={v => setMcBtMonths(s => toggleSet(s, v))}
+              onToggleMonth={(asset, m) => setMcBtMonths(s => toggleSet(s, `${asset}__${m}`))}
               color="#a78bfa"
             />
           ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>}
@@ -1212,7 +1247,7 @@ export default function Charts() {
               selAssets={mcLvAssets} selYears={mcLvYears} selMonths={mcLvMonths}
               onToggleAsset={handleMcLvToggleAsset}
               onToggleYear={handleMcLvToggleYear}
-              onToggleMonth={v => setMcLvMonths(s => toggleSet(s, v))}
+              onToggleMonth={(asset, m) => setMcLvMonths(s => toggleSet(s, `${asset}__${m}`))}
               color="#4ade80"
             />
           ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>}
@@ -1220,12 +1255,19 @@ export default function Charts() {
 
         {/* Chart */}
         {(() => {
-          const mcD = mcCustomData as any;
-          const _mcMed: number[] = (mcD?.mcMedian ?? mcMed);
-          const _mcp5:  number[] = (mcD?.mcp5     ?? mcp5);
-          const _mcp95: number[] = (mcD?.mcp95    ?? mcp95);
-          const _paths: number[][] = (mcD?.mcPathsSample ?? mcPathsSample);
-          const _lvEq:  number[] = (mcD?.lvEquity  ?? []);
+          // When filter active → use mcCustomData; otherwise use default from /api/stats
+          const hasFilter = !!(mcBtAssets.size || mcLvAssets.size);
+          const mcD = hasFilter ? (mcCustomData as any) : null;
+          // If filter active but data not yet loaded → show loading
+          if (hasFilter && !mcD) {
+            return <div style={{ color: 'var(--text2)', padding: 20, textAlign: 'center', fontSize: 12 }}>Завантаження симуляції...</div>;
+          }
+          const _mcMed:  number[]   = mcD ? (mcD.mcMedian ?? []) : mcMed;
+          const _mcp5:   number[]   = mcD ? (mcD.mcp5     ?? []) : mcp5;
+          const _mcp95:  number[]   = mcD ? (mcD.mcp95    ?? []) : mcp95;
+          const _paths:  number[][] = mcD ? (mcD.mcPathsSample ?? []) : mcPathsSample;
+          const _lvEq:   number[]   = mcD ? (mcD.lvEquity  ?? []) : [];
+          const _btEq:   number[]   = mcD ? (mcD.btEquity  ?? []) : btEq; // real bt equity for overlay
           const nPts = _mcMed.length;
           const _chartData = Array.from({ length: nPts }, (_, i) => {
             const pt: Record<string, number | null> = {
@@ -1235,8 +1277,15 @@ export default function Charts() {
               'MC p95': _mcp95[i] ?? null,
             };
             _paths.forEach((path, pi) => { pt[`path_${pi}`] = path[i] ?? null; });
-            const lvIdx = _lvEq.length > 0 ? Math.round((i / Math.max(nPts - 1, 1)) * (_lvEq.length - 1)) : -1;
-            pt['Live'] = lvIdx >= 0 ? (_lvEq[lvIdx] ?? null) : null;
+            // backtest equity downsampled to nPts
+            if (_btEq.length > 0) {
+              const btIdx = Math.round((i / Math.max(nPts - 1, 1)) * (_btEq.length - 1));
+              pt['Backtest'] = _btEq[btIdx] ?? null;
+            }
+            if (_lvEq.length > 0) {
+              const lvIdx = Math.round((i / Math.max(nPts - 1, 1)) * (_lvEq.length - 1));
+              pt['Live'] = _lvEq[lvIdx] ?? null;
+            }
             return pt;
           });
           return _mcMed.length === 0 ? (
@@ -1254,13 +1303,14 @@ export default function Charts() {
                     <Line key={`path_${pi}`} type="monotone" dataKey={`path_${pi}`}
                       stroke="#1e3550" strokeWidth={0.7} dot={false} isAnimationActive={false} legendType="none" connectNulls />
                   ))}
-                  <Line type="monotone" dataKey="MC p5"  stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
-                  <Line type="monotone" dataKey="MC p95" stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
-                  <Line type="monotone" dataKey="MC p50" stroke={MC_MED_COLOR}  strokeWidth={2}   dot={false} connectNulls />
-                  <Line type="monotone" dataKey="Live"   stroke={LIVE_COLOR}    strokeWidth={2.5} dot={false} connectNulls />
+                  <Line type="monotone" dataKey="MC p5"    stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
+                  <Line type="monotone" dataKey="MC p95"   stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
+                  <Line type="monotone" dataKey="MC p50"   stroke={MC_MED_COLOR}  strokeWidth={2}   dot={false} connectNulls />
+                  <Line type="monotone" dataKey="Backtest" stroke="#a78bfa"        strokeWidth={2}   dot={false} connectNulls />
+                  <Line type="monotone" dataKey="Live"     stroke={LIVE_COLOR}     strokeWidth={2.5} dot={false} connectNulls />
                 </LineChart>
               </ResponsiveContainer>
-              <Explanation text="Цей графік показує очікуваний діапазон equity кривої на основі 1000 симуляцій Монте Карло. Тьмяні сині лінії — 100 окремих шляхів (кожен 10-й з 1000) для наочного розуміння розкиду. Білий = медіана (найімовірніший результат), помаранчеві = 5-й та 95-й перцентилі (межі норми). Якщо Live лінія виходить за помаранчеві — рідкісний результат." />
+              <Explanation text="Тьмяні сині лінії — 100 симуляцій (bootstrap з поверненням). Білий = медіана MC, помаранчеві = p5/p95. Фіолетова = реальний бектест-equity (послідовний порядок). Зелена = Live. MC показує діапазон можливих результатів якби трейди йшли в іншому порядку — бектест може бути будь-де всередині цього діапазону." />
             </>
           );
         })()}
