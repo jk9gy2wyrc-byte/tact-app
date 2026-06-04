@@ -387,10 +387,52 @@ const defaultStress = {
   survivalThreshold: 20,
 };
 
+async function fetchMCCustom(btFrom: string, btTo: string, lvFrom: string, lvTo: string) {
+  const params = new URLSearchParams(uidParam().replace('?', ''));
+  if (btFrom) params.set('btFrom', btFrom);
+  if (btTo)   params.set('btTo',   btTo);
+  if (lvFrom) params.set('lvFrom', lvFrom);
+  if (lvTo)   params.set('lvTo',   lvTo);
+  const r = await fetch(`/api/mc-custom?${params.toString()}`);
+  return r.json();
+}
+
+function MonthSelectInline({
+  label, value, onChange, months, placeholder,
+}: {
+  label: string; value: string; onChange: (v: string) => void;
+  months: string[]; placeholder: string;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</div>
+      <select value={value} onChange={e => onChange(e.target.value)} style={{
+        background: 'var(--surface2)', border: '1px solid var(--border)',
+        borderRadius: 7, padding: '5px 9px', fontSize: 12, color: 'var(--text)',
+        cursor: 'pointer', minWidth: 105, outline: 'none',
+      }}>
+        <option value="">{placeholder}</option>
+        {months.map(m => <option key={m} value={m}>{m}</option>)}
+      </select>
+    </div>
+  );
+}
+
 export default function Charts() {
   const isMobile = useMobile();
   const { data: accessData } = useQuery({ queryKey: ['access'], queryFn: fetchAccess, staleTime: 60_000 });
   const { data, isLoading, error } = useQuery({ queryKey: ['stats'], queryFn: fetchStats });
+
+  // ── MC custom filter ──────────────────────────────────────────────────────
+  const [mcBtFrom, setMcBtFrom] = useState('');
+  const [mcBtTo,   setMcBtTo]   = useState('');
+  const [mcLvFrom, setMcLvFrom] = useState('');
+  const [mcLvTo,   setMcLvTo]   = useState('');
+  const mcHasFilter = mcBtFrom || mcBtTo || mcLvFrom || mcLvTo;
+  const { data: mcCustomData } = useQuery({
+    queryKey: ['mc-custom', mcBtFrom, mcBtTo, mcLvFrom, mcLvTo],
+    queryFn: () => fetchMCCustom(mcBtFrom, mcBtTo, mcLvFrom, mcLvTo),
+  });
 
   // ── Equity view mode ───────────────────────────────────────────────────────
   const [equityViewMode, setEquityViewMode] = useState<'cumulative' | 'normalized'>('cumulative');
@@ -949,34 +991,100 @@ export default function Charts() {
 
       {/* MC EQUITY RANGE */}
       <div style={chartStyle(isMobile)}>
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Monte Carlo — Expected Equity Range</div>
-        <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 12 }}>
-          500 симуляцій на основі розподілу Net R з бектесту. Білий = медіана, помаранчевий = p5/p95.
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>Monte Carlo — Expected Equity Range</div>
+            <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>
+              500 симуляцій на основі розподілу Net R з бектесту. Білий = медіана, помаранчевий = p5/p95.
+              {mcHasFilter && <span style={{ marginLeft: 8, color: 'var(--primary)', fontWeight: 600 }}>· фільтр активний</span>}
+            </div>
+          </div>
         </div>
-        {mcMed.length === 0 ? (
-          <div style={{ color: 'var(--text2)', padding: 20, textAlign: 'center' }}>Немає даних</div>
-        ) : (
-          <>
-            <ResponsiveContainer width="100%" height={isMobile ? 200 : 280}>
-              <LineChart data={mcChartData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
-                <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
-                <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
-                <Tooltip content={<SimpleTooltip />} />
-                <ReferenceLine y={0} stroke="#555" />
-                {mcPathsSample.map((_, pi) => (
-                  <Line key={`path_${pi}`} type="monotone" dataKey={`path_${pi}`}
-                    stroke="#1e3550" strokeWidth={0.7} dot={false} isAnimationActive={false} legendType="none" connectNulls />
-                ))}
-                <Line type="monotone" dataKey="MC p5"  stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
-                <Line type="monotone" dataKey="MC p95" stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
-                <Line type="monotone" dataKey="MC p50" stroke={MC_MED_COLOR}  strokeWidth={2}   dot={false} connectNulls />
-                <Line type="monotone" dataKey="Live"   stroke={LIVE_COLOR}    strokeWidth={2.5} dot={false} connectNulls />
-              </LineChart>
-            </ResponsiveContainer>
-            <Explanation text="Цей графік показує очікуваний діапазон equity кривої на основі 1000 симуляцій Монте Карло. Тьмяні сині лінії — 100 окремих шляхів (кожен 10-й з 1000) для наочного розуміння розкиду. Білий = медіана (найімовірніший результат), помаранчеві = 5-й та 95-й перцентилі (межі норми). Якщо Live лінія виходить за помаранчеві — рідкісний результат." />
-          </>
-        )}
+
+        {/* Date filters */}
+        <div style={{
+          background: 'var(--surface2)', border: '1px solid var(--border)',
+          borderRadius: 10, padding: '12px 16px', marginBottom: 14,
+          display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-end',
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.07em' }}>BT діапазон</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <MonthSelectInline label="Від" value={mcBtFrom} onChange={setMcBtFrom}
+                months={(mcCustomData as any)?.btMonths ?? (d as any)?.btMonths ?? []} placeholder="Початок" />
+              <MonthSelectInline label="До"  value={mcBtTo}   onChange={setMcBtTo}
+                months={(mcCustomData as any)?.btMonths ?? (d as any)?.btMonths ?? []} placeholder="Кінець" />
+            </div>
+          </div>
+          <div style={{ width: 1, background: 'var(--border)', alignSelf: 'stretch', display: isMobile ? 'none' : 'block' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Live діапазон</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <MonthSelectInline label="Від" value={mcLvFrom} onChange={setMcLvFrom}
+                months={(mcCustomData as any)?.lvMonths ?? (d as any)?.lvMonths ?? []} placeholder="Початок" />
+              <MonthSelectInline label="До"  value={mcLvTo}   onChange={setMcLvTo}
+                months={(mcCustomData as any)?.lvMonths ?? (d as any)?.lvMonths ?? []} placeholder="Кінець" />
+            </div>
+          </div>
+          {mcHasFilter && (
+            <button onClick={() => { setMcBtFrom(''); setMcBtTo(''); setMcLvFrom(''); setMcLvTo(''); }}
+              style={{
+                background: 'rgba(255,77,106,0.12)', border: '1px solid rgba(255,77,106,0.35)',
+                color: 'var(--red)', borderRadius: 7, padding: '5px 12px',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-end',
+              }}>
+              Скинути
+            </button>
+          )}
+        </div>
+
+        {/* Chart */}
+        {(() => {
+          const mcD = mcCustomData as any;
+          const _mcMed: number[] = (mcD?.mcMedian ?? mcMed);
+          const _mcp5:  number[] = (mcD?.mcp5     ?? mcp5);
+          const _mcp95: number[] = (mcD?.mcp95    ?? mcp95);
+          const _paths: number[][] = (mcD?.mcPathsSample ?? mcPathsSample);
+          const _lvEq:  number[] = (mcD?.lvEquity  ?? []);
+          const nPts = _mcMed.length;
+          const _chartData = Array.from({ length: nPts }, (_, i) => {
+            const pt: Record<string, number | null> = {
+              trade: i + 1,
+              'MC p50': _mcMed[i] ?? null,
+              'MC p5':  _mcp5[i]  ?? null,
+              'MC p95': _mcp95[i] ?? null,
+            };
+            _paths.forEach((path, pi) => { pt[`path_${pi}`] = path[i] ?? null; });
+            const lvIdx = _lvEq.length > 0 ? Math.round((i / Math.max(nPts - 1, 1)) * (_lvEq.length - 1)) : -1;
+            pt['Live'] = lvIdx >= 0 ? (_lvEq[lvIdx] ?? null) : null;
+            return pt;
+          });
+          return _mcMed.length === 0 ? (
+            <div style={{ color: 'var(--text2)', padding: 20, textAlign: 'center' }}>Немає даних</div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={isMobile ? 200 : 280}>
+                <LineChart data={_chartData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
+                  <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
+                  <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
+                  <Tooltip content={<SimpleTooltip />} />
+                  <ReferenceLine y={0} stroke="#555" />
+                  {_paths.map((_, pi) => (
+                    <Line key={`path_${pi}`} type="monotone" dataKey={`path_${pi}`}
+                      stroke="#1e3550" strokeWidth={0.7} dot={false} isAnimationActive={false} legendType="none" connectNulls />
+                  ))}
+                  <Line type="monotone" dataKey="MC p5"  stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
+                  <Line type="monotone" dataKey="MC p95" stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
+                  <Line type="monotone" dataKey="MC p50" stroke={MC_MED_COLOR}  strokeWidth={2}   dot={false} connectNulls />
+                  <Line type="monotone" dataKey="Live"   stroke={LIVE_COLOR}    strokeWidth={2.5} dot={false} connectNulls />
+                </LineChart>
+              </ResponsiveContainer>
+              <Explanation text="Цей графік показує очікуваний діапазон equity кривої на основі 1000 симуляцій Монте Карло. Тьмяні сині лінії — 100 окремих шляхів (кожен 10-й з 1000) для наочного розуміння розкиду. Білий = медіана (найімовірніший результат), помаранчеві = 5-й та 95-й перцентилі (межі норми). Якщо Live лінія виходить за помаранчеві — рідкісний результат." />
+            </>
+          );
+        })()}
       </div>
 
       {/* ── STRESS TEST ──────────────────────────────────────────────────────── */}
