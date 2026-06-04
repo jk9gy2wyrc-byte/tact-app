@@ -931,8 +931,6 @@ const app = new Hono()
       return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
     };
     const rand = rng(42);
-    const btIsTP = bt.map(t => t.result === 'tp');
-    const btRR   = bt.map(t => (t.rr != null && t.rr > 0) ? t.rr : null);
 
     // Identical algorithm to /api/stats — full rolling window simulation
     type SimRow2 = { eq: number };
