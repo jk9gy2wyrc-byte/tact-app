@@ -831,58 +831,26 @@ export default function Charts() {
     const lo = Math.floor(t), hi = Math.min(Math.ceil(t), arr.length - 1);
     return arr[lo]! + (arr[hi]! - arr[lo]!) * (t - lo);
   };
-  // helper: interpolate MC band (100 pts) to any index i out of totalPts
-  const mcAtIdx = (arr: number[], i: number, totalPts: number): number | null => {
-    if (!arr.length || totalPts <= 0) return null;
-    const t = i / Math.max(totalPts - 1, 1);
-    const fi = t * (arr.length - 1);
-    const lo = Math.floor(fi), hi = Math.ceil(fi);
-    return (arr[lo] ?? 0) + ((arr[hi] ?? 0) - (arr[lo] ?? 0)) * (fi - lo);
-  };
-
   const eqData: any[] = [];
   if (equityViewMode === 'normalized') {
-    // Y = running avg R/trade
-    // Live: extend last value to bt.length so the line reaches the end
-    const maxLen = btEq.length;
-    const lastLv = lvEq.length > 0 ? lvEq[lvEq.length - 1] : null;
+    // Y = running avg R/trade (tempo of growth)
+    const maxLen = Math.max(btEq.length, lvEq.length);
     for (let i = 0; i < maxLen; i++) {
       const n = i + 1;
-      // live: use real value if exists, else extend last value / bt-equivalent n
-      let liveVal: number | null = null;
-      if (i < lvEq.length) {
-        liveVal = lvEq[i] / n;
-      } else if (lastLv != null) {
-        // extend flat: last live avg R/trade stays constant
-        liveVal = lastLv / lvEq.length;
-      }
-      const mcMed_ = mcAtIdx(mcMed, i, maxLen);
-      const mcP5_  = mcAtIdx(mcp5,  i, maxLen);
-      const mcP95_ = mcAtIdx(mcp95, i, maxLen);
       eqData.push({
         trade: n,
-        BT:       btEq[i] / n,
-        Live:     liveVal,
-        'MC p50': mcMed_ != null ? mcMed_ / n : null,
-        'MC p5':  mcP5_  != null ? mcP5_  / n : null,
-        'MC p95': mcP95_ != null ? mcP95_ / n : null,
+        BT:   i < btEq.length ? btEq[i] / n : null,
+        Live: i < lvEq.length ? lvEq[i] / n : null,
       });
     }
   } else {
-    // Cumulative: BT all trades, Live all trades + extend to bt.length
-    const maxLen = btEq.length;
-    const lastLv = lvEq.length > 0 ? lvEq[lvEq.length - 1] : null;
+    // Cumulative: both curves stop where their trades end
+    const maxLen = Math.max(btEq.length, lvEq.length);
     for (let i = 0; i < maxLen; i++) {
-      let liveVal: number | null = null;
-      if (i < lvEq.length) liveVal = lvEq[i];
-      else if (lastLv != null) liveVal = lastLv; // flat extension
       eqData.push({
         trade: i + 1,
-        BT:       btEq[i],
-        Live:     liveVal,
-        'MC p50': mcAtIdx(mcMed, i, maxLen),
-        'MC p5':  mcAtIdx(mcp5,  i, maxLen),
-        'MC p95': mcAtIdx(mcp95, i, maxLen),
+        BT:   i < btEq.length ? btEq[i] : null,
+        Live: i < lvEq.length ? lvEq[i] : null,
       });
     }
   }
@@ -991,110 +959,49 @@ export default function Charts() {
                 <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} tickFormatter={equityViewMode === 'normalized' ? (v: number) => `${v.toFixed(2)}R` : undefined} />
                 <Tooltip content={<DeviationTooltip />} />
                 <ReferenceLine y={0} stroke="#2a2d33" strokeDasharray="4 4" />
-                <Line type="monotone" dataKey="MC p5"  stroke={MC_BAND_COLOR} strokeWidth={1}   strokeDasharray="3 3" dot={false} connectNulls />
-                <Line type="monotone" dataKey="MC p95" stroke={MC_BAND_COLOR} strokeWidth={1}   strokeDasharray="3 3" dot={false} connectNulls />
-                <Line type="monotone" dataKey="MC p50" stroke={MC_MED_COLOR}  strokeWidth={1}   strokeDasharray="6 3" dot={false} connectNulls />
-                <Line type="monotone" dataKey="BT"     stroke={BT_COLOR}      strokeWidth={2}   dot={false} connectNulls />
-                <Line type="monotone" dataKey="Live"   stroke={LIVE_COLOR}    strokeWidth={2.5} dot={false} connectNulls />
+                <Line type="monotone" dataKey="BT"   stroke={BT_COLOR}   strokeWidth={2}   dot={false} connectNulls />
+                <Line type="monotone" dataKey="Live" stroke={LIVE_COLOR} strokeWidth={2.5} dot={false} connectNulls />
               </LineChart>
             </ResponsiveContainer>
 
-            {/* Equity deviation summary */}
+            {/* Equity deviation summary — live vs bt only */}
             {lastLvEq != null && (() => {
               const isCumul = equityViewMode === 'cumulative';
-              const dp = isCumul ? 2 : 4;
-              const lvAvgR  = lvEq.length  > 0 ? lastLvEq  / lvEq.length  : null;
-              const btAvgR  = btEq.length  > 0 && lastBTEq  != null ? lastBTEq  / btEq.length  : null;
-              const medAvgR = mcMed.length > 0 && lastMedEq != null ? lastMedEq / mcMed.length : null;
-              const p5AvgR  = mcp5.length  > 0 && lastP5Eq  != null ? lastP5Eq  / mcp5.length  : null;
-              const p95AvgR = mcp95.length > 0 && lastP95Eq != null ? lastP95Eq / mcp95.length : null;
-              const liveVal = isCumul ? lastLvEq : lvAvgR;
-              const refBT   = isCumul ? btAtLivePos  : btAvgR;
-              const refMed  = isCumul ? medAtLivePos : medAvgR;
-              const refP5   = isCumul ? p5AtLivePos  : p5AvgR;
-              const refP95  = isCumul ? p95AtLivePos : p95AvgR;
+              // bt value at same trade count as live
+              const btAtN = btEq.length > 0 ? (btEq[lvEq.length - 1] ?? btEq[btEq.length - 1]) : null;
+              const liveVal = lastLvEq;
+              const btAvgR = btEq.length > 0 && lastBTEq != null ? lastBTEq / btEq.length : null;
+              const lvAvgR = lvEq.length > 0 ? lastLvEq / lvEq.length : null;
               if (liveVal == null) return null;
-              const rSuffix = isCumul ? 'R' : 'R/угоду';
-              const cmpCard = (label: string, ref: number | null | undefined, sub?: string) => {
-                if (ref == null || ref === 0) return null;
-                const dR = liveVal - ref;
-                const dP = dR / Math.abs(ref) * 100;
-                const col = dR >= 0 ? '#4ade80' : '#f87171';
-                return (
-                  <div key={label}>
-                    <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
-                    {sub && <div style={{ fontSize: 9, color: '#555', marginBottom: 3 }}>{sub}</div>}
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
-                      <span className="mono" style={{ color: col }}>{dR >= 0 ? '+' : ''}{dR.toFixed(dp)}{rSuffix}</span>
-                      <span style={{ fontSize: 10, color: col }}>({dP >= 0 ? '+' : ''}{dP.toFixed(1)}%)</span>
+              const ref = isCumul ? btAtN : btAvgR;
+              const val = isCumul ? liveVal : lvAvgR;
+              if (ref == null || val == null) return null;
+              const dR = val - ref;
+              const dP = dR / Math.abs(ref) * 100;
+              const col = dR >= 0 ? '#4ade80' : '#f87171';
+              return (
+                <div style={{ marginTop: 10, padding: '10px 14px', background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start', fontSize: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>Live</div>
+                    <div className="mono" style={{ color: LIVE_COLOR, fontSize: 15, fontWeight: 700 }}>
+                      {val.toFixed(2)}{isCumul ? 'R' : 'R/угоду'}
+                    </div>
+                    <div style={{ fontSize: 9, color: '#555', marginTop: 2 }}>{lvEq.length} угод</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>
+                      {isCumul ? `BT після ${lvEq.length} угод` : 'BT R/угоду'}
+                    </div>
+                    <div className="mono" style={{ color: BT_COLOR, fontSize: 15, fontWeight: 700 }}>
+                      {ref.toFixed(2)}{isCumul ? 'R' : 'R/угоду'}
                     </div>
                   </div>
-                );
-              };
-              return (
-                <div style={{ marginTop: 10 }}>
-                  <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 12px', borderRadius: 8 }}
-                    onClick={(e) => {
-                      const el = (e.target as HTMLElement).nextElementSibling as HTMLElement;
-                      if (el) el.style.display = el.style.display === 'none' ? 'flex' : 'none';
-                    }}>
-                    ▼ Поточне відхилення
-                  </button>
-                  <div style={{
-                    display: 'none', marginTop: 8, padding: '12px 16px',
-                    background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border)',
-                    fontSize: 12, gap: 20, flexWrap: 'wrap', alignItems: 'flex-start',
-                  }}>
-                    {/* Live value */}
-                    <div>
-                      <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>
-                        {isCumul ? 'Live R' : 'Live R/угоду'}
-                      </div>
-                      <div className="mono" style={{ color: LIVE_COLOR, fontSize: 16, fontWeight: 700 }}>
-                        {liveVal.toFixed(dp)}
-                      </div>
-                      <div style={{ fontSize: 9, color: '#555', marginTop: 2 }}>
-                        {isCumul ? `за ${lvEq.length} угод` : `${lvEq.length} угод`}
-                      </div>
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>Відхилення</div>
+                    <div className="mono" style={{ color: col, fontSize: 15, fontWeight: 700 }}>
+                      {dR >= 0 ? '+' : ''}{dR.toFixed(2)}{isCumul ? 'R' : 'R/угоду'}
                     </div>
-                    {/* vs BT at same progress */}
-                    {cmpCard(
-                      isCumul ? `vs BT (${refBT != null ? refBT.toFixed(2) : '?'}R)` : 'vs BT R/угоду',
-                      refBT,
-                      isCumul ? `BT після ${lvEq.length} угод` : `BT avg: ${btAvgR != null ? btAvgR.toFixed(4) : '?'}`
-                    )}
-                    {/* vs Linear Expected (cumul only) */}
-                    {isCumul && btLinearExpected != null && btLinearExpected !== 0 && (() => {
-                      const dR = liveVal - btLinearExpected;
-                      const dP = dR / Math.abs(btLinearExpected) * 100;
-                      const col = dR >= 0 ? '#4ade80' : '#f87171';
-                      return (
-                        <div>
-                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>vs Очікуване</div>
-                          <div style={{ fontSize: 9, color: '#555', marginBottom: 3 }}>
-                            {btAvgRPerTrade != null ? btAvgRPerTrade.toFixed(3) : '?'}R × {lvEq.length} = {btLinearExpected.toFixed(2)}R
-                          </div>
-                          <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
-                            <span className="mono" style={{ color: col }}>{dR >= 0 ? '+' : ''}{dR.toFixed(2)}R</span>
-                            <span style={{ fontSize: 10, color: col }}>({dP >= 0 ? '+' : ''}{dP.toFixed(1)}%)</span>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                    {/* vs MC Median */}
-                    {cmpCard('vs MC Median', refMed, isCumul ? `MC med після ${lvEq.length} угод` : `MC med avg: ${medAvgR != null ? medAvgR.toFixed(4) : '?'}`)}
-                    {/* MC p5-p95 */}
-                    {refP5 != null && refP95 != null && (
-                      <div>
-                        <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>MC p5–p95</div>
-                        <div style={{ fontSize: 9, color: '#6b7280', marginBottom: 4 }}>
-                          [{refP5.toFixed(dp)} — {refP95.toFixed(dp)}]{rSuffix}
-                        </div>
-                        <div style={{ fontWeight: 700, fontSize: 12, color: liveVal >= refP5 && liveVal <= refP95 ? '#4ade80' : '#f87171' }}>
-                          {liveVal >= refP5 && liveVal <= refP95 ? '✓ У межах норми' : liveVal < refP5 ? '✗ Нижче p5' : '✗ Вище p95'}
-                        </div>
-                      </div>
-                    )}
+                    <div style={{ fontSize: 10, color: col }}>({dP >= 0 ? '+' : ''}{dP.toFixed(1)}%)</div>
                   </div>
                 </div>
               );
@@ -1102,8 +1009,8 @@ export default function Charts() {
 
             <Explanation text={
               equityViewMode === 'cumulative'
-                ? "Кумулятивний режим: показує накопичений Net R по всіх трейдах наростаючим підсумком. Сіра лінія — бектест, синя — реальна торгівля. Білі пунктири — медіана 500 симуляцій Монте Карло (очікуване), помаранчеві — 5-й та 95-й процентилі (діапазон норми). Якщо синя лінія виходить за помаранчеві межі — це сигнал відхилення від статистичної норми стратегії."
-                : "Нормалізований режим: показує середнє R/угоду в міру просування по угодах — темп зростання кривої. Вісь X — відсоток пройдених угод (1% = перша угода), вісь Y — середнє R за угоду до цієї точки. Криві сходяться до фактичного середнього — це дозволяє порівняти бектест і лайв незалежно від загальної кількості угод. Якщо синя лінія нижче помаранчевої зони — темп зростання live нижчий за очікуваний за MC симуляціями."
+                ? "Кумулятивний: накопичений Net R по всіх угодах. Відхилення = live мінус bt після тієї ж кількості угод."
+                : "Нормалізований: середнє R/угоду наростаючим підсумком — темп зростання. Дозволяє порівняти bt і live незалежно від загальної кількості угод."
             } />
           </>
         )}
