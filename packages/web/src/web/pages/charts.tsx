@@ -833,14 +833,18 @@ export default function Charts() {
   };
   const eqData: any[] = [];
   if (equityViewMode === 'normalized') {
-    // Y = running avg R/trade (tempo of growth)
-    const maxLen = Math.max(btEq.length, lvEq.length);
-    for (let i = 0; i < maxLen; i++) {
-      const n = i + 1;
+    // X = normalized index 0..1 (100 pts), Y = cumEq / tradeCount (avg R/trade tempo)
+    const N = 100;
+    for (let i = 0; i < N; i++) {
+      const t = i / (N - 1); // 0..1
+      const btIdx = Math.round(t * (btEq.length - 1));
+      const lvIdx = Math.round(t * (lvEq.length - 1));
+      const btN   = btIdx + 1;
+      const lvN   = lvIdx + 1;
       eqData.push({
-        trade: n,
-        BT:   i < btEq.length ? btEq[i] / n : null,
-        Live: i < lvEq.length ? lvEq[i] / n : null,
+        trade: parseFloat(t.toFixed(2)),
+        BT:   btEq.length > 0 ? (btEq[btIdx] ?? null) / btN : null,
+        Live: lvEq.length > 0 ? (lvEq[lvIdx] ?? null) / lvN : null,
       });
     }
   } else {
@@ -955,7 +959,7 @@ export default function Charts() {
             <ResponsiveContainer width="100%" height={isMobile ? 220 : 340}>
               <LineChart data={eqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
-                <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} tickFormatter={equityViewMode === 'normalized' ? (v: number) => `${v}%` : undefined} />
+                <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
                 <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} tickFormatter={equityViewMode === 'normalized' ? (v: number) => `${v.toFixed(2)}R` : undefined} />
                 <Tooltip content={<DeviationTooltip />} />
                 <ReferenceLine y={0} stroke="#2a2d33" strokeDasharray="4 4" />
