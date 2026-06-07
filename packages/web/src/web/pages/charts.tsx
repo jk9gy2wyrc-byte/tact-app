@@ -1590,12 +1590,14 @@ export default function Charts() {
               {/* ── Factor Impact ── */}
               {(() => {
                 const activeImpacts = r.factorImpacts.filter(f => f.impact !== 0);
+                const totalAbsImpact = activeImpacts.reduce((s, f) => s + Math.abs(f.impact), 0) || 1;
                 const maxAbs = Math.max(...activeImpacts.map(f => Math.abs(f.impact)), 1);
                 const totalImpact = activeImpacts.reduce((s, f) => s + f.impact, 0);
                 const refLabel = mcImpactRef === 'bt' ? 'BT Net' : 'Live Net';
+                // refVal: use equity from MC run, fallback to global stats
                 const refVal   = mcImpactRef === 'bt'
-                  ? (r.btNetEq[r.btNetEq.length - 1] ?? 0)
-                  : (r.lvNetEq[r.lvNetEq.length - 1] ?? 0);
+                  ? (r.btNetEq.length > 0 ? r.btNetEq[r.btNetEq.length - 1] : (btStats?.totalR ?? 0))
+                  : (r.lvNetEq.length > 0 ? r.lvNetEq[r.lvNetEq.length - 1] : (lvStats?.totalR ?? 0));
                 const refBaseline = Math.abs(refVal) > 0 ? refVal : null;
 
                 return (
@@ -1920,15 +1922,31 @@ export default function Charts() {
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                                     {allFactors.map(({ k, meta2, val }) => {
                                       const isActive = val !== meta2.default;
+                                      const impactEntry = impactData?.impact?.[meta.key]?.find(e => e.key === k);
                                       return (
-                                        <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 9.5 }}>
-                                          <span style={{ color: isActive ? 'var(--text)' : 'var(--text2)', opacity: isActive ? 1 : 0.45 }}>{meta2.label}</span>
+                                        <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 9.5, gap: 4 }}>
+                                          <span style={{ color: isActive ? 'var(--text)' : 'var(--text2)', opacity: isActive ? 1 : 0.45, flex: 1, minWidth: 0 }}>{meta2.label}</span>
                                           <span style={{
                                             fontFamily: 'monospace',
                                             color: isActive ? '#fb923c' : 'var(--text2)',
                                             fontWeight: isActive ? 700 : 400,
                                             opacity: isActive ? 1 : 0.4,
                                           }}>{meta2.fmt(val)}</span>
+                                          {impactData ? (
+                                            <span style={{
+                                              fontFamily: 'monospace',
+                                              fontSize: 9,
+                                              minWidth: 36,
+                                              textAlign: 'right',
+                                              color: isActive && impactEntry ? '#fb923c' : 'var(--text2)',
+                                              opacity: isActive && impactEntry ? 1 : 0.4,
+                                              fontWeight: isActive && impactEntry ? 700 : 400,
+                                            }}>
+                                              {impactEntry ? `${impactEntry.pct.toFixed(1)}%` : '—'}
+                                            </span>
+                                          ) : (
+                                            <span style={{ fontFamily: 'monospace', fontSize: 9, minWidth: 36, textAlign: 'right', color: 'var(--text2)', opacity: 0.3 }}>—</span>
+                                          )}
                                         </div>
                                       );
                                     })}
