@@ -1818,7 +1818,7 @@ Example: [{"date":"2024-05-13","direction":"long","result":"tp","rr":3.5,"sessio
         'X-Title': 'TACT Trading Journal',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-001',
+        model: 'meta-llama/llama-4-maverick:free',
         messages: [
           {
             role: 'user',
