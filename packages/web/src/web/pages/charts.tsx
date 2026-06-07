@@ -723,6 +723,7 @@ export default function Charts() {
   const [mcHorizon,  setMcHorizon]  = useState<number | ''>('');
   const [mcStdDev,   setMcStdDev]   = useState<'n-1' | 'n'>('n-1');
   const [mcTradeCost,setMcTradeCost]= useState<number | ''>('');
+  const [mcJitter,   setMcJitter]   = useState(0);
   type MCRunResult = {
     mcMedian: number[]; mcp5: number[]; mcp95: number[];
     mcPathsSample: number[][];
@@ -734,7 +735,7 @@ export default function Charts() {
     survivalRate: number; ddMed: number; ddP5: number; ddProbAboveThreshold: number;
     factorImpacts: { key: string; label: string; impact: number }[];
     boxStats: { return: any; drawdown: any; sqn: any; wr: any; streak: any };
-    horizon: number; nSim: number; tradeCost: number; avgCostBt: number;
+    horizon: number; nSim: number; tradeCost: number; avgCostBt: number; jitter: number;
   };
   const [mcRunResult, setMcRunResult] = useState<MCRunResult | null>(null);
   const [mcRunLoading, setMcRunLoading] = useState(false);
@@ -762,6 +763,7 @@ export default function Charts() {
       };
       if (mcHorizon !== '') body.horizon = Number(mcHorizon);
       if (mcTradeCost !== '') body.tradeCost = Number(mcTradeCost);
+      if (mcJitter > 0) body.jitter = mcJitter;
       const res = await fetch(`/api/mc-run${uidParam()}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -772,7 +774,7 @@ export default function Charts() {
       setMcRunError(e.message ?? 'Помилка симуляції');
     }
     setMcRunLoading(false);
-  }, [mcBtAssets, mcBtYears, mcBtMonths, mcLvAssets, mcLvYears, mcLvMonths, mcNSim, mcHorizon, mcStdDev, mcTradeCost, stressParams]);
+  }, [mcBtAssets, mcBtYears, mcBtMonths, mcLvAssets, mcLvYears, mcLvMonths, mcNSim, mcHorizon, mcStdDev, mcTradeCost, mcJitter, stressParams]);
 
   const resetStress = () => { setStressParams(defaultStress); setStressData(null); };
   const loadCombo = async (combo: {id: string; name: string; params: typeof defaultStress}) => {
@@ -1374,10 +1376,23 @@ export default function Charts() {
             </div>
           </div>
 
-          {/* Max DD threshold */}
-          <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
-            <StressSlider label="Max DD Threshold" description="Просадка понад цей поріг = blown account. Впливає на Survival Rate." value={stressParams.survivalThreshold} min={2} max={50} step={1} format={v => `${v}R`} onChange={v => setSP('survivalThreshold', v)} accent="#6b7280" />
+          {/* Jitter + Max DD threshold row */}
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
+            <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Bootstrap Jitter</div>
+              <input
+                type="number" min={0} max={1} step={0.05}
+                value={mcJitter}
+                onChange={e => setMcJitter(Math.max(0, Math.min(1, Number(e.target.value) || 0)))}
+                style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', fontSize: 13, fontWeight: 700, color: 'var(--text)', boxSizing: 'border-box' }}
+              />
+              <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>0 = вимкнено · 0.15 = ±15% std шум · збільшує розкид при малих датасетах</div>
+            </div>
+            <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
+              <StressSlider label="Max DD Threshold" description="Просадка понад цей поріг = blown account. Впливає на Survival Rate." value={stressParams.survivalThreshold} min={2} max={50} step={1} format={v => `${v}R`} onChange={v => setSP('survivalThreshold', v)} accent="#6b7280" />
+            </div>
           </div>
+
 
           {/* Stress sliders */}
           <div style={{ background: 'var(--surface2)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, padding: '14px 16px' }}>
@@ -1489,6 +1504,7 @@ export default function Charts() {
               <div style={{ fontSize: 10, color: 'var(--text2)' }}>
                 {r.nSim.toLocaleString()} симуляцій · горизонт {r.horizon} угод · trade cost {r.tradeCost >= 0 ? '+' : ''}{r.tradeCost.toFixed(4)}R/угода
                 {r.tradeCost === r.avgCostBt ? ' (avg з BT)' : ' (власний)'}
+                {r.jitter > 0 ? ` · jitter ×${r.jitter.toFixed(2)}` : ''}
               </div>
 
               {/* Результати симуляції header */}

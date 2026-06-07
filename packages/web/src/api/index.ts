@@ -1227,6 +1227,7 @@ const app = new Hono()
       badSlipMult:      z.number().min(1).max(3).default(1),
       missedWin:        z.number().min(0).max(0.5).default(0),
       survivalThreshold:z.number().min(1).max(100).default(20),
+      jitter:           z.number().min(0).max(1).default(0),
     })),
     async (c) => {
       const params = c.req.valid('json');
@@ -1407,6 +1408,7 @@ const app = new Hono()
       badSlipMult:      z.number().min(1).max(3).default(1),
       missedWin:        z.number().min(0).max(0.5).default(0),
       survivalThreshold:z.number().min(1).max(100).default(20),
+      jitter:           z.number().min(0).max(1).default(0),
     })),
     async (c) => {
       const params = c.req.valid('json');
@@ -1452,6 +1454,15 @@ const app = new Hono()
       const N_SIM       = params.nSimulations;
       const useN1       = params.stdDevFormula === 'n-1';
 
+      // Jitter std: compute once from btGrossArr
+      const jitterFactor = params.jitter ?? 0;
+      let btStd = 0;
+      if (jitterFactor > 0) {
+        const btMean = btGrossArr.reduce((a, b) => a + b, 0) / btGrossArr.length;
+        const variance = btGrossArr.reduce((a, b) => a + (b - btMean) ** 2, 0) / (useN1 ? Math.max(1, btGrossArr.length - 1) : btGrossArr.length);
+        btStd = Math.sqrt(variance);
+      }
+
       const rng = (seed: number) => {
         let s = seed;
         return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
@@ -1494,6 +1505,14 @@ const app = new Hono()
           const baseIdx = Math.floor(rand() * btGrossArr.length);
           let grossR = btGrossArr[baseIdx];
           let isTP   = btIsTP[baseIdx];
+
+          // Apply jitter (bootstrap smoothing for small datasets)
+          if (jitterFactor > 0 && btStd > 0) {
+            // Box-Muller normal sample
+            const u1 = Math.max(1e-10, rand()); const u2 = rand();
+            const normal = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+            grossR += normal * btStd * jitterFactor;
+          }
 
           // Apply stress factors
           if (hasStress) {
@@ -1557,12 +1576,6 @@ const app = new Hono()
       const mcMedian: number[] = [];
       const mcp5: number[]     = [];
       const mcp95: number[]    = [];
-
-      // DEBUG: log first 5 byTrade arrays to check variance
-      for (let di = 0; di < Math.min(5, byTrade.length); di++) {
-        const a = byTrade[di];
-        console.log(`[MC-DEBUG] byTrade[${di}] len=${a.length} min=${Math.min(...a).toFixed(2)} max=${Math.max(...a).toFixed(2)} p50=${pctOf(a,0.5).toFixed(2)}`);
-      }
 
       for (let i = 0; i < sampleIdx.length; i++) {
         const arr = byTrade[i];
@@ -1684,6 +1697,7 @@ const app = new Hono()
         nSim: N_SIM,
         tradeCost: Math.round(tradeCost * 10000) / 10000,
         avgCostBt: Math.round(avgCostBt * 10000) / 10000,
+        jitter: jitterFactor,
       }, 200);
     }
   )
