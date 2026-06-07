@@ -381,6 +381,7 @@ export default function BacktestTrades() {
   const [aiError, setAiError] = useState('');
   const [aiParsing, setAiParsing] = useState(false);
   const [aiSaving, setAiSaving] = useState(false);
+  const [aiInstrument, setAiInstrument] = useState('EUR');
 
   const addMutation = useMutation({
     mutationFn: async (body: any) => {
@@ -492,7 +493,7 @@ export default function BacktestTrades() {
         const cost = row.cost != null ? parseFloat(row.cost) : -0.1;
         const body: any = {
           date: row.date ?? new Date().toISOString().slice(0, 10),
-          instrument: row.instrument ?? 'EUR',
+          instrument: (row.instrument && row.instrument !== '—') ? row.instrument : aiInstrument,
           direction: ['long', 'short'].includes(direction) ? direction : 'long',
           result: ['tp', 'sl', 'be'].includes(result) ? result : 'be',
           rr: rr ?? undefined,
@@ -701,6 +702,18 @@ export default function BacktestTrades() {
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}>
                 AI розпізнав {aiRows.length} угод — перевір і підтверди:
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, background: 'var(--surface2)', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 12, color: 'var(--text2)', whiteSpace: 'nowrap' }}>Інструмент для збереження:</span>
+                {PRESET_INSTRUMENTS.map(inst => (
+                  <button key={inst} onClick={() => setAiInstrument(inst)}
+                    style={{ padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid var(--border)', background: aiInstrument === inst ? 'var(--accent)' : 'var(--surface)', color: aiInstrument === inst ? '#fff' : 'var(--text2)' }}>
+                    {inst}
+                  </button>
+                ))}
+                <input value={aiInstrument} onChange={e => setAiInstrument(e.target.value.toUpperCase())}
+                  placeholder="або введи"
+                  style={{ width: 70, fontSize: 12, padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }} />
               </div>
               <div style={{ overflowX: 'auto', marginBottom: 12 }}>
                 <table style={{ minWidth: 560, borderCollapse: 'collapse', width: '100%' }}>
