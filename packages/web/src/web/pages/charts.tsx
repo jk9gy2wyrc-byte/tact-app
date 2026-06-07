@@ -1294,7 +1294,14 @@ export default function Charts() {
 
           {/* BT Filter */}
           <div style={{ background: 'var(--surface2)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 10, padding: '12px 14px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Backtest — вибір даних</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Backtest — вибір даних</div>
+              {mcRunResult?.btCount != null && (
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.3)', borderRadius: 4, padding: '1px 7px', fontVariantNumeric: 'tabular-nums' }}>
+                  {mcRunResult.btCount} угод
+                </span>
+              )}
+            </div>
             {mcFilterOptions?.btTree ? (
               <MCFilterPanel tree={mcFilterOptions.btTree} selAssets={mcBtAssets} selYears={mcBtYears} selMonths={mcBtMonths} onToggleAsset={handleMcBtToggleAsset} onToggleYear={handleMcBtToggleYear} onToggleMonth={(asset, m) => setMcBtMonths(s => toggleSet(s, `${asset}__${m}`))} color="#a78bfa" />
             ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>}
@@ -1302,7 +1309,14 @@ export default function Charts() {
 
           {/* Live Filter */}
           <div style={{ background: 'var(--surface2)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 10, padding: '12px 14px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Live — вибір даних</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Live — вибір даних</div>
+              {mcRunResult?.lvCount != null && (
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 4, padding: '1px 7px', fontVariantNumeric: 'tabular-nums' }}>
+                  {mcRunResult.lvCount} угод
+                </span>
+              )}
+            </div>
             {mcFilterOptions?.lvTree ? (
               <MCFilterPanel tree={mcFilterOptions.lvTree} selAssets={mcLvAssets} selYears={mcLvYears} selMonths={mcLvMonths} onToggleAsset={handleMcLvToggleAsset} onToggleYear={handleMcLvToggleYear} onToggleMonth={(asset, m) => setMcLvMonths(s => toggleSet(s, `${asset}__${m}`))} color="#4ade80" />
             ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>}
@@ -1650,7 +1664,7 @@ export default function Charts() {
                       const rows2 = [
                         { label: 'Total R',       ref: refR,  med: medR,  p5: p5R,   p95: p95R,  fmt: (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}R` },
                         { label: 'SQN',           ref: mcImpactRef === 'bt' ? btStats?.sqn ?? 0 : lvStats?.sqn ?? 0, med: r.summary.med.sqn, p5: r.summary.p5.sqn, p95: r.summary.p95.sqn, fmt: (v: number) => v.toFixed(2) },
-                        { label: 'Max DD',        ref: mcImpactRef === 'bt' ? btStats?.maxDD ?? 0 : lvStats?.maxDD ?? 0, med: r.ddMed, p5: r.ddP5, p95: r.ddP5, fmt: (v: number) => `${v.toFixed(2)}R` },
+                        { label: 'Max DD',        ref: mcImpactRef === 'bt' ? btStats?.maxDD ?? 0 : lvStats?.maxDD ?? 0, med: r.ddMed, p5: r.ddP5, p95: null, fmt: (v: number) => `${v.toFixed(2)}R` },
                         { label: 'Survival',      ref: 100,   med: r.survivalRate, p5: null, p95: null, fmt: (v: number | null) => v == null ? '—' : `${v.toFixed(v % 1 === 0 ? 0 : 1)}%` },
                       ];
                       return (
@@ -1705,7 +1719,7 @@ export default function Charts() {
                     <XAxis dataKey="bin" stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickFormatter={v => v.toFixed(1)} />
                     <YAxis stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} />
                     <Tooltip formatter={(v: any, n: any) => [v, 'Симуляцій']} labelFormatter={v => `SQN ≈ ${Number(v).toFixed(2)}`} contentStyle={{ background: 'var(--surface2)', border: '1px solid var(--border)', fontSize: 11 }} />
-                    <Bar dataKey="count" fill="#a78bfa" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="count" fill="#7eb8f7" radius={[2, 2, 0, 0]} />
                     <ReferenceLine x={r.summary.med.sqn} stroke={MC_MED_COLOR} strokeWidth={2} label={{ value: 'med', position: 'top', fontSize: 9, fill: MC_MED_COLOR }} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -1715,17 +1729,43 @@ export default function Charts() {
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>Survival Rate</div>
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3,1fr)', gap: 10 }}>
-                  {[
-                    { label: 'Survival Rate', value: `${r.survivalRate}%`, sub: `DD < ${stressParams.survivalThreshold}R`, color: r.survivalRate >= 90 ? '#4ade80' : r.survivalRate >= 70 ? '#facc15' : '#f87171' },
-                    { label: 'Медіанна Max DD', value: `${r.ddMed.toFixed(2)}R`, sub: `p5 просадки: ${r.ddP5.toFixed(2)}R`, color: '#fb923c' },
-                    { label: `P(DD > ${stressParams.survivalThreshold}R)`, value: `${r.ddProbAboveThreshold}%`, sub: 'ймовірність blown account', color: r.ddProbAboveThreshold <= 10 ? '#4ade80' : r.ddProbAboveThreshold <= 30 ? '#facc15' : '#f87171' },
-                  ].map(card => (
-                    <div key={card.label} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}>
-                      <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>{card.label}</div>
-                      <div style={{ fontSize: 22, fontWeight: 700, color: card.color, fontVariantNumeric: 'tabular-nums' }}>{card.value}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>{card.sub}</div>
+                  {/* Survival Rate */}
+                  {(() => {
+                    const srColor = r.survivalRate >= 90 ? '#4ade80' : r.survivalRate >= 70 ? '#facc15' : '#f87171';
+                    return (
+                      <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Survival Rate</div>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: srColor, fontVariantNumeric: 'tabular-nums' }}>{r.survivalRate}%</div>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>DD &lt; {stressParams.survivalThreshold}R</div>
+                      </div>
+                    );
+                  })()}
+                  {/* Max DD — median + worst p5 on same row */}
+                  <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 6 }}>Max DD</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={{ fontSize: 9, color: 'var(--text2)', marginBottom: 2 }}>медіана</div>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: '#fb923c', fontVariantNumeric: 'tabular-nums' }}>{r.ddMed.toFixed(2)}R</div>
+                      </div>
+                      <div style={{ width: 1, height: 32, background: 'var(--border)', alignSelf: 'center' }} />
+                      <div>
+                        <div style={{ fontSize: 9, color: '#f87171', marginBottom: 2 }}>p5 (гірший)</div>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>{r.ddP5.toFixed(2)}R</div>
+                      </div>
                     </div>
-                  ))}
+                  </div>
+                  {/* P(DD > threshold) */}
+                  {(() => {
+                    const pColor = r.ddProbAboveThreshold <= 10 ? '#4ade80' : r.ddProbAboveThreshold <= 30 ? '#facc15' : '#f87171';
+                    return (
+                      <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>P(DD &gt; {stressParams.survivalThreshold}R)</div>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: pColor, fontVariantNumeric: 'tabular-nums' }}>{r.ddProbAboveThreshold}%</div>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>ймовірність blown account</div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -1741,7 +1781,7 @@ export default function Charts() {
                     <XAxis dataKey="bin" stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickFormatter={v => v.toFixed(1)} label={{ value: 'DD (R)', position: 'insideBottomRight', offset: -4, fontSize: 9, fill: '#5a5f6a' }} />
                     <YAxis stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} />
                     <Tooltip formatter={(v: any) => [v, 'Симуляцій']} labelFormatter={v => `Max DD ≈ ${Number(v).toFixed(2)}R`} contentStyle={{ background: 'var(--surface2)', border: '1px solid var(--border)', fontSize: 11 }} />
-                    <Bar dataKey="count" fill="#fb923c" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="count" fill="#6b7280" radius={[2, 2, 0, 0]} />
                     <ReferenceLine x={r.ddMed} stroke="#facc15" strokeWidth={2} label={{ value: 'med', position: 'top', fontSize: 9, fill: '#facc15' }} />
                     <ReferenceLine x={stressParams.survivalThreshold} stroke="#f87171" strokeWidth={1.5} strokeDasharray="4 2" label={{ value: 'threshold', position: 'insideTopRight', fontSize: 9, fill: '#f87171' }} />
                   </BarChart>
