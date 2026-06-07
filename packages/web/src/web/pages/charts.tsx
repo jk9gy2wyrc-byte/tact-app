@@ -1760,6 +1760,26 @@ export default function Charts() {
                 for (const rv of lvNets) { if (rv < 0) { lvStreakCur++; if (lvStreakCur > lvStreak) lvStreak = lvStreakCur; } else lvStreakCur = 0; }
 
                 type BoxStat2 = { p5: number; p25: number; med: number; p75: number; p95: number };
+                // Factor-to-metric mapping with display labels and formatters
+                const FACTOR_META: Record<string, { label: string; fmt: (v: number) => string; default: number }> = {
+                  lossAmp:          { label: 'Loss Amp',      fmt: v => `×${v.toFixed(2)}`,            default: 1 },
+                  winReduction:     { label: 'Win Reduc',     fmt: v => `×${v.toFixed(2)}`,            default: 1 },
+                  wrDegradation:    { label: 'WR Degrad',     fmt: v => `${(v*100).toFixed(0)}%`,      default: 0 },
+                  slippage:         { label: 'Slippage',      fmt: v => `−${v.toFixed(2)}R`,           default: 0 },
+                  humanError:       { label: 'Human Err',     fmt: v => `${(v*100).toFixed(1)}%`,      default: 0 },
+                  fatigue:          { label: 'Fatigue',       fmt: v => `−${(v*100).toFixed(0)}%`,     default: 0 },
+                  badSlipProb:      { label: 'Bad Slip P',    fmt: v => `${(v*100).toFixed(0)}%`,      default: 0 },
+                  badSlipMult:      { label: 'Bad Slip ×',    fmt: v => `×${v.toFixed(1)}`,            default: 1 },
+                  missedWin:        { label: 'Missed Win',    fmt: v => `${(v*100).toFixed(0)}%`,      default: 0 },
+                };
+                const METRIC_FACTORS: Record<string, string[]> = {
+                  return:   ['lossAmp', 'winReduction', 'wrDegradation', 'slippage', 'humanError', 'fatigue', 'missedWin', 'badSlipProb', 'badSlipMult'],
+                  drawdown: ['lossAmp', 'wrDegradation', 'humanError', 'fatigue'],
+                  wr:       ['wrDegradation', 'humanError', 'missedWin'],
+                  sqn:      ['lossAmp', 'winReduction', 'wrDegradation', 'slippage', 'humanError', 'fatigue', 'missedWin', 'badSlipProb', 'badSlipMult'],
+                  streak:   ['wrDegradation', 'humanError', 'lossAmp'],
+                };
+
                 const METRICS2: {
                   key: keyof typeof r.boxStats;
                   label: string; liveVal: number; higherIsBetter: boolean; pct?: boolean; explain: string;
@@ -1843,6 +1863,42 @@ export default function Charts() {
                               </div>
                               <div style={{ fontSize: 10, color: 'var(--text2)', paddingLeft: 13 }}>{meta.deviationLabel(dev)}</div>
                             </div>
+                            {/* Factor breakdown for this metric */}
+                            {(() => {
+                              const factors = METRIC_FACTORS[meta.key] ?? [];
+                              const activeFactors = factors
+                                .map(k => ({ k, meta2: FACTOR_META[k], val: (stressParams as any)[k] }))
+                                .filter(({ meta2, val }) => meta2 && val !== meta2.default);
+                              const allFactors = factors
+                                .map(k => ({ k, meta2: FACTOR_META[k], val: (stressParams as any)[k] }))
+                                .filter(({ meta2 }) => meta2);
+                              return (
+                                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 7 }}>
+                                  <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 5 }}>
+                                    Стрес-фактори
+                                  </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                    {allFactors.map(({ k, meta2, val }) => {
+                                      const isActive = val !== meta2.default;
+                                      return (
+                                        <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 9.5 }}>
+                                          <span style={{ color: isActive ? 'var(--text)' : 'var(--text2)', opacity: isActive ? 1 : 0.45 }}>{meta2.label}</span>
+                                          <span style={{
+                                            fontFamily: 'monospace',
+                                            color: isActive ? '#fb923c' : 'var(--text2)',
+                                            fontWeight: isActive ? 700 : 400,
+                                            opacity: isActive ? 1 : 0.4,
+                                          }}>{meta2.fmt(val)}</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                  {activeFactors.length === 0 && (
+                                    <div style={{ fontSize: 9, color: 'var(--text2)', opacity: 0.5, marginTop: 3 }}>всі за замовчуванням</div>
+                                  )}
+                                </div>
+                              );
+                            })()}
                             <button onClick={() => toggleScf(explainKey)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 8px', cursor: 'pointer', width: '100%' }}>
                               <span style={{ fontSize: 9, color: 'var(--text2)' }}>{explainOpen ? '▲' : '▼'} Пояснення</span>
                             </button>
