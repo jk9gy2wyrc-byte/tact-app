@@ -1818,7 +1818,7 @@ Example: [{"date":"2024-05-13","direction":"long","result":"tp","rr":3.5,"sessio
         'X-Title': 'TACT Trading Journal',
       },
       body: JSON.stringify({
-        model: 'nvidia/nemotron-nano-12b-v2-vl:free',
+        model: 'google/gemini-2.0-flash-001',
         messages: [
           {
             role: 'user',
@@ -1835,7 +1835,9 @@ Example: [{"date":"2024-05-13","direction":"long","result":"tp","rr":3.5,"sessio
     if (!response.ok) throw new Error(json.error?.message ?? `OpenRouter error ${response.status}`);
 
     const text = (json.choices?.[0]?.message?.content ?? '').trim();
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    // strip markdown code fences if present
+    const stripped = text.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+    const jsonMatch = stripped.match(/\[[\s\S]*\]/);
     if (!jsonMatch) return c.json({ error: 'Could not parse response', raw: text }, 422);
 
     const rows = JSON.parse(jsonMatch[0]);
