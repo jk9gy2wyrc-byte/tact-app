@@ -1878,43 +1878,7 @@ app.post('/ai-parse-image', async (c) => {
       return c.json({ ok: true, rows: ocrRows, method: 'ocr' });
     }
 
-    // 2. Fallback: AI via OpenRouter
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) return c.json({ error: 'OCR failed and OPENROUTER_API_KEY not set' }, 422);
-
-    const base64 = imageBuffer.toString('base64');
-    const prompt = `You are a trading journal parser. Extract all trade rows from this screenshot.
-Return ONLY a valid JSON array, no markdown, no explanation.
-Each object must have these fields (use null if not visible):
-- date: string (YYYY-MM-DD or YYYY-MM)
-- direction: "long" | "short" | null
-- result: "tp" | "sl" | "be" | null
-- rr: number | null
-- session: "asia" | "frankfurt" | "london" | "overlap" | "new york" | null
-- cost: number | null (negative, e.g. -0.1)
-- instrument: string | null
-- grossR: number | null
-Example: [{"date":"2023-09","direction":"short","result":"tp","rr":2.0,"session":"overlap","cost":-0.1,"instrument":null,"grossR":2.0}]`;
-
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'meta-llama/llama-4-maverick:free',
-        messages: [{ role: 'user', content: [
-          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
-          { type: 'text', text: prompt },
-        ]}],
-      }),
-    });
-    const json = await response.json() as any;
-    if (!response.ok) throw new Error(json.error?.message ?? `OpenRouter error ${response.status}`);
-    const text = (json.choices?.[0]?.message?.content ?? '').trim();
-    const stripped = text.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
-    const jsonMatch = stripped.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return c.json({ error: 'Could not parse response', raw: text }, 422);
-    const rows = JSON.parse(jsonMatch[0]);
-    return c.json({ ok: true, rows, method: 'ai' });
+    return c.json({ error: 'Не вдалось розпізнати угоди. Переконайся що скрін містить таблицю з колонками: Date, Direction, RR, Session, Result.' }, 422);
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }
