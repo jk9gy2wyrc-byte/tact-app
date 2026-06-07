@@ -19,6 +19,11 @@ RUN bun run build:web
 # ---- Runtime ----
 FROM oven/bun:1.3
 
+# OCR tools for trade screenshot parsing
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr imagemagick \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app/packages/web
 
 COPY --from=builder /app/packages/web/dist ./dist
