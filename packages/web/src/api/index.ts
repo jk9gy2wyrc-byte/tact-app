@@ -1815,24 +1815,29 @@ async function parseTradesWithOCR(imageBuffer: Buffer, mimeType: string): Promis
       overlap: 'overlap', london: 'london', frankfurt: 'frankfurt',
       asia: 'asia', newyork: 'new york', 'new york': 'new york', ny: 'new york',
     };
+
+    const cleanDate = (s: string) => s.replace(/\s*-\s*/g, '-').replace(/[^0-9\-]/g, '');
+    const parseNum = (s: string) => parseFloat(s.replace(',', '.'));
+
     const rows: any[] = [];
     for (const rawLine of text.split('\n')) {
-      const line = rawLine.trim();
+      let line = rawLine.trim();
       if (!line) continue;
       // skip summary/header lines
       if (/summary|SUMMARY|WR|Date|Direction|Session/i.test(line) && !/^\d/.test(line)) continue;
 
-      // expected: ID date direction rr session result grossR netR cost [wr]
-      // e.g.: "1 2023-09 short 2,00 overlap tp: 2,00 1,90 -0,10"
+      // strip trailing OCR noise chars: ) ] ! ; ' :
+      line = line.replace(/[)\]!;':]+(\s|$)/g, ' ').replace(/\s+/g, ' ').trim();
+
+      // match: ID  date(may have spaces around dash)  direction  rr  session(may have leading _)  result  grossR  netR  cost
       const m = line.match(
-        /^\d+\.?\s+(\d{4}-\d{2}(?:-\d{2})?|\d{2}\.\d{4}|\d{2}\.\d{2}\.\d{4})\s+(long|short)\s+([\d,\.]+)\s+(\w[\w\s]*?)\s+(tp|sl|be)[:\!'.\s]?\s*([-\d,\.]+)\s+([-\d,\.]+)\s+([-\d,\.]+)/i
+        /^(\d+)\.?\s+(\d{4}\s*-\s*\d{2}(?:\s*-\s*\d{2})?|\d{2}\.\d{4}|\d{2}\.\d{2}\.\d{4})\s+(long|short)\s+([\d,\.]+)\s+[_\s]*([\w][\w\s]*?)\s+(tp|sl|be)\s+([-\d,\.]+)\s+([-\d,\.]+)\s+([-\d,\.]+)/i
       );
       if (!m) continue;
 
-      const parseNum = (s: string) => parseFloat(s.replace(',', '.'));
-      const rawDate = m[1];
       // normalise date
-      let date = rawDate;
+      let rawDate = m[2];
+      let date = cleanDate(rawDate);
       if (/^\d{2}\.\d{4}$/.test(rawDate)) {
         const [mo, yr] = rawDate.split('.');
         date = `${yr}-${mo}`;
@@ -1841,17 +1846,18 @@ async function parseTradesWithOCR(imageBuffer: Buffer, mimeType: string): Promis
         date = `${yr}-${mo}-${d}`;
       }
 
-      const sessionRaw = m[4].trim().toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim();
-      const session = SESSION_MAP[sessionRaw] ?? sessionRaw;
+      // normalise session: strip non-alpha, collapse spaces, map newyork -> new york
+      const sessionRaw = m[5].trim().toLowerCase().replace(/[^a-z]/g, '');
+      const session = SESSION_MAP[sessionRaw] ?? m[5].trim().toLowerCase().replace(/[^a-z\s]/g, '').trim();
 
       rows.push({
         date,
-        direction: m[2].toLowerCase(),
-        rr: parseNum(m[3]),
+        direction: m[3].toLowerCase(),
+        rr: parseNum(m[4]),
         session,
-        result: m[5].toLowerCase(),
-        grossR: parseNum(m[6]),
-        cost: parseNum(m[8]),
+        result: m[6].toLowerCase(),
+        grossR: parseNum(m[7]),
+        cost: parseNum(m[9]),
         instrument: null,
         asset: null,
       });
