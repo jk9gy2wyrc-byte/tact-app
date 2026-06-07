@@ -638,6 +638,10 @@ export default function Charts() {
 
   // ── Equity view mode ───────────────────────────────────────────────────────
   const [equityViewMode, setEquityViewMode] = useState<'cumulative' | 'normalized'>('cumulative');
+  // Visibility toggles for 4 equity curves (cumulative mode only)
+  const [eqVisible, setEqVisible] = useState({ btNet: true, btGross: true, lvNet: true, lvGross: true });
+  const toggleEq = (key: keyof typeof eqVisible) =>
+    setEqVisible(prev => ({ ...prev, [key]: !prev[key] }));
 
   // ── Stress state ──────────────────────────────────────────────────────────
   const [stressParams, setStressParams] = useState(defaultStress);
@@ -772,6 +776,8 @@ export default function Charts() {
   const d = data as any;
   const btEq: number[] = d.btEquity ?? [];
   const lvEq: number[] = d.lvEquity ?? [];
+  const btGrossEq: number[] = d.btGrossEquity ?? [];
+  const lvGrossEq: number[] = d.lvGrossEquity ?? [];
 
   // ── No data guard ─────────────────────────────────────────────────────────
   if (btEq.length === 0 && lvEq.length === 0) {
@@ -848,13 +854,15 @@ export default function Charts() {
       });
     }
   } else {
-    // Cumulative: both curves stop where their trades end
-    const maxLen = Math.max(btEq.length, lvEq.length);
+    // Cumulative: all 4 curves stop where their trades end
+    const maxLen = Math.max(btEq.length, lvEq.length, btGrossEq.length, lvGrossEq.length);
     for (let i = 0; i < maxLen; i++) {
       eqData.push({
         trade: i + 1,
-        BT:   i < btEq.length ? btEq[i] : null,
-        Live: i < lvEq.length ? lvEq[i] : null,
+        BT:       i < btEq.length      ? btEq[i]      : null,
+        Live:     i < lvEq.length      ? lvEq[i]      : null,
+        BTGross:  i < btGrossEq.length ? btGrossEq[i] : null,
+        LvGross:  i < lvGrossEq.length ? lvGrossEq[i] : null,
       });
     }
   }
@@ -929,10 +937,10 @@ export default function Charts() {
 
       {/* EQUITY CURVES */}
       <div style={chartStyle(isMobile)}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600 }}>
-              Equity Curves — {equityViewMode === 'cumulative' ? 'Cumulative Net R' : 'Середнє R/угоду (темп зростання)'}
+              Equity Curves — {equityViewMode === 'cumulative' ? 'Cumulative' : 'Середнє R/угоду (темп зростання)'}
             </div>
             {equityViewMode === 'normalized' && (
               <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 3 }}>
@@ -952,6 +960,38 @@ export default function Charts() {
             ))}
           </div>
         </div>
+
+        {/* Curve visibility toggles — only in cumulative mode */}
+        {equityViewMode === 'cumulative' && (() => {
+          const curves: { key: keyof typeof eqVisible; label: string; color: string; dash?: string }[] = [
+            { key: 'btNet',   label: 'BT Net R',   color: BT_COLOR },
+            { key: 'btGross', label: 'BT Gross R', color: '#a78bfa' },
+            { key: 'lvNet',   label: 'Live Net R',  color: LIVE_COLOR },
+            { key: 'lvGross', label: 'Live Gross R', color: '#34d399' },
+          ];
+          return (
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+              {curves.map(c => (
+                <button key={c.key} onClick={() => toggleEq(c.key)} style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '3px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
+                  border: `1px solid ${eqVisible[c.key] ? c.color : '#3a3d44'}`,
+                  background: eqVisible[c.key] ? `${c.color}18` : 'transparent',
+                  color: eqVisible[c.key] ? c.color : '#555',
+                  transition: 'all 0.15s',
+                }}>
+                  <span style={{
+                    display: 'inline-block', width: 18, height: 2,
+                    background: eqVisible[c.key] ? c.color : '#3a3d44',
+                    borderRadius: 2,
+                  }} />
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
+
         {btEq.length === 0 ? (
           <div style={{ color: 'var(--text2)', padding: 40, textAlign: 'center' }}>Немає даних бектесту.</div>
         ) : (
@@ -963,8 +1003,20 @@ export default function Charts() {
                 <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} tickFormatter={equityViewMode === 'normalized' ? (v: number) => `${v.toFixed(2)}R` : undefined} />
                 <Tooltip content={<DeviationTooltip />} />
                 <ReferenceLine y={0} stroke="#2a2d33" strokeDasharray="4 4" />
-                <Line type="monotone" dataKey="BT"   stroke={BT_COLOR}   strokeWidth={2}   dot={false} connectNulls />
-                <Line type="monotone" dataKey="Live" stroke={LIVE_COLOR} strokeWidth={2.5} dot={false} connectNulls />
+                {/* Cumulative: 4 togglable curves */}
+                {equityViewMode === 'cumulative' ? (
+                  <>
+                    {eqVisible.btNet   && <Line type="monotone" dataKey="BT"      stroke={BT_COLOR}   strokeWidth={2}   dot={false} connectNulls />}
+                    {eqVisible.btGross && <Line type="monotone" dataKey="BTGross" stroke="#a78bfa"   strokeWidth={1.5} dot={false} connectNulls strokeDasharray="5 3" />}
+                    {eqVisible.lvNet   && <Line type="monotone" dataKey="Live"    stroke={LIVE_COLOR} strokeWidth={2.5} dot={false} connectNulls />}
+                    {eqVisible.lvGross && <Line type="monotone" dataKey="LvGross" stroke="#34d399"   strokeWidth={1.5} dot={false} connectNulls strokeDasharray="5 3" />}
+                  </>
+                ) : (
+                  <>
+                    <Line type="monotone" dataKey="BT"   stroke={BT_COLOR}   strokeWidth={2}   dot={false} connectNulls />
+                    <Line type="monotone" dataKey="Live" stroke={LIVE_COLOR} strokeWidth={2.5} dot={false} connectNulls />
+                  </>
+                )}
               </LineChart>
             </ResponsiveContainer>
 

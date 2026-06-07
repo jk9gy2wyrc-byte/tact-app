@@ -616,6 +616,12 @@ const app = new Hono()
     const lvEquity: number[] = [];
     let c3 = 0;
     for (const t of lv) { c3 += t.netR ?? 0; lvEquity.push(Math.round(c3 * 100) / 100); }
+    const btGrossEquity: number[] = [];
+    let cg1 = 0;
+    for (const t of bt) { cg1 += t.grossR ?? t.netR ?? 0; btGrossEquity.push(Math.round(cg1 * 100) / 100); }
+    const lvGrossEquity: number[] = [];
+    let cg2 = 0;
+    for (const t of lv) { cg2 += (t as any).grossR ?? t.netR ?? 0; lvGrossEquity.push(Math.round(cg2 * 100) / 100); }
 
     const btRolling = rollingMetrics(bt, 20);
     const lvRolling = rollingMetrics(lv as any, 10);
@@ -829,6 +835,8 @@ const app = new Hono()
       mcBoxStats,
       btEquity,
       lvEquity,
+      btGrossEquity,
+      lvGrossEquity,
       btRolling,
       lvRolling,
       mcMedian,
