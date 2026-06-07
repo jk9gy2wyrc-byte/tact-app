@@ -1381,6 +1381,308 @@ const app = new Hono()
     }
   )
 
+  // ─── MC RUN (unified) ────────────────────────────────────────────────────
+  .post('/mc-run',
+    zValidator('json', z.object({
+      // Filter params
+      btInstruments:    z.string().optional().default(''),
+      btYears:          z.string().optional().default(''),
+      btMonths:         z.string().optional().default(''),
+      lvAssets:         z.string().optional().default(''),
+      lvYears:          z.string().optional().default(''),
+      lvMonths:         z.string().optional().default(''),
+      // Simulation params
+      nSimulations:     z.number().int().min(100).max(20000).default(5000),
+      horizon:          z.number().int().min(1).max(2000).optional(),
+      stdDevFormula:    z.enum(['n-1', 'n']).default('n-1'),
+      tradeCost:        z.number().optional(),
+      // Stress params
+      lossAmp:          z.number().min(1).max(3).default(1),
+      winReduction:     z.number().min(0.3).max(1).default(1),
+      wrDegradation:    z.number().min(0).max(0.5).default(0),
+      slippage:         z.number().min(0).max(0.5).default(0),
+      humanError:       z.number().min(0).max(0.2).default(0),
+      fatigue:          z.number().min(0).max(0.5).default(0),
+      badSlipProb:      z.number().min(0).max(0.5).default(0),
+      badSlipMult:      z.number().min(1).max(3).default(1),
+      missedWin:        z.number().min(0).max(0.5).default(0),
+      survivalThreshold:z.number().min(1).max(100).default(20),
+    })),
+    async (c) => {
+      const params = c.req.valid('json');
+      const uid = Number(c.req.query('userId') ?? 0);
+
+      const split = (s: string) => s ? s.split(',').map(x => x.trim()).filter(Boolean) : [];
+
+      const allBt = await db.select().from(backtestTrades).where(eq(backtestTrades.userId, uid)).orderBy(asc(backtestTrades.id)).all();
+      const allLv = await db.select().from(liveTrades).where(eq(liveTrades.userId, uid)).orderBy(asc(liveTrades.id)).all();
+
+      const btInstruments = split(params.btInstruments);
+      const btYearsSel    = split(params.btYears);
+      const btMonthsSel   = split(params.btMonths);
+      const lvAssetsSel   = split(params.lvAssets);
+      const lvYearsSel    = split(params.lvYears);
+      const lvMonthsSel   = split(params.lvMonths);
+
+      let bt = allBt;
+      if (btInstruments.length) bt = bt.filter(t => btInstruments.includes((t.instrument ?? '').toUpperCase()));
+      if (btMonthsSel.length)   bt = bt.filter(t => btMonthsSel.includes((t.month ?? '').slice(0, 7)));
+      else if (btYearsSel.length) bt = bt.filter(t => btYearsSel.includes(String(t.year)));
+
+      let lv = allLv;
+      if (lvAssetsSel.length)    lv = lv.filter(t => lvAssetsSel.includes((t.asset ?? 'OTHER').toUpperCase()));
+      if (lvMonthsSel.length)    lv = lv.filter(t => lvMonthsSel.includes((t.month ?? '').slice(0, 7)));
+      else if (lvYearsSel.length) lv = lv.filter(t => lvYearsSel.includes((t.month ?? '').slice(0, 4)));
+
+      if (!bt.length) return c.json({ error: 'no BT data' }, 400);
+
+      // Determine avg trade cost from BT if not provided
+      const avgCostBt = bt.length > 0
+        ? bt.reduce((s, t) => s + ((t.grossR ?? 0) - (t.netR ?? 0)), 0) / bt.length
+        : 0;
+      const tradeCost = params.tradeCost ?? avgCostBt;
+
+      // Build gross R arrays (reverse apply cost to get gross, then re-apply tradeCost)
+      const btGrossArr = bt.map(t => t.grossR ?? (t.netR ?? 0));
+      const btIsTP     = bt.map(t => t.result === 'tp');
+      const btRR       = bt.map(t => (t.rr != null && t.rr > 0) ? t.rr : null);
+
+      // Horizon = number of trades to simulate
+      const N_TRADES_MC = params.horizon ?? bt.length;
+      const N_SIM       = params.nSimulations;
+      const useN1       = params.stdDevFormula === 'n-1';
+
+      const rng = (seed: number) => {
+        let s = seed;
+        return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
+      };
+      const rand = rng(42);
+
+      const pctOf = (arr: number[], p: number) => {
+        if (!arr.length) return 0;
+        const s = arr.slice().sort((a, b) => a - b);
+        const idx = Math.min(Math.floor(s.length * p), s.length - 1);
+        return s[idx];
+      };
+
+      const hasStress = params.lossAmp > 1 || params.winReduction < 1 || params.wrDegradation > 0
+        || params.slippage > 0 || params.humanError > 0 || params.fatigue > 0
+        || params.badSlipProb > 0 || params.missedWin > 0;
+
+      // ── per-trade buckets for equity curves ───────────────────────────────
+      const N_PTS = Math.min(N_TRADES_MC, 200);
+      const sampleStep = Math.max(1, Math.floor(N_TRADES_MC / N_PTS));
+      const sampleIdx: number[] = [];
+      for (let ti = sampleStep - 1; ti < N_TRADES_MC; ti += sampleStep) sampleIdx.push(ti);
+
+      const byTrade: number[][] = Array.from({ length: sampleIdx.length }, () => []);
+
+      const finalEqs: number[]  = [];
+      const maxDDs: number[]    = [];
+      const sqns: number[]      = [];
+      const wrs: number[]       = [];
+      const streaks: number[]   = [];
+      let survivedCount = 0;
+
+      // Store up to 50 full paths (sampled)
+      const pathSamples: number[][] = [];
+
+      for (let si = 0; si < N_SIM; si++) {
+        let acc = 0, peak = 0, maxDD = 0;
+        const netArr: number[] = [];
+
+        for (let j = 0; j < N_TRADES_MC; j++) {
+          const baseIdx = Math.floor(rand() * btGrossArr.length);
+          let grossR = btGrossArr[baseIdx];
+          let isTP   = btIsTP[baseIdx];
+
+          // Apply stress factors
+          if (hasStress) {
+            if (isTP && params.wrDegradation > 0 && rand() < params.wrDegradation) {
+              const losers = btGrossArr.map((r, i) => r < 0 ? i : -1).filter(i => i >= 0);
+              if (losers.length > 0) {
+                const li = losers[Math.floor(rand() * losers.length)];
+                grossR = btGrossArr[li]; isTP = false;
+              }
+            }
+            if (params.humanError > 0 && rand() < params.humanError) { grossR = -1; isTP = false; }
+            if (!isTP && grossR < 0) {
+              grossR = grossR * params.lossAmp;
+              if (params.badSlipProb > 0 && rand() < params.badSlipProb) grossR = grossR * params.badSlipMult;
+            }
+            if (isTP && grossR > 0) {
+              grossR = grossR * params.winReduction;
+              if (params.fatigue > 0) grossR = grossR * (1 - params.fatigue);
+              if (params.missedWin > 0 && rand() < params.missedWin) grossR = 0;
+            }
+            grossR = grossR - params.slippage;
+          }
+
+          // Apply trade cost
+          const netR = grossR - tradeCost;
+
+          acc += netR;
+          netArr.push(netR);
+          if (acc > peak) peak = acc;
+          const dd = peak - acc;
+          if (dd > maxDD) maxDD = dd;
+
+          // Sample for equity curve
+          const sIdx = sampleIdx.indexOf(j);
+          if (sIdx >= 0) byTrade[sIdx].push(acc);
+        }
+
+        finalEqs.push(acc);
+        maxDDs.push(maxDD);
+
+        const mean = netArr.reduce((a, b) => a + b, 0) / netArr.length;
+        const denom = useN1 ? Math.max(1, netArr.length - 1) : netArr.length;
+        const std = Math.sqrt(netArr.reduce((a, r) => a + (r - mean) ** 2, 0) / denom);
+        const sqn = std > 0 ? Math.sqrt(netArr.length) * mean / std : 0;
+        sqns.push(sqn);
+
+        let strkMax = 0, strkCur = 0, wins = 0;
+        for (const r of netArr) {
+          if (r < 0) { strkCur++; if (strkCur > strkMax) strkMax = strkCur; } else strkCur = 0;
+          if (r > 0) wins++;
+        }
+        wrs.push(wins / netArr.length);
+        streaks.push(strkMax);
+        if (maxDD < params.survivalThreshold) survivedCount++;
+
+        // Store path sample
+        if (si < 50) pathSamples.push(sampleIdx.map((ti, si2) => Math.round((byTrade[si2][byTrade[si2].length - 1] ?? 0) * 100) / 100));
+      }
+
+      // ── Equity curve percentiles ──────────────────────────────────────────
+      const mcMedian: number[] = [];
+      const mcp5: number[]     = [];
+      const mcp95: number[]    = [];
+
+      for (let i = 0; i < sampleIdx.length; i++) {
+        const arr = byTrade[i];
+        mcMedian.push(Math.round(pctOf(arr, 0.50) * 100) / 100);
+        mcp5.push(Math.round(pctOf(arr, 0.05) * 100) / 100);
+        mcp95.push(Math.round(pctOf(arr, 0.95) * 100) / 100);
+      }
+
+      // ── SQN distribution (histogram, 20 bins) ────────────────────────────
+      const sqnMin = Math.floor(pctOf(sqns, 0.01) * 10) / 10;
+      const sqnMax = Math.ceil(pctOf(sqns, 0.99) * 10) / 10;
+      const SQN_BINS = 20;
+      const sqnBinW = (sqnMax - sqnMin) / SQN_BINS || 0.5;
+      const sqnHist: { bin: number; count: number }[] = Array.from({ length: SQN_BINS }, (_, i) => ({
+        bin: Math.round((sqnMin + (i + 0.5) * sqnBinW) * 100) / 100,
+        count: 0,
+      }));
+      for (const v of sqns) {
+        const i = Math.max(0, Math.min(SQN_BINS - 1, Math.floor((v - sqnMin) / sqnBinW)));
+        sqnHist[i].count++;
+      }
+
+      // ── Max DD distribution (histogram, 20 bins) ─────────────────────────
+      const ddMin  = 0;
+      const ddMax  = Math.ceil(pctOf(maxDDs, 0.99) * 10) / 10;
+      const DD_BINS = 20;
+      const ddBinW = (ddMax - ddMin) / DD_BINS || 1;
+      const ddHist: { bin: number; count: number }[] = Array.from({ length: DD_BINS }, (_, i) => ({
+        bin: Math.round((ddMin + (i + 0.5) * ddBinW) * 100) / 100,
+        count: 0,
+      }));
+      for (const v of maxDDs) {
+        const i = Math.max(0, Math.min(DD_BINS - 1, Math.floor((v - ddMin) / ddBinW)));
+        ddHist[i].count++;
+      }
+
+      // ── BT + Live equity (gross & net, clipped to horizon) ───────────────
+      const btNetEq: number[]   = [];
+      const btGrossEq: number[] = [];
+      let btNetC = 0, btGrossC = 0;
+      for (let i = 0; i < Math.min(bt.length, N_TRADES_MC); i++) {
+        btNetC   += bt[i].netR   ?? 0;
+        btGrossC += bt[i].grossR ?? (bt[i].netR ?? 0);
+        btNetEq.push(Math.round(btNetC * 100) / 100);
+        btGrossEq.push(Math.round(btGrossC * 100) / 100);
+      }
+
+      const lvNetEq: number[]   = [];
+      const lvGrossEq: number[] = [];
+      let lvNetC = 0, lvGrossC = 0;
+      for (let i = 0; i < Math.min(lv.length, N_TRADES_MC); i++) {
+        lvNetC   += lv[i].netR   ?? 0;
+        lvGrossC += lv[i].grossR ?? (lv[i].netR ?? 0);
+        lvNetEq.push(Math.round(lvNetC * 100) / 100);
+        lvGrossEq.push(Math.round(lvGrossC * 100) / 100);
+      }
+
+      // ── Factor impact (analytical) ────────────────────────────────────────
+      const n   = bt.length;
+      const wr  = btIsTP.filter(Boolean).length / Math.max(1, n);
+      const avgGrossWin  = btGrossArr.filter(r => r > 0).reduce((s, r) => s + r, 0) / Math.max(1, btGrossArr.filter(r => r > 0).length);
+      const avgGrossLoss = btGrossArr.filter(r => r < 0).reduce((s, r) => s + Math.abs(r), 0) / Math.max(1, btGrossArr.filter(r => r < 0).length);
+      const N = N_TRADES_MC;
+
+      const factorImpacts = [
+        { key: 'lossAmp',       label: 'Loss Amplification', impact: -N * (1 - wr) * avgGrossLoss * (params.lossAmp - 1) },
+        { key: 'winReduction',  label: 'Win Reduction',      impact: -N * wr * avgGrossWin * (1 - params.winReduction) },
+        { key: 'wrDegradation', label: 'WR Degradation',     impact: -N * wr * params.wrDegradation * (avgGrossWin + avgGrossLoss) },
+        { key: 'slippage',      label: 'Slippage',           impact: -N * params.slippage },
+        { key: 'humanError',    label: 'Human Error',        impact: -N * wr * params.humanError * (avgGrossWin + avgGrossLoss) },
+        { key: 'fatigue',       label: 'Fatigue Decay',      impact: -N * wr * avgGrossWin * params.fatigue },
+        { key: 'badSlip',       label: 'Extreme Slippage',   impact: -N * (1 - wr) * avgGrossLoss * params.badSlipProb * (params.badSlipMult - 1) },
+        { key: 'missedWin',     label: 'Missed Win',         impact: -N * wr * avgGrossWin * params.missedWin },
+      ];
+
+      // ── Box stats helper ──────────────────────────────────────────────────
+      const sBox = (arr: number[]) => ({
+        p5:  Math.round(pctOf(arr, 0.05) * 100) / 100,
+        p25: Math.round(pctOf(arr, 0.25) * 100) / 100,
+        med: Math.round(pctOf(arr, 0.50) * 100) / 100,
+        p75: Math.round(pctOf(arr, 0.75) * 100) / 100,
+        p95: Math.round(pctOf(arr, 0.95) * 100) / 100,
+      });
+
+      const boxStats = {
+        return:   sBox(finalEqs),
+        drawdown: sBox(maxDDs),
+        sqn:      sBox(sqns),
+        wr:       sBox(wrs),
+        streak:   sBox(streaks),
+      };
+
+      return c.json({
+        // Equity curves
+        mcMedian, mcp5, mcp95,
+        mcPathsSample: pathSamples.slice(0, 50),
+        // BT/Live overlays
+        btNetEq, btGrossEq, lvNetEq, lvGrossEq,
+        btCount: bt.length, lvCount: lv.length,
+        // Distributions
+        sqnDistribution: sqnHist,
+        ddDistribution: ddHist,
+        // Summary stats
+        summary: {
+          med:  { totalR: Math.round(pctOf(finalEqs, 0.50) * 100) / 100, sqn: Math.round(pctOf(sqns, 0.50) * 100) / 100 },
+          p5:   { totalR: Math.round(pctOf(finalEqs, 0.05) * 100) / 100, sqn: Math.round(pctOf(sqns, 0.05) * 100) / 100 },
+          p95:  { totalR: Math.round(pctOf(finalEqs, 0.95) * 100) / 100, sqn: Math.round(pctOf(sqns, 0.95) * 100) / 100 },
+        },
+        // Survival / DD
+        survivalRate: Math.round(survivedCount / N_SIM * 1000) / 10,
+        ddMed: Math.round(pctOf(maxDDs, 0.50) * 100) / 100,
+        ddP5:  Math.round(pctOf(maxDDs, 0.05) * 100) / 100,
+        ddProbAboveThreshold: Math.round(maxDDs.filter(d => d > params.survivalThreshold).length / N_SIM * 1000) / 10,
+        // Factor impacts
+        factorImpacts,
+        boxStats,
+        // Params echo
+        horizon: N_TRADES_MC,
+        nSim: N_SIM,
+        tradeCost: Math.round(tradeCost * 10000) / 10000,
+        avgCostBt: Math.round(avgCostBt * 10000) / 10000,
+      }, 200);
+    }
+  )
+
   // ─── LIVE TRADES ──────────────────────────────────────────────────────────
   .get('/live-trades', async (c) => {
     const uid = Number(c.req.query('userId') ?? 0);

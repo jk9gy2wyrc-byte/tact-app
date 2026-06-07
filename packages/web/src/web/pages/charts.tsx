@@ -6,7 +6,7 @@ import AccessWrapper from "../components/AccessWrapper";
 import { fetchAccess } from "../lib/access";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine,
+  ResponsiveContainer, ReferenceLine, BarChart, Bar,
 } from "recharts";
 
 async function fetchStats() {
@@ -713,27 +713,66 @@ export default function Charts() {
       .catch(() => {});
   }, []);
 
+  // setSP — no auto-trigger, just update state
   const setSP = useCallback((key: keyof typeof defaultStress, val: number) => {
-    setStressParams(p => {
-      const next = { ...p, [key]: val };
-      // debounce API call
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(async () => {
-        setStressLoading(true);
-        try {
-          const res = await fetch(`/api/mc-stress${uidParam()}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(next),
-          });
-          const json = await res.json();
-          setStressData(json);
-        } catch (_) {}
-        setStressLoading(false);
-      }, 400);
-      return next;
-    });
+    setStressParams(p => ({ ...p, [key]: val }));
   }, []);
+
+  // ── Unified MC run state ──────────────────────────────────────────────────
+  const [mcNSim,     setMcNSim]     = useState(5000);
+  const [mcHorizon,  setMcHorizon]  = useState<number | ''>('');
+  const [mcStdDev,   setMcStdDev]   = useState<'n-1' | 'n'>('n-1');
+  const [mcTradeCost,setMcTradeCost]= useState<number | ''>('');
+  type MCRunResult = {
+    mcMedian: number[]; mcp5: number[]; mcp95: number[];
+    mcPathsSample: number[][];
+    btNetEq: number[]; btGrossEq: number[]; lvNetEq: number[]; lvGrossEq: number[];
+    btCount: number; lvCount: number;
+    sqnDistribution: { bin: number; count: number }[];
+    ddDistribution: { bin: number; count: number }[];
+    summary: { med: { totalR: number; sqn: number }; p5: { totalR: number; sqn: number }; p95: { totalR: number; sqn: number } };
+    survivalRate: number; ddMed: number; ddP5: number; ddProbAboveThreshold: number;
+    factorImpacts: { key: string; label: string; impact: number }[];
+    boxStats: { return: any; drawdown: any; sqn: any; wr: any; streak: any };
+    horizon: number; nSim: number; tradeCost: number; avgCostBt: number;
+  };
+  const [mcRunResult, setMcRunResult] = useState<MCRunResult | null>(null);
+  const [mcRunLoading, setMcRunLoading] = useState(false);
+  const [mcRunError,   setMcRunError]   = useState<string | null>(null);
+  const [mcShowBt,     setMcShowBt]     = useState(true);
+  const [mcShowLv,     setMcShowLv]     = useState(true);
+  const [mcShowBtGross,setMcShowBtGross]= useState(false);
+  const [mcShowLvGross,setMcShowLvGross]= useState(false);
+  const [mcImpactRef,  setMcImpactRef]  = useState<'bt' | 'lv'>('bt');
+
+  const runMCSimulation = useCallback(async () => {
+    setMcRunLoading(true);
+    setMcRunError(null);
+    try {
+      const body: Record<string, unknown> = {
+        btInstruments: [...mcBtAssets].join(','),
+        btYears:       Array.from(new Set([...mcBtYears].map(k => k.split('__')[1]).filter(Boolean))).join(','),
+        btMonths:      Array.from(new Set([...mcBtMonths].map(k => k.split('__').slice(1).join('__')).filter(Boolean))).join(','),
+        lvAssets:      [...mcLvAssets].join(','),
+        lvYears:       Array.from(new Set([...mcLvYears].map(k => k.split('__')[1]).filter(Boolean))).join(','),
+        lvMonths:      Array.from(new Set([...mcLvMonths].map(k => k.split('__').slice(1).join('__')).filter(Boolean))).join(','),
+        nSimulations: mcNSim,
+        stdDevFormula: mcStdDev,
+        ...stressParams,
+      };
+      if (mcHorizon !== '') body.horizon = Number(mcHorizon);
+      if (mcTradeCost !== '') body.tradeCost = Number(mcTradeCost);
+      const res = await fetch(`/api/mc-run${uidParam()}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? 'Server error'); }
+      setMcRunResult(await res.json());
+    } catch (e: any) {
+      setMcRunError(e.message ?? 'Помилка симуляції');
+    }
+    setMcRunLoading(false);
+  }, [mcBtAssets, mcBtYears, mcBtMonths, mcLvAssets, mcLvYears, mcLvMonths, mcNSim, mcHorizon, mcStdDev, mcTradeCost, stressParams]);
 
   const resetStress = () => { setStressParams(defaultStress); setStressData(null); };
   const loadCombo = async (combo: {id: string; name: string; params: typeof defaultStress}) => {
@@ -1234,1220 +1273,539 @@ export default function Charts() {
         explanation="Стандартне відхилення розподілу Net R у ковзному вікні. Вимірює консистентність результатів. Низьке значення = стабільні результати. Різкий ріст StdDev означає підвищену нестабільність у live-торгівлі відносно бектесту."
       />
 
-      {/* MC EQUITY RANGE */}
+      {/* ─────────────────────── UNIFIED MC + STRESS ──────────────────────── */}
       <div style={chartStyle(isMobile)}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+        {/* ── HEADER ── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>Monte Carlo — Expected Equity Range</div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>Monte Carlo — Stress Simulation</div>
             <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>
-              1000 симуляцій bootstrap на основі вибраних бектестів · Білий = медіана, помаранчевий = p5/p95
+              Bootstrap + стрес-фактори · Ручний запуск
               {mcHasFilter ? <span style={{ marginLeft: 8, color: '#a78bfa', fontWeight: 600 }}>· фільтр активний</span> : null}
             </div>
           </div>
-          {mcHasFilter ? (
-            <button onClick={resetMcFilter} style={{
-              background: 'rgba(255,77,106,0.12)', border: '1px solid rgba(255,77,106,0.35)',
-              color: 'var(--red)', borderRadius: 7, padding: '4px 12px',
-              fontSize: 12, fontWeight: 600, cursor: 'pointer',
-            }}>Скинути</button>
-          ) : null}
+          {mcHasFilter && (
+            <button onClick={resetMcFilter} style={{ background: 'rgba(255,77,106,0.12)', border: '1px solid rgba(255,77,106,0.35)', color: 'var(--red)', borderRadius: 7, padding: '4px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Скинути фільтр</button>
+          )}
         </div>
 
-        {/* BT Filter */}
-        <div style={{
-          background: 'var(--surface2)', border: '1px solid rgba(167,139,250,0.25)',
-          borderRadius: 10, padding: '12px 14px', marginBottom: 10,
-          display: 'flex', flexDirection: 'column', gap: 6,
-        }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
-            Backtest — вибір даних
+        {/* ── INPUTS SECTION ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+
+          {/* BT Filter */}
+          <div style={{ background: 'var(--surface2)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 10, padding: '12px 14px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Backtest — вибір даних</div>
+            {mcFilterOptions?.btTree ? (
+              <MCFilterPanel tree={mcFilterOptions.btTree} selAssets={mcBtAssets} selYears={mcBtYears} selMonths={mcBtMonths} onToggleAsset={handleMcBtToggleAsset} onToggleYear={handleMcBtToggleYear} onToggleMonth={(asset, m) => setMcBtMonths(s => toggleSet(s, `${asset}__${m}`))} color="#a78bfa" />
+            ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>}
           </div>
-          {mcFilterOptions?.btTree ? (
-            <MCFilterPanel
-              tree={mcFilterOptions.btTree}
-              selAssets={mcBtAssets} selYears={mcBtYears} selMonths={mcBtMonths}
-              onToggleAsset={handleMcBtToggleAsset}
-              onToggleYear={handleMcBtToggleYear}
-              onToggleMonth={(asset, m) => setMcBtMonths(s => toggleSet(s, `${asset}__${m}`))}
-              color="#a78bfa"
-            />
-          ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>}
-        </div>
 
-        {/* Live Filter */}
-        <div style={{
-          background: 'var(--surface2)', border: '1px solid rgba(74,222,128,0.2)',
-          borderRadius: 10, padding: '12px 14px', marginBottom: 14,
-          display: 'flex', flexDirection: 'column', gap: 6,
-        }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
-            Live — вибір даних
+          {/* Live Filter */}
+          <div style={{ background: 'var(--surface2)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 10, padding: '12px 14px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Live — вибір даних</div>
+            {mcFilterOptions?.lvTree ? (
+              <MCFilterPanel tree={mcFilterOptions.lvTree} selAssets={mcLvAssets} selYears={mcLvYears} selMonths={mcLvMonths} onToggleAsset={handleMcLvToggleAsset} onToggleYear={handleMcLvToggleYear} onToggleMonth={(asset, m) => setMcLvMonths(s => toggleSet(s, `${asset}__${m}`))} color="#4ade80" />
+            ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>}
           </div>
-          {mcFilterOptions?.lvTree ? (
-            <MCFilterPanel
-              tree={mcFilterOptions.lvTree}
-              selAssets={mcLvAssets} selYears={mcLvYears} selMonths={mcLvMonths}
-              onToggleAsset={handleMcLvToggleAsset}
-              onToggleYear={handleMcLvToggleYear}
-              onToggleMonth={(asset, m) => setMcLvMonths(s => toggleSet(s, `${asset}__${m}`))}
-              color="#4ade80"
-            />
-          ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>}
-        </div>
 
-        {/* Chart */}
-        {(() => {
-          // When filter active → use mcCustomData; otherwise use default from /api/stats
-          const hasFilter = !!(mcBtAssets.size || mcLvAssets.size);
-          const mcD = hasFilter ? (mcCustomData as any) : null;
-          // If filter active but data not yet loaded → show loading
-          if (hasFilter && !mcD) {
-            return <div style={{ color: 'var(--text2)', padding: 20, textAlign: 'center', fontSize: 12 }}>Завантаження симуляції...</div>;
-          }
-          const _mcMed:  number[]   = mcD ? (mcD.mcMedian ?? []) : mcMed;
-          const _mcp5:   number[]   = mcD ? (mcD.mcp5     ?? []) : mcp5;
-          const _mcp95:  number[]   = mcD ? (mcD.mcp95    ?? []) : mcp95;
-          const _paths:  number[][] = mcD ? (mcD.mcPathsSample ?? []) : mcPathsSample;
-          const _lvEq:   number[]   = mcD ? (mcD.lvEquity  ?? []) : lvEq;
-          const _btEq:   number[]   = mcD ? (mcD.btEquity  ?? []) : btEq; // real bt equity for overlay
-          const nPts = _mcMed.length;
-          // X-axis: trade number within simulated year (1..avgTradesPerYear)
-          const _chartData = Array.from({ length: nPts }, (_, i) => {
-            const pt: Record<string, number | null> = {
-              trade: i + 1,
-              'MC p50': _mcMed[i] ?? null,
-              'MC p5':  _mcp5[i]  ?? null,
-              'MC p95': _mcp95[i] ?? null,
-            };
-            _paths.forEach((path, pi) => { pt[`path_${pi}`] = path[i] ?? null; });
-            // bt equity: downsample to nPts points (same % progress)
-            if (_btEq.length > 0) {
-              const btIdx = Math.round((i / Math.max(nPts - 1, 1)) * (_btEq.length - 1));
-              pt['Backtest'] = _btEq[btIdx] ?? null;
-            }
-            // live equity: downsample to nPts points (same % progress)
-            if (_lvEq.length > 0) {
-              const lvIdx = Math.round((i / Math.max(nPts - 1, 1)) * (_lvEq.length - 1));
-              pt['Live'] = _lvEq[lvIdx] ?? null;
-            }
-            return pt;
-          });
-          return _mcMed.length === 0 ? (
-            <div style={{ color: 'var(--text2)', padding: 20, textAlign: 'center' }}>Немає даних</div>
-          ) : (
-            <>
-              <ResponsiveContainer width="100%" height={isMobile ? 200 : 280}>
-                <LineChart data={_chartData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
-                  <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} label={{ value: 'trades / year', position: 'insideBottomRight', offset: -4, fontSize: 9, fill: '#5a5f6a' }} />
-                  <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
-                  <Tooltip content={<SimpleTooltip />} />
-                  <ReferenceLine y={0} stroke="#555" />
-                  {_paths.filter((_, pi) => pi % 5 === 0).map((_, pi) => (
-                    <Line key={`path_${pi * 5}`} type="monotone" dataKey={`path_${pi * 5}`}
-                      stroke="#2a5580" strokeWidth={0.8} dot={false} isAnimationActive={false} legendType="none" connectNulls />
-                  ))}
-                  <Line type="monotone" dataKey="MC p5"    stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
-                  <Line type="monotone" dataKey="MC p95"   stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
-                  <Line type="monotone" dataKey="MC p50"   stroke={MC_MED_COLOR}  strokeWidth={2}   dot={false} connectNulls />
-                  <Line type="monotone" dataKey="Backtest" stroke="#a78bfa"        strokeWidth={2}   dot={false} connectNulls />
-                  <Line type="monotone" dataKey="Live"     stroke={LIVE_COLOR}     strokeWidth={2.5} dot={false} connectNulls />
-                </LineChart>
-              </ResponsiveContainer>
-              <Explanation text="MC симулює один рік вперед: N = середня к-сть bt trades/рік. Live (~70–80 trades/рік) порівнюється з симуляцією на тій самій кількості trades — масштаб сумірний. Bt equity — повна крива всіх років як референс. Сині лінії = 20 прикладів симуляцій, білий = медіана, помаранчеві = p5/p95." />
-            </>
-          );
-        })()}
-      </div>
-
-      {/* ── STRESS TEST ──────────────────────────────────────────────────────── */}
-      <div style={{ ...chartStyle(isMobile) }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>Stress Testing</div>
-            <div style={{ fontSize: 10, color: 'var(--text2)' }}>Штучне погіршення результативності для перевірки стійкості стратегії</div>
-          </div>
-        </div>
-
-          <div>
-            {/* Sliders grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 0 : '0 32px' }}>
-
-              {/* LEFT COLUMN */}
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
-                  Фактори збитків
-                </div>
-                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
-                  <StressSlider
-                    label="Loss Amplification"
-                    description="Збільшити розмір кожного збитку. 1.0 = без змін, 1.2 = збитки на 20% більші (−1R → −1.2R)"
-                    value={stressParams.lossAmp}
-                    min={1} max={2} step={0.05}
-                    format={v => `×${v.toFixed(2)}`}
-                    onChange={v => setSP('lossAmp', v)}
-                    accent="#f87171"
-                  />
-                </div>
-                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
-                  <StressSlider
-                    label="Win Reduction"
-                    description="Зменшити розмір кожного виграшу. 1.0 = без змін, 0.8 = виграші на 20% менші (+2.2R → +1.76R)"
-                    value={stressParams.winReduction}
-                    min={0.4} max={1} step={0.05}
-                    format={v => `×${v.toFixed(2)}`}
-                    onChange={v => setSP('winReduction', v)}
-                    accent="#fb923c"
-                  />
-                </div>
-                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
-                  <StressSlider
-                    label="WR Degradation"
-                    description="Конвертувати % випадкових TP в SL. 0 = без змін, 0.1 = 10% виграшів стають програшами"
-                    value={stressParams.wrDegradation}
-                    min={0} max={0.4} step={0.01}
-                    format={v => `${(v * 100).toFixed(0)}%`}
-                    onChange={v => setSP('wrDegradation', v)}
-                    accent="#facc15"
-                  />
-                </div>
-                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
-                  <StressSlider
-                    label="Execution Slippage"
-                    description="Додатковий cost per trade в R (slippage, re-quotes). 0.05 = −0.05R з кожного трейду"
-                    value={stressParams.slippage}
-                    min={0} max={0.3} step={0.01}
-                    format={v => `−${v.toFixed(2)}R`}
-                    onChange={v => setSP('slippage', v)}
-                    accent="#a78bfa"
-                  />
-                </div>
-              </div>
-
-              {/* RIGHT COLUMN */}
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
-                  Додаткові фактори
-                </div>
-
-                {/* Human Error */}
-                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
-                  <StressSlider
-                    label="Human Error"
-                    description="Тильт, забув стоп, відкрив не той обсяг. З ймовірністю X% трейд стає −1R незалежно від результату"
-                    value={stressParams.humanError}
-                    min={0} max={0.2} step={0.005}
-                    format={v => `${(v * 100).toFixed(1)}%`}
-                    onChange={v => setSP('humanError', v)}
-                    accent="#f87171"
-                  />
-                  <FactorDetails items={[
-                    { label: 'Що моделює', content: 'Повний провал дисципліни або критична технічна помилка.' },
-                    { label: 'Сценарій', content: 'Випадково відкрив позицію на весь депозит, забув поставити стоп і пішов спати, прокинувся і закрив стоп в −30%, почався тільт: зайшов 5 раз проти правил.' },
-                    { label: 'Як працює', content: 'Із заданою імовірністю симулятор випадково вибирає одну угоду (навіть прибуткову) і примусово перетворює її результат в −1R (або більше, в залежності від slippage).' },
-                    { label: 'Вплив', content: 'Критичне. Навіть одна така помилка в місяць (0.01–0.02) може повністю знищити високий SQN ідеальної стратегії. SQN (System Quality Number).' },
-                  ]} />
-                </div>
-
-                {/* Fatigue Decay */}
-                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
-                  <StressSlider
-                    label="Fatigue Decay"
-                    description="Психологічна втома — злякався відкату, вийшов раніше. Кожен прибутковий трейд зменшується на X%"
-                    value={stressParams.fatigue}
-                    min={0} max={0.5} step={0.01}
-                    format={v => `−${(v * 100).toFixed(0)}% від виграшу`}
-                    onChange={v => setSP('fatigue', v)}
-                    accent="#fb923c"
-                  />
-                  <FactorDetails items={[
-                    { label: 'Що моделює', content: 'Психологічну "втому", страх відкату і ранні виходи з позиції.' },
-                    { label: 'Сценарій', content: 'Ціна пішла в мою сторону, але я злякався відкату і закрив +2R замість планових +3R, надто довго сидів в беззбитку, перегорів і вийшов.' },
-                    { label: 'Як працює', content: 'Кожна прибуткова угода зменшується на цей відсоток. (Наприклад було +2R → стало +1.8R). Збиткові угоди не міняються (збитки ми завжди тримаємо до стопу).' },
-                    { label: 'Вплив', content: 'Плавно і непомітно "з\'їдає" маточікування стратегії на дистанції. Робить рівно те, що робить людина в лайві.' },
-                  ]} />
-                </div>
-
-                {/* Bad Slip Prob + Mult */}
-                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
-                  <StressSlider
-                    label="Bad Slip Prob"
-                    description="Ймовірність що стоп спрацює по гіршій ціні (гепи, новини). 0.15 = 15% збиткових угод матимуть погане виконання"
-                    value={stressParams.badSlipProb}
-                    min={0} max={0.5} step={0.01}
-                    format={v => `${(v * 100).toFixed(0)}%`}
-                    onChange={v => setSP('badSlipProb', v)}
-                    accent="#38bdf8"
-                  />
-                  <StressSlider
-                    label="Bad Slip Mult"
-                    description="Сила удару при поганому виконанні. 1.4× = збиток −1R стає −1.4R"
-                    value={stressParams.badSlipMult}
-                    min={1} max={3} step={0.1}
-                    format={v => `×${v.toFixed(1)}`}
-                    onChange={v => setSP('badSlipMult', v)}
-                    accent="#38bdf899"
-                  />
-                  <FactorDetails items={[
-                    { label: 'Що моделює', content: 'Різкі рухи ринку, slippage, гепи на відкритті, новинні шпильки.' },
-                    { label: 'Сценарій', content: 'Мій стоп стояв на 1.1000, проте через вихід NFP, ціна пролетіла через стоп і мене закрило на рівні 1.0990, тобто по гіршій ціні.' },
-                    { label: 'Як працює', content: '• Bad Slip Prob: Імовірність події (як часто відбувається?). Наприклад, 0.15 = в 15% випадків стоп спрацює погано.\n• Bad Slip Mult: Сила удару (наскільки гірше?). Наприклад 1.4 = збиток буде не −100$, а −140$.' },
-                    { label: 'Вплив', content: 'Понижає стабільність кривої капіталу, додає глибокі просадки, які важко відновити.' },
-                  ]} />
-                </div>
-
-                {/* Missed Win */}
-                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
-                  <StressSlider
-                    label="Missed Win"
-                    description="Пропустив прибуткову угоду (спав, боявся натиснути після збитків). Прибуток стає 0R"
-                    value={stressParams.missedWin}
-                    min={0} max={0.5} step={0.01}
-                    format={v => `${(v * 100).toFixed(0)}%`}
-                    onChange={v => setSP('missedWin', v)}
-                    accent="#4ade80"
-                  />
-                  <FactorDetails items={[
-                    { label: 'Що моделює', content: 'Життя трейдера. Сон. Їжу. Страх входу після збитку (фомо/страх).' },
-                    { label: 'Сценарій', content: '"Торгова модель була ідеальна в 9 ранку, але я спав" або "Був у монітора але боявся відкрити позицію кнопку після серії збиткових угод".' },
-                    { label: 'Як працює', content: 'Бере тільки прибуткову угоду і із заданою імовірністю обнуляє її результат (робить 0R). Ніби ви просто спостерігали за цією позицією зі сторони.' },
-                    { label: 'Вплив', content: 'Найсильніший з усіх факторів. Ви втрачаєте прибуток але продовжуєте отримувати збитки (збиткові угоди пропускаються не так часто, так як мені потрібна симуляція максимально наближена до реальності).' },
-                  ]} />
-                </div>
-              </div>
-            </div>
-
-            {/* Survival threshold */}
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 4 }}>
-              <StressSlider
-                label="Survival Threshold (Max Drawdown limit)"
-                description="Просадка понад цей поріг вважається 'blown account'. Впливає на Survival Rate."
-                value={stressParams.survivalThreshold}
-                min={2} max={25} step={1}
-                format={v => `${v}R`}
-                onChange={v => setSP('survivalThreshold', v)}
-                accent="#6b7280"
+          {/* Sim params row */}
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 10 }}>
+            {/* N Simulations */}
+            <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>N симуляцій</div>
+              <input
+                type="number" min={100} max={20000} step={500}
+                value={mcNSim}
+                onChange={e => setMcNSim(Math.max(100, Math.min(20000, Number(e.target.value) || 5000)))}
+                style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', fontSize: 13, fontWeight: 700, color: 'var(--text)', boxSizing: 'border-box' }}
               />
+              <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>за замовч. 5000</div>
             </div>
-
-            {/* Controls */}
-            <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-              <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8, opacity: isModified ? 1 : 0.4 }} onClick={resetStress}>Скинути</button>
-              <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8 }} onClick={() => { setSaveOpen(o => !o); setSaveComboName(''); }}>Зберегти комбінацію</button>
-              {stressLoading && <span style={{ fontSize: 11, color: 'var(--text2)' }}>Симулюю 1000 сценаріїв...</span>}
-              {!isModified && <span style={{ fontSize: 11, color: 'var(--text2)' }}>Рухай слайдери — графік оновиться автоматично</span>}
+            {/* Horizon */}
+            <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Горизонт (угод)</div>
+              <input
+                type="number" min={1} max={2000} step={10}
+                value={mcHorizon}
+                placeholder="= к-сть BT угод"
+                onChange={e => setMcHorizon(e.target.value === '' ? '' : Math.max(1, Number(e.target.value)))}
+                style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', fontSize: 13, fontWeight: 700, color: 'var(--text)', boxSizing: 'border-box' }}
+              />
+              <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>відповідає к-сті BT</div>
             </div>
+            {/* Trade cost */}
+            <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Trade cost (R/угода)</div>
+              <input
+                type="number" step={0.001}
+                value={mcTradeCost}
+                placeholder="= avg з BT"
+                onChange={e => setMcTradeCost(e.target.value === '' ? '' : Number(e.target.value))}
+                style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', fontSize: 13, fontWeight: 700, color: 'var(--text)', boxSizing: 'border-box' }}
+              />
+              <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>від'ємне = cost</div>
+            </div>
+            {/* Std Dev formula */}
+            <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Std Dev формула</div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                {(['n-1', 'n'] as const).map(f => (
+                  <button key={f} onClick={() => setMcStdDev(f)} style={{
+                    flex: 1, padding: '5px 0', fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: 'pointer', border: 'none',
+                    background: mcStdDev === f ? '#a78bfa' : 'var(--surface)', color: mcStdDev === f ? '#fff' : 'var(--text2)',
+                  }}>{f === 'n-1' ? 'N−1' : 'N'}</button>
+                ))}
+              </div>
+              <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>{mcStdDev === 'n-1' ? 'вибірка / <100 угод' : 'генеральна / >100'}</div>
+            </div>
+          </div>
 
-            {/* Save combo panel */}
-            {saveOpen && (
-              <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>Зберегти комбінацію факторів</div>
-                <input
-                  type="text" placeholder="Назва комбінації..."
-                  value={saveComboName} onChange={e => setSaveComboName(e.target.value)}
-                  onKeyDown={(e: any) => e.key === 'Enter' && saveCombo()}
-                  style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', fontSize: 12, color: 'var(--text)', marginBottom: 10, boxSizing: 'border-box' }}
-                />
-                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Поточні значення:</div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12, fontSize: 11 }}>
-                  {(Object.entries(stressParams) as [keyof typeof defaultStress, number][]).map(([k, v]) => (
-                    <span key={k} style={{ background: 'var(--surface)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)' }}>
-                      <span style={{ color: 'var(--text2)' }}>{k}:</span> <span style={{ color: (defaultStress as any)[k] !== v ? '#f87171' : 'var(--text)', fontWeight: 600 }}>{v}</span>
-                    </span>
+          {/* Max DD threshold */}
+          <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
+            <StressSlider label="Max DD Threshold" description="Просадка понад цей поріг = blown account. Впливає на Survival Rate." value={stressParams.survivalThreshold} min={2} max={50} step={1} format={v => `${v}R`} onChange={v => setSP('survivalThreshold', v)} accent="#6b7280" />
+          </div>
+
+          {/* Stress sliders */}
+          <div style={{ background: 'var(--surface2)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, padding: '14px 16px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Стрес-фактори</div>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 0 : '0 32px' }}>
+              {/* Left */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Фактори збитків</div>
+                <StressSlider label="Loss Amplification" description="Збільшити розмір кожного збитку. 1.0 = без змін, 1.2 = збитки на 20% більші" value={stressParams.lossAmp} min={1} max={2} step={0.05} format={v => `×${v.toFixed(2)}`} onChange={v => setSP('lossAmp', v)} accent="#f87171" />
+                <StressSlider label="Win Reduction" description="Зменшити розмір кожного виграшу. 1.0 = без змін, 0.8 = виграші на 20% менші" value={stressParams.winReduction} min={0.4} max={1} step={0.05} format={v => `×${v.toFixed(2)}`} onChange={v => setSP('winReduction', v)} accent="#fb923c" />
+                <StressSlider label="WR Degradation" description="Конвертувати % випадкових TP в SL. 0.1 = 10% виграшів стають програшами" value={stressParams.wrDegradation} min={0} max={0.4} step={0.01} format={v => `${(v * 100).toFixed(0)}%`} onChange={v => setSP('wrDegradation', v)} accent="#facc15" />
+                <StressSlider label="Execution Slippage" description="Додатковий cost per trade в R (окремо від Trade cost). 0.05 = −0.05R" value={stressParams.slippage} min={0} max={0.3} step={0.01} format={v => `−${v.toFixed(2)}R`} onChange={v => setSP('slippage', v)} accent="#a78bfa" />
+              </div>
+              {/* Right */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Додаткові фактори</div>
+                <StressSlider label="Human Error" description="Тильт, забув стоп. З ймовірністю X% трейд стає −1R незалежно від результату" value={stressParams.humanError} min={0} max={0.2} step={0.005} format={v => `${(v * 100).toFixed(1)}%`} onChange={v => setSP('humanError', v)} accent="#f87171" />
+                <StressSlider label="Fatigue Decay" description="Злякався відкату, вийшов раніше. Кожен прибутковий трейд зменшується на X%" value={stressParams.fatigue} min={0} max={0.5} step={0.01} format={v => `−${(v * 100).toFixed(0)}% від виграшу`} onChange={v => setSP('fatigue', v)} accent="#fb923c" />
+                <StressSlider label="Bad Slip Prob" description="Ймовірність що стоп спрацює по гіршій ціні (гепи, новини)" value={stressParams.badSlipProb} min={0} max={0.5} step={0.01} format={v => `${(v * 100).toFixed(0)}%`} onChange={v => setSP('badSlipProb', v)} accent="#38bdf8" />
+                <StressSlider label="Bad Slip Mult" description="Сила удару при поганому виконанні. 1.4× = збиток −1R стає −1.4R" value={stressParams.badSlipMult} min={1} max={3} step={0.1} format={v => `×${v.toFixed(1)}`} onChange={v => setSP('badSlipMult', v)} accent="#38bdf899" />
+                <StressSlider label="Missed Win" description="Пропустив прибуткову угоду. Прибуток стає 0R" value={stressParams.missedWin} min={0} max={0.5} step={0.01} format={v => `${(v * 100).toFixed(0)}%`} onChange={v => setSP('missedWin', v)} accent="#4ade80" />
+              </div>
+            </div>
+          </div>
+
+          {/* Combos row */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8, opacity: isModified ? 1 : 0.4 }} onClick={resetStress}>Скинути стрес</button>
+            <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8 }} onClick={() => { setSaveOpen(o => !o); setSaveComboName(''); }}>Зберегти комбінацію</button>
+            {savedCombos.length > 0 && (
+              <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 12px', borderRadius: 8 }} onClick={() => setSavedCombosOpen(o => !o)}>
+                {savedCombosOpen ? '▲' : '▼'} Збережені ({savedCombos.length})
+              </button>
+            )}
+          </div>
+
+          {saveOpen && (
+            <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>Зберегти комбінацію факторів</div>
+              <input type="text" placeholder="Назва..." value={saveComboName} onChange={e => setSaveComboName(e.target.value)} onKeyDown={(e: any) => e.key === 'Enter' && saveCombo()} style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', fontSize: 12, color: 'var(--text)', marginBottom: 10, boxSizing: 'border-box' }} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8, background: '#1e3a5f', border: '1px solid #3b82f6' }} onClick={saveCombo}>✓ Зберегти</button>
+                <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8 }} onClick={() => setSaveOpen(false)}>Скасувати</button>
+              </div>
+            </div>
+          )}
+
+          {savedCombosOpen && savedCombos.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {savedCombos.map(combo => (
+                <div key={combo.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
+                  <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => loadCombo(combo)}>
+                    <div style={{ fontSize: 12, fontWeight: 600 }}>{combo.name}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>
+                      {(Object.entries(combo.params) as [string, number][]).filter(([k, v]) => v !== (defaultStress as any)[k]).map(([k, v]) => `${k}: ${v}`).join(' · ') || 'всі за замовчуванням'}
+                    </div>
+                  </div>
+                  <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, color: '#7eb8f7', border: '1px solid #1e3a5f' }} onClick={() => loadCombo(combo)}>Застосувати</button>
+                  <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, color: '#f87171' }} onClick={() => deleteCombo(combo.id)}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* RUN BUTTON */}
+          <button
+            onClick={runMCSimulation}
+            disabled={mcRunLoading}
+            style={{
+              background: mcRunLoading ? 'var(--surface2)' : 'linear-gradient(135deg, #7c3aed, #a78bfa)',
+              border: 'none', borderRadius: 10, padding: '13px 0', fontSize: 14, fontWeight: 700,
+              color: '#fff', cursor: mcRunLoading ? 'not-allowed' : 'pointer', width: '100%',
+              opacity: mcRunLoading ? 0.7 : 1, letterSpacing: 0.5,
+            }}
+          >
+            {mcRunLoading ? `Симулюю ${mcNSim.toLocaleString()} сценаріїв...` : '▶ ЗАПУСТИТИ СИМУЛЯЦІЮ'}
+          </button>
+          {mcRunError && <div style={{ color: '#f87171', fontSize: 12, padding: '8px 12px', background: 'rgba(248,113,113,0.1)', borderRadius: 8 }}>Помилка: {mcRunError}</div>}
+        </div>
+
+        {/* ── RESULTS ── */}
+        {mcRunResult && (() => {
+          const r = mcRunResult;
+
+          // SQN quality label
+          const sqnLabel = (v: number): { label: string; color: string } => {
+            if (v < 1.6)  return { label: 'Poor',          color: '#f87171' };
+            if (v < 2.0)  return { label: 'Below Average', color: '#fb923c' };
+            if (v < 2.5)  return { label: 'Average',       color: '#facc15' };
+            if (v < 3.0)  return { label: 'Good',          color: '#86efac' };
+            if (v < 5.1)  return { label: 'Excellent',     color: '#4ade80' };
+            if (v < 7.0)  return { label: 'Superb',        color: '#a78bfa' };
+            return              { label: 'Holy Grail',     color: '#f0abfc' };
+          };
+
+          // ── Summary cards ──────────────────────────────────────────────
+          const summaryCards = [
+            { label: 'Очікуваний результат (медіана)', scenario: 'med', totalR: r.summary.med.totalR, sqn: r.summary.med.sqn, borderColor: 'rgba(167,139,250,0.4)' },
+            { label: 'Гірший сценарій (p5)',           scenario: 'p5',  totalR: r.summary.p5.totalR,  sqn: r.summary.p5.sqn,  borderColor: 'rgba(248,113,113,0.4)' },
+            { label: 'Кращий сценарій (p95)',          scenario: 'p95', totalR: r.summary.p95.totalR, sqn: r.summary.p95.sqn, borderColor: 'rgba(74,222,128,0.4)' },
+          ];
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* Meta */}
+              <div style={{ fontSize: 10, color: 'var(--text2)' }}>
+                {r.nSim.toLocaleString()} симуляцій · горизонт {r.horizon} угод · trade cost {r.tradeCost >= 0 ? '+' : ''}{r.tradeCost.toFixed(4)}R/угода
+                {r.tradeCost === r.avgCostBt ? ' (avg з BT)' : ' (власний)'}
+              </div>
+
+              {/* Результати симуляції header */}
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1 }}>Результати симуляції</div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3,1fr)', gap: 12 }}>
+                {summaryCards.map(card => {
+                  const sq = sqnLabel(card.sqn);
+                  return (
+                    <div key={card.scenario} style={{ background: 'var(--surface2)', border: `1px solid ${card.borderColor}`, borderRadius: 12, padding: '16px 18px' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 8 }}>{card.label}</div>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: card.totalR >= 0 ? '#4ade80' : '#f87171', fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>
+                        {card.totalR >= 0 ? '+' : ''}{card.totalR.toFixed(2)}R
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: sq.color, fontVariantNumeric: 'tabular-nums' }}>SQN {card.sqn.toFixed(2)}</div>
+                        <div style={{ fontSize: 11, color: sq.color, background: `${sq.color}22`, borderRadius: 4, padding: '2px 7px', fontWeight: 600 }}>{sq.label}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* ── Equity Curves ── */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>Equity Curves</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                  {[
+                    { key: 'bt',      label: 'BT Net',    active: mcShowBt,      set: setMcShowBt,      color: BT_COLOR },
+                    { key: 'btGross', label: 'BT Gross',  active: mcShowBtGross, set: setMcShowBtGross, color: '#c4b5fd' },
+                    { key: 'lv',      label: 'Live Net',  active: mcShowLv,      set: setMcShowLv,      color: LIVE_COLOR },
+                    { key: 'lvGross', label: 'Live Gross',active: mcShowLvGross, set: setMcShowLvGross, color: '#86efac' },
+                  ].map(b => (
+                    <button key={b.key} onClick={() => b.set((v: boolean) => !v)} style={{
+                      padding: '3px 12px', fontSize: 11, borderRadius: 6, cursor: 'pointer', fontWeight: 600,
+                      background: b.active ? `${b.color}22` : 'var(--surface2)',
+                      border: `1px solid ${b.active ? b.color : 'var(--border)'}`,
+                      color: b.active ? b.color : 'var(--text2)',
+                    }}>{b.label}</button>
                   ))}
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8, background: '#1e3a5f', border: '1px solid #3b82f6' }} onClick={saveCombo}>✓ Зберегти</button>
-                  <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8 }} onClick={() => setSaveOpen(false)}>Скасувати</button>
-                </div>
-              </div>
-            )}
-
-            {/* Saved combos list */}
-            {savedCombos.length > 0 && (
-              <div style={{ marginBottom: 20 }}>
-                <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 12px', borderRadius: 8 }} onClick={() => setSavedCombosOpen(o => !o)}>
-                  {savedCombosOpen ? '▲' : '▼'} Збережені комбінації ({savedCombos.length})
-                </button>
-                {savedCombosOpen && (
-                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {savedCombos.map(combo => (
-                      <div key={combo.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
-                        <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => loadCombo(combo)}>
-                          <div style={{ fontSize: 12, fontWeight: 600 }}>{combo.name}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>
-                            {(Object.entries(combo.params) as [string, number][]).filter(([k, v]) => v !== (defaultStress as any)[k]).map(([k, v]) => `${k}: ${v}`).join(' · ') || 'всі за замовчуванням'}
-                          </div>
-                        </div>
-                        <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, color: '#7eb8f7', border: '1px solid #1e3a5f' }} onClick={() => loadCombo(combo)}>Застосувати</button>
-                        <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, color: '#f87171' }} onClick={() => deleteCombo(combo.id)}>✕</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Results */}
-            {stressData && (
-              <>
-                {/* KPI cards — Stress */}
-                <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, fontWeight: 600 }}>Stress симуляція</div>
-                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16, alignItems: 'flex-start' }}>
-                  {[
-                    {
-                      label: 'Survival Rate',
-                      value: `${stressData.survivalRate}%`,
-                      sub: `< ${stressParams.survivalThreshold}R DD`,
-                      color: stressData.survivalRate >= 90 ? '#4ade80' : stressData.survivalRate >= 70 ? '#facc15' : '#f87171',
-                      desc: '% симуляцій що пережили без blown account. Якщо нижче 90% — стратегія ризикована при стресових умовах.',
-                    },
-                    {
-                      label: 'Stress Max DD (med)',
-                      value: `${stressData.stressMaxDD.med}R`,
-                      sub: `p95: ${stressData.stressMaxDD.p95}R`,
-                      color: '#fb923c',
-                      desc: 'Медіанна максимальна просадка в стресових умовах. p95 — гірший сценарій (5% симуляцій були гіршими).',
-                    },
-                    {
-                      label: 'Stress SQN (med)',
-                      value: stressData.stressSQN.med.toFixed(2),
-                      sub: `p5: ${stressData.stressSQN.p5.toFixed(2)}`,
-                      color: stressData.stressSQN.med >= 2 ? '#4ade80' : stressData.stressSQN.med >= 1 ? '#facc15' : '#f87171',
-                      desc: 'System Quality Number під стресом. SQN > 2 = стратегія стабільна. < 1 = деградація якості.',
-                    },
-                    {
-                      label: 'Stress Final Eq (med)',
-                      value: `${stressData.stressFinalEq.med}R`,
-                      sub: `p5: ${stressData.stressFinalEq.p5}R`,
-                      color: stressData.stressFinalEq.med > 0 ? '#4ade80' : '#f87171',
-                      desc: 'Медіанний фінальний результат при стресовому сценарії. p5 — консервативний прогноз.',
-                    },
-                  ].map(card => {
-                    const isOpen = stressDescOpen.has(card.label);
-                    return (
-                      <div key={card.label} style={{
-                        background: 'var(--surface2)', border: '1px solid var(--border)',
-                        borderRadius: 10, padding: '12px 16px', minWidth: 140, flex: 1,
-                      }}>
-                        <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{card.label}</div>
-                        <div style={{ fontSize: 20, fontWeight: 700, color: card.color, fontVariantNumeric: 'tabular-nums' }}>{card.value}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>{card.sub}</div>
-                        <button
-                          onClick={() => setStressDescOpen(prev => {
-                            const next = new Set(prev);
-                            if (next.has(card.label)) next.delete(card.label); else next.add(card.label);
-                            return next;
-                          })}
-                          style={{ marginTop: 6, fontSize: 10, color: 'var(--text2)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 4 }}
-                        >
-                          {isOpen ? '▲' : '▼'} Пояснення
-                        </button>
-                        {isOpen && (
-                          <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text2)', lineHeight: 1.5, background: 'var(--surface)', borderRadius: 6, padding: '8px 10px' }}>
-                            {card.desc}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* KPI cards — Normal MC metrics */}
-                {(btStats || lvStats) && (() => {
-                  type NCard = { label: string; btV: number | null; lvV: number | null; mcV: number | null | undefined; stressV?: number | null; fmt: (v: number) => string; color: (v: number) => string; desc: string };
-                  const normalCards: NCard[] = [
-                    {
-                      label: 'Total R',
-                      btV: btStats?.totalR ?? null, lvV: lvStats?.totalR ?? null, mcV: mcStats?.totalR ?? null,
-                      stressV: stressData ? stressData.stressFinalEq.med : null,
-                      fmt: (v: number) => v.toFixed(2) + 'R',
-                      color: (v: number) => v >= 0 ? '#4ade80' : '#f87171',
-                      desc: 'Сумарний результат в R. Бектест = очікування стратегії, Live = реальне виконання, MC = медіанний прогноз.',
-                    },
-                    {
-                      label: 'Win Rate',
-                      btV: btStats?.wr ?? null, lvV: lvStats?.wr ?? null, mcV: mcStats?.wr ?? null,
-                      fmt: (v: number) => (v * 100).toFixed(1) + '%',
-                      color: (v: number) => v >= 0.5 ? '#4ade80' : v >= 0.4 ? '#facc15' : '#f87171',
-                      desc: 'Відсоток виграшних угод (TP). Разом з Avg RR визначає Profit Factor стратегії.',
-                    },
-                    {
-                      label: 'Avg RR',
-                      btV: btStats?.avgRR ?? null, lvV: lvStats?.avgRR ?? null, mcV: mcStats?.avgRR ?? null,
-                      fmt: (v: number) => v.toFixed(3),
-                      color: (v: number) => v >= 1.5 ? '#4ade80' : v >= 1 ? '#facc15' : '#f87171',
-                      desc: 'Середнє R/R виграшних угод. Вище = краще. RR < 1 при WR < 60% — слабка стратегія.',
-                    },
-                    {
-                      label: 'Profit Factor',
-                      btV: btStats?.pf ?? null, lvV: lvStats?.pf ?? null, mcV: mcStats?.pf ?? null,
-                      fmt: (v: number) => v > 99 ? '∞' : v.toFixed(2),
-                      color: (v: number) => v >= 1.5 ? '#4ade80' : v >= 1 ? '#facc15' : '#f87171',
-                      desc: 'Сума виграшів / сума програшів. PF > 1.5 = хороша стратегія, > 2 = відмінна.',
-                    },
-                    {
-                      label: 'Max DD',
-                      btV: btStats?.maxDD ?? null, lvV: lvStats?.maxDD ?? null, mcV: mcStats?.maxDD ?? null,
-                      stressV: stressData ? stressData.stressMaxDD.med : null,
-                      fmt: (v: number) => v.toFixed(2) + 'R',
-                      color: (v: number) => Math.abs(v) <= 5 ? '#4ade80' : Math.abs(v) <= 10 ? '#facc15' : '#f87171',
-                      desc: 'Максимальна просадка від піку до дна. Показує найгірший послідовний збиток в серії угод.',
-                    },
-                    {
-                      label: 'Std Dev',
-                      btV: btStats?.stdDev ?? null, lvV: lvStats?.stdDev ?? null, mcV: mcStats?.stdDev ?? null,
-                      fmt: (v: number) => v.toFixed(3),
-                      color: (_v: number) => '#facc15',
-                      desc: 'Стандартне відхилення результатів. Низьке = стабільні результати, високе = велика варіативність.',
-                    },
-                    {
-                      label: 'SQN',
-                      btV: btStats?.sqn ?? null, lvV: lvStats?.sqn ?? null, mcV: mcStats?.sqn ?? null,
-                      stressV: stressData ? stressData.stressSQN.med : null,
-                      fmt: (v: number) => v.toFixed(2),
-                      color: (v: number) => v >= 2 ? '#4ade80' : v >= 1 ? '#facc15' : '#f87171',
-                      desc: 'System Quality Number = (Avg R / Std Dev) × √N. > 2 = добра система, > 3 = відмінна, < 1 = ненадійна.',
-                    },
-                  ];
-                  return (
-                    <>
-                      <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, fontWeight: 600 }}>Загальні метрики</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20, alignItems: 'flex-start' }}>
-                        {normalCards.map(card => {
-                          const isOpen    = stressDescOpen.has('nm_' + card.label);
-                          const isDevOpen = stressDescOpen.has('nd_' + card.label);
-                          const lv  = card.lvV;
-                          const bt  = card.btV;
-                          const mc  = card.mcV ?? null;
-                          const st  = card.stressV ?? null;
-                          const hasLv = lv != null && (lvStats?.n ?? 0) > 0;
-                          const hasSimulation = mc != null || st != null;
-                          const fmtPct = (sim: number, ref: number) => {
-                            if (ref === 0) return '—';
-                            const p = (sim - ref) / Math.abs(ref) * 100;
-                            return `${p >= 0 ? '+' : ''}${p.toFixed(1)}%`;
-                          };
-                          // neutral color: simulation vs reference — no "good/bad" judgment
-                          const devColor = (sim: number, ref: number) => {
-                            if (ref === 0) return 'var(--text2)';
-                            return (sim - ref) >= 0 ? '#4ade80' : '#f87171';
-                          };
-                          return (
-                            <div key={card.label} style={{
-                              background: 'var(--surface2)', border: '1px solid var(--border)',
-                              borderRadius: 10, padding: '10px 14px', width: isMobile ? '100%' : 'calc(25% - 8px)', flexShrink: 0, boxSizing: 'border-box',
-                            }}>
-                              <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{card.label}</div>
-                              <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                                {bt != null && <div style={{ fontSize: 13, fontWeight: 700, color: card.color(bt), fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, color: 'var(--text2)', marginRight: 2 }}>BT</span>{card.fmt(bt)}</div>}
-                                {hasLv && lv != null && <div style={{ fontSize: 13, fontWeight: 700, color: card.color(lv), fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, color: '#60a5fa', marginRight: 2 }}>LV</span>{card.fmt(lv)}</div>}
-                                {mc != null && <div style={{ fontSize: 11, color: '#a78bfa', fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, marginRight: 2 }}>MC</span>{card.fmt(mc)}</div>}
-                                {st != null && <div style={{ fontSize: 11, color: '#fb923c', fontVariantNumeric: 'tabular-nums' }}><span style={{ fontSize: 9, marginRight: 2 }}>ST</span>{card.fmt(st)}</div>}
-                              </div>
-                              {/* Deviation button — shown when MC or ST simulation exists */}
-                              {hasSimulation && (
-                                <>
-                                  <button
-                                    onClick={() => setStressDescOpen(prev => {
-                                      const next = new Set(prev);
-                                      const key = 'nd_' + card.label;
-                                      if (next.has(key)) next.delete(key); else next.add(key);
-                                      return next;
-                                    })}
-                                    style={{ marginTop: 6, fontSize: 10, color: 'var(--text2)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 4 }}
-                                  >
-                                    {isDevOpen ? '▲' : '▼'} Відхилення
-                                  </button>
-                                  {isDevOpen && (
-                                    <div style={{ marginTop: 6, fontSize: 11, lineHeight: 1.8, background: 'var(--surface)', borderRadius: 6, padding: '8px 10px' }}>
-                                      {/* MC симуляція */}
-                                      {mc != null && (
-                                        <div style={{ marginBottom: bt != null || (hasLv && lv != null) ? 8 : 0 }}>
-                                          <div style={{ fontSize: 9, color: '#a78bfa', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4, letterSpacing: 0.4 }}>MC симуляція</div>
-                                          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                                            {bt != null && (
-                                              <div>
-                                                <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 1 }}>vs BT</div>
-                                                <div className="mono" style={{ color: devColor(mc, bt), fontWeight: 700 }}>{fmtPct(mc, bt)}</div>
-                                              </div>
-                                            )}
-                                            {hasLv && lv != null && (
-                                              <div>
-                                                <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 1 }}>vs LV</div>
-                                                <div className="mono" style={{ color: devColor(mc, lv), fontWeight: 700 }}>{fmtPct(mc, lv)}</div>
-                                              </div>
-                                            )}
-                                          </div>
-                                        </div>
-                                      )}
-                                      {/* Stress симуляція */}
-                                      {st != null && (
-                                        <div>
-                                          <div style={{ fontSize: 9, color: '#fb923c', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4, letterSpacing: 0.4 }}>Stress симуляція</div>
-                                          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                                            {bt != null && (
-                                              <div>
-                                                <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 1 }}>vs BT</div>
-                                                <div className="mono" style={{ color: devColor(st, bt), fontWeight: 700 }}>{fmtPct(st, bt)}</div>
-                                              </div>
-                                            )}
-                                            {hasLv && lv != null && (
-                                              <div>
-                                                <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 1 }}>vs LV</div>
-                                                <div className="mono" style={{ color: devColor(st, lv), fontWeight: 700 }}>{fmtPct(st, lv)}</div>
-                                              </div>
-                                            )}
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </>
-                              )}
-                              <button
-                                onClick={() => setStressDescOpen(prev => {
-                                  const next = new Set(prev);
-                                  const key = 'nm_' + card.label;
-                                  if (next.has(key)) next.delete(key); else next.add(key);
-                                  return next;
-                                })}
-                                style={{ marginTop: 6, fontSize: 10, color: 'var(--text2)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 4 }}
-                              >
-                                {isOpen ? '▲' : '▼'} Пояснення
-                              </button>
-                              {isOpen && (
-                                <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text2)', lineHeight: 1.5, background: 'var(--surface)', borderRadius: 6, padding: '8px 10px' }}>
-                                  {card.desc}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  );
-                })()}
-
-                {/* Live deviation in Stress */}
-                {lastLvEq != null && lastBTEq != null && (
-                  <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', marginBottom: 20 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 8, color: LIVE_COLOR }}>Live відхилення</div>
-                    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-                      <div>
-                        <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Live R</div>
-                        <div className="mono" style={{ color: LIVE_COLOR, fontSize: 16, fontWeight: 700 }}>{lastLvEq.toFixed(2)}</div>
-                        <div style={{ fontSize: 9, color: '#555', marginTop: 2 }}>{lvEq.length} угод</div>
-                      </div>
-                      {lastBTEq !== 0 && (() => {
-                        const d = lastLvEq - lastBTEq;
-                        const p = d / Math.abs(lastBTEq) * 100;
-                        const col = d >= 0 ? '#4ade80' : '#f87171';
-                        return (
-                          <div>
-                            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs Бектест</div>
-                            <div className="mono" style={{ color: col }}>{p >= 0 ? '+' : ''}{p.toFixed(1)}%</div>
-                            <div style={{ fontSize: 10, color: col, marginTop: 2 }}>{d >= 0 ? '+' : ''}{d.toFixed(2)}R</div>
-                          </div>
-                        );
-                      })()}
-                      {medAtLivePos != null && medAtLivePos !== 0 && (() => {
-                        const d = lastLvEq - medAtLivePos;
-                        const p = d / Math.abs(medAtLivePos) * 100;
-                        const col = d >= 0 ? '#4ade80' : '#f87171';
-                        return (
-                          <div>
-                            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs MC Median</div>
-                            <div className="mono" style={{ color: col }}>{p >= 0 ? '+' : ''}{p.toFixed(1)}%</div>
-                            <div style={{ fontSize: 10, color: col, marginTop: 2 }}>{d >= 0 ? '+' : ''}{d.toFixed(2)}R</div>
-                          </div>
-                        );
-                      })()}
-                      {p5AtLivePos != null && p95AtLivePos != null && (
-                        <div>
-                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>MC p5–p95</div>
-                          <div style={{ fontSize: 11, color: MC_BAND_COLOR }}>[{p5AtLivePos.toFixed(2)} — {p95AtLivePos.toFixed(2)}]</div>
-                          <div style={{ fontSize: 11, fontWeight: 700, marginTop: 2, color: lastLvEq >= p5AtLivePos && lastLvEq <= p95AtLivePos ? '#4ade80' : '#f87171' }}>
-                            {lastLvEq >= p5AtLivePos && lastLvEq <= p95AtLivePos ? '✓ У нормі' : lastLvEq < p5AtLivePos ? '✗ Нижче p5' : '✗ Вище p95'}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Stress equity chart vs normal MC — always cumulative, independent of equityViewMode */}
                 {(() => {
-                  const nPts = Math.max(btEq.length, 1);
-                  const btStep = Math.max(1, Math.floor(nPts / N_PTS));
-                  const nBtPts = Math.ceil(nPts / btStep);
-                  const stressEqData: any[] = [];
-                  for (let i = 0; i < nBtPts; i++) {
-                    const btIdx = i * btStep;
-                    const lvIdx = Math.min(Math.round(i * lvEq.length / Math.max(nBtPts, 1)), lvEq.length - 1);
-                    const si    = Math.min(Math.round(i * stressData.stressMed.length / Math.max(nBtPts, 1)), stressData.stressMed.length - 1);
-                    stressEqData.push({
-                      trade: (i + 1) * btStep,
-                      'BT':      btIdx < btEq.length ? btEq[btIdx] : null,
-                      'Live':    lvIdx >= 0 && lvIdx < lvEq.length ? lvEq[lvIdx] : null,
-                      'MC p50':  interpMC(mcMed, i, nBtPts),
-                      'MC p5':   interpMC(mcp5,  i, nBtPts),
-                      'MC p95':  interpMC(mcp95, i, nBtPts),
-                      'Stress p50': stressData.stressMed[si] ?? null,
-                      'Stress p5':  stressData.stressP5[si]  ?? null,
-                      'Stress p95': stressData.stressP95[si] ?? null,
-                    });
-                  }
+                  const nPts = r.mcMedian.length;
+                  const chartData = Array.from({ length: nPts }, (_, i) => {
+                    const pt: Record<string, number | null> = {
+                      trade: Math.round((i + 1) * r.horizon / nPts),
+                      'p50': r.mcMedian[i] ?? null,
+                      'p5':  r.mcp5[i] ?? null,
+                      'p95': r.mcp95[i] ?? null,
+                    };
+                    r.mcPathsSample.forEach((path, pi) => { pt[`path_${pi}`] = path[i] ?? null; });
+                    if (mcShowBt && r.btNetEq.length > 0) {
+                      const idx = Math.round(i / Math.max(nPts - 1, 1) * (r.btNetEq.length - 1));
+                      pt['BT Net'] = r.btNetEq[idx] ?? null;
+                    }
+                    if (mcShowBtGross && r.btGrossEq.length > 0) {
+                      const idx = Math.round(i / Math.max(nPts - 1, 1) * (r.btGrossEq.length - 1));
+                      pt['BT Gross'] = r.btGrossEq[idx] ?? null;
+                    }
+                    if (mcShowLv && r.lvNetEq.length > 0) {
+                      const idx = Math.round(i / Math.max(nPts - 1, 1) * (r.lvNetEq.length - 1));
+                      pt['Live Net'] = r.lvNetEq[idx] ?? null;
+                    }
+                    if (mcShowLvGross && r.lvGrossEq.length > 0) {
+                      const idx = Math.round(i / Math.max(nPts - 1, 1) * (r.lvGrossEq.length - 1));
+                      pt['Live Gross'] = r.lvGrossEq[idx] ?? null;
+                    }
+                    return pt;
+                  });
                   return (
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>
-                        Stress MC vs Normal MC — Equity Range
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 10, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                        <span><span style={{ color: MC_BAND_COLOR }}>━</span> Normal MC p5/p95</span>
-                        <span><span style={{ color: MC_MED_COLOR }}>- -</span> Normal MC median</span>
-                        <span><span style={{ color: STRESS_COLOR }}>━</span> Stress p5/p95</span>
-                        <span><span style={{ color: STRESS_MED_COLOR }}>- -</span> Stress median</span>
-                        <span><span style={{ color: BT_COLOR }}>━</span> Backtest</span>
-                        <span><span style={{ color: LIVE_COLOR }}>━</span> Live</span>
-                      </div>
-                      <ResponsiveContainer width="100%" height={isMobile ? 200 : 260}>
-                        <LineChart data={stressEqData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
-                          <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} label={{ value: 'trades / year', position: 'insideBottomRight', offset: -4, fontSize: 9, fill: '#5a5f6a' }} />
-                          <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
-                          <Tooltip content={<SimpleTooltip />} />
-                          <ReferenceLine y={0} stroke="#555" strokeDasharray="4 4" />
-                          {/* Normal MC */}
-                          <Line type="monotone" dataKey="MC p5"  stroke={MC_BAND_COLOR} strokeWidth={1} strokeDasharray="3 3" dot={false} connectNulls opacity={0.6} />
-                          <Line type="monotone" dataKey="MC p95" stroke={MC_BAND_COLOR} strokeWidth={1} strokeDasharray="3 3" dot={false} connectNulls opacity={0.6} />
-                          <Line type="monotone" dataKey="MC p50" stroke={MC_MED_COLOR}  strokeWidth={1} strokeDasharray="6 3" dot={false} connectNulls opacity={0.6} />
-                          {/* Stress MC */}
-                          <Line type="monotone" dataKey="Stress p5"  stroke={STRESS_COLOR}     strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
-                          <Line type="monotone" dataKey="Stress p95" stroke={STRESS_COLOR}     strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
-                          <Line type="monotone" dataKey="Stress p50" stroke={STRESS_MED_COLOR} strokeWidth={2}   strokeDasharray="6 3" dot={false} connectNulls />
-                          {/* BT + Live (always cumulative) */}
-                          <Line type="monotone" dataKey="BT"   stroke={BT_COLOR}   strokeWidth={2}   dot={false} connectNulls />
-                          <Line type="monotone" dataKey="Live" stroke={LIVE_COLOR} strokeWidth={2.5} dot={false} connectNulls />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
+                    <ResponsiveContainer width="100%" height={isMobile ? 200 : 280}>
+                      <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
+                        <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} label={{ value: 'trades', position: 'insideBottomRight', offset: -4, fontSize: 9, fill: '#5a5f6a' }} />
+                        <YAxis stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} />
+                        <Tooltip content={<SimpleTooltip />} />
+                        <ReferenceLine y={0} stroke="#555" />
+                        {r.mcPathsSample.map((_, pi) => (
+                          <Line key={`path_${pi}`} type="monotone" dataKey={`path_${pi}`} stroke="#2a5580" strokeWidth={0.6} dot={false} isAnimationActive={false} legendType="none" connectNulls />
+                        ))}
+                        <Line type="monotone" dataKey="p5"  stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
+                        <Line type="monotone" dataKey="p95" stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
+                        <Line type="monotone" dataKey="p50" stroke={MC_MED_COLOR}  strokeWidth={2.5} dot={false} connectNulls />
+                        {mcShowBt      && <Line type="monotone" dataKey="BT Net"    stroke={BT_COLOR}   strokeWidth={2}   dot={false} connectNulls />}
+                        {mcShowBtGross && <Line type="monotone" dataKey="BT Gross"  stroke="#c4b5fd"    strokeWidth={1.5} strokeDasharray="4 2" dot={false} connectNulls />}
+                        {mcShowLv      && <Line type="monotone" dataKey="Live Net"  stroke={LIVE_COLOR} strokeWidth={2.5} dot={false} connectNulls />}
+                        {mcShowLvGross && <Line type="monotone" dataKey="Live Gross"stroke="#86efac"    strokeWidth={1.5} strokeDasharray="4 2" dot={false} connectNulls />}
+                      </LineChart>
+                    </ResponsiveContainer>
                   );
                 })()}
+                <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap', fontSize: 10, color: 'var(--text2)' }}>
+                  <span><span style={{ color: '#2a7bb5' }}>━</span> {r.mcPathsSample.length} прикладів симуляцій</span>
+                  <span><span style={{ color: MC_MED_COLOR }}>━</span> Медіана</span>
+                  <span><span style={{ color: MC_BAND_COLOR }}>- -</span> p5/p95</span>
+                </div>
+              </div>
 
-              {/* Param summary + Impact analysis */}
+              {/* ── Factor Impact ── */}
               {(() => {
-                const n   = btStats?.n   || 0;
-                const wr  = btStats?.wr  || 0;
-                const rr  = btStats?.avgRR || 0;
-                const lossPerTrade = 1; // ~1R per losing trade
-
-                const impacts: { label: string; value: string; desc: string; impact: number }[] = [
-                  {
-                    label: 'Loss Amplification',
-                    value: `×${stressParams.lossAmp.toFixed(2)}`,
-                    desc: stressParams.lossAmp === 1 ? 'без змін' : `кожен збиток збільшений на ${((stressParams.lossAmp - 1) * 100).toFixed(0)}%`,
-                    impact: -n * (1 - wr) * lossPerTrade * (stressParams.lossAmp - 1),
-                  },
-                  {
-                    label: 'Win Reduction',
-                    value: `×${stressParams.winReduction.toFixed(2)}`,
-                    desc: stressParams.winReduction === 1 ? 'без змін' : `виграші зменшені на ${((1 - stressParams.winReduction) * 100).toFixed(0)}%`,
-                    impact: -n * wr * rr * (1 - stressParams.winReduction),
-                  },
-                  {
-                    label: 'WR Degradation',
-                    value: `${(stressParams.wrDegradation * 100).toFixed(0)}%`,
-                    desc: stressParams.wrDegradation === 0 ? 'без змін' : `${(stressParams.wrDegradation * 100).toFixed(0)}% виграшів конвертовано в збитки`,
-                    impact: -n * wr * stressParams.wrDegradation * (rr + lossPerTrade),
-                  },
-                  {
-                    label: 'Execution Slippage',
-                    value: `−${stressParams.slippage.toFixed(2)}R`,
-                    desc: stressParams.slippage === 0 ? 'без змін' : `−${stressParams.slippage.toFixed(2)}R з кожного трейду`,
-                    impact: -n * stressParams.slippage,
-                  },
-                  {
-                    label: 'Human Error',
-                    value: `${(stressParams.humanError * 100).toFixed(1)}%`,
-                    desc: stressParams.humanError === 0 ? 'без змін' : `${(stressParams.humanError * 100).toFixed(1)}% трейдів стають −1R через помилку`,
-                    impact: -n * stressParams.humanError * wr * (rr + lossPerTrade),
-                  },
-                  {
-                    label: 'Fatigue Decay',
-                    value: `−${(stressParams.fatigue * 100).toFixed(0)}%`,
-                    desc: stressParams.fatigue === 0 ? 'без змін' : `кожен виграш зменшується на ${(stressParams.fatigue * 100).toFixed(0)}% через втому`,
-                    impact: -n * wr * rr * stressParams.fatigue,
-                  },
-                  {
-                    label: 'Bad Slip',
-                    value: `${(stressParams.badSlipProb * 100).toFixed(0)}% × ${stressParams.badSlipMult.toFixed(1)}×`,
-                    desc: stressParams.badSlipProb === 0 || stressParams.badSlipMult === 1 ? 'без змін' : `${(stressParams.badSlipProb * 100).toFixed(0)}% збиткових угод збільшені в ${stressParams.badSlipMult.toFixed(1)}×`,
-                    impact: -n * (1 - wr) * lossPerTrade * stressParams.badSlipProb * (stressParams.badSlipMult - 1),
-                  },
-                  {
-                    label: 'Missed Win',
-                    value: `${(stressParams.missedWin * 100).toFixed(0)}%`,
-                    desc: stressParams.missedWin === 0 ? 'без змін' : `${(stressParams.missedWin * 100).toFixed(0)}% виграшів пропускається (стає 0R)`,
-                    impact: -n * wr * rr * stressParams.missedWin,
-                  },
-                ];
-
-                const sorted = [...impacts].sort((a, b) => a.impact - b.impact);
-                const totalImpact = impacts.reduce((s, x) => s + x.impact, 0);
-                const maxAbs = Math.max(...impacts.map(x => Math.abs(x.impact)), 1);
-                const activeCount = impacts.filter(x => x.impact !== 0).length;
+                const activeImpacts = r.factorImpacts.filter(f => f.impact !== 0);
+                const maxAbs = Math.max(...activeImpacts.map(f => Math.abs(f.impact)), 1);
+                const totalImpact = activeImpacts.reduce((s, f) => s + f.impact, 0);
+                const refLabel = mcImpactRef === 'bt' ? 'BT Net' : 'Live Net';
+                const refVal   = mcImpactRef === 'bt'
+                  ? (r.btNetEq[r.btNetEq.length - 1] ?? 0)
+                  : (r.lvNetEq[r.lvNetEq.length - 1] ?? 0);
 
                 return (
-                  <div style={{ marginTop: 20, padding: '14px 16px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1 }}>
-                        Вплив факторів на результат
+                  <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1 }}>Вплив стрес-факторів</div>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        {(['bt', 'lv'] as const).map(ref => (
+                          <button key={ref} onClick={() => setMcImpactRef(ref)} style={{
+                            padding: '3px 10px', fontSize: 10, borderRadius: 6, cursor: 'pointer',
+                            background: mcImpactRef === ref ? '#374151' : 'transparent',
+                            border: `1px solid ${mcImpactRef === ref ? '#6b7280' : 'var(--border)'}`,
+                            color: mcImpactRef === ref ? 'var(--text)' : 'var(--text2)',
+                          }}>{ref === 'bt' ? 'vs BT' : 'vs Live'}</button>
+                        ))}
+                        {totalImpact !== 0 && <span style={{ fontSize: 11, color: '#f87171', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>Σ {totalImpact.toFixed(1)}R</span>}
                       </div>
-                      {totalImpact !== 0 && (
-                        <div style={{ fontSize: 11, color: '#f87171', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                          Загальний вплив: {totalImpact.toFixed(1)}R
-                        </div>
-                      )}
                     </div>
-
-                    {activeCount === 0 ? (
-                      <div style={{ fontSize: 11, color: 'var(--text2)' }}>Всі параметри за замовчуванням — вплив відсутній</div>
+                    {activeImpacts.length === 0 ? (
+                      <div style={{ fontSize: 11, color: 'var(--text2)' }}>Стрес-фактори неактивні</div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {sorted.map(row => {
-                          const pct = totalImpact !== 0 ? Math.abs(row.impact / totalImpact * 100) : 0;
-                          const barW = Math.abs(row.impact / maxAbs * 100);
+                        {[...r.factorImpacts].sort((a, b) => a.impact - b.impact).map(row => {
                           const isActive = row.impact !== 0;
+                          const barW = Math.abs(row.impact / maxAbs * 100);
                           return (
-                            <div key={row.label}>
+                            <div key={row.key}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
-                                <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
-                                  <span style={{ fontSize: 11, color: isActive ? 'var(--text)' : 'var(--text2)', minWidth: 140 }}>{row.label}</span>
-                                  <span style={{ fontSize: 10, color: 'var(--text2)' }}>{row.value}</span>
-                                </div>
-                                <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
-                                  {isActive && (
-                                    <span style={{ fontSize: 10, color: '#6b7280' }}>{pct.toFixed(0)}%</span>
-                                  )}
-                                  <span style={{
-                                    fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', minWidth: 54, textAlign: 'right',
-                                    color: row.impact < 0 ? '#f87171' : row.impact > 0 ? '#4ade80' : 'var(--text2)',
-                                  }}>
-                                    {row.impact === 0 ? '—' : `${row.impact >= 0 ? '+' : ''}${row.impact.toFixed(1)}R`}
-                                  </span>
-                                </div>
+                                <span style={{ fontSize: 11, color: isActive ? 'var(--text)' : 'var(--text2)' }}>{row.label}</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: row.impact < 0 ? '#f87171' : row.impact > 0 ? '#4ade80' : 'var(--text2)' }}>
+                                  {row.impact === 0 ? '—' : `${row.impact >= 0 ? '+' : ''}${row.impact.toFixed(1)}R`}
+                                </span>
                               </div>
                               {isActive && (
-                                <div style={{ height: 4, background: 'var(--surface)', borderRadius: 2, overflow: 'hidden' }}>
-                                  <div style={{
-                                    height: '100%', width: `${barW}%`,
-                                    background: row.impact < 0 ? '#f87171' : '#4ade80',
-                                    borderRadius: 2, transition: 'width 0.3s',
-                                  }} />
+                                <div style={{ height: 4, background: 'var(--surface)', borderRadius: 2 }}>
+                                  <div style={{ height: '100%', width: `${barW}%`, background: row.impact < 0 ? '#f87171' : '#4ade80', borderRadius: 2 }} />
                                 </div>
                               )}
                             </div>
                           );
                         })}
-                        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 4, display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-                          <span style={{ color: 'var(--text2)' }}>Розрахункове відхилення від базової equity</span>
-                          <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: totalImpact < 0 ? '#f87171' : '#4ade80' }}>
-                            {totalImpact >= 0 ? '+' : ''}{totalImpact.toFixed(1)}R
-                          </span>
-                        </div>
-                        <div style={{ fontSize: 9, color: '#4b5563', marginTop: 2 }}>
-                          * Аналітична оцінка ізольованого впливу кожного фактора. Сума може відрізнятись від MC через взаємодію факторів.
-                        </div>
+                        {refVal !== 0 && (
+                          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 4, fontSize: 11, color: 'var(--text2)' }}>
+                            Від {refLabel} ({refVal >= 0 ? '+' : ''}{refVal.toFixed(2)}R): очікуваний вплив {totalImpact.toFixed(1)}R → ~{(refVal + totalImpact).toFixed(2)}R
+                          </div>
+                        )}
+                        <div style={{ fontSize: 9, color: '#4b5563' }}>* Аналітична оцінка. Сума може відрізнятись від MC через взаємодію факторів.</div>
                       </div>
                     )}
-
-                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 12 }}>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Параметри</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        {impacts.map(row => (
-                          <div key={row.label} style={{ display: 'flex', gap: 8, fontSize: 10, lineHeight: 1.5 }}>
-                            <span style={{ color: 'var(--text2)', minWidth: 150 }}>{row.label}:</span>
-                            <span style={{ color: 'var(--text)', fontWeight: 600, minWidth: 56, fontVariantNumeric: 'tabular-nums' }}>{row.value}</span>
-                            <span style={{ color: 'var(--text2)' }}>— {row.desc}</span>
-                          </div>
-                        ))}
-                        <div style={{ display: 'flex', gap: 8, fontSize: 10 }}>
-                          <span style={{ color: 'var(--text2)', minWidth: 150 }}>Survival Threshold:</span>
-                          <span style={{ color: 'var(--text)', fontWeight: 600 }}>{stressParams.survivalThreshold}R</span>
-                          <span style={{ color: 'var(--text2)' }}>— рахунок вважається зламаним при просадці &gt;{stressParams.survivalThreshold}R</span>
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 );
               })()}
 
-              {/* ── Final Statistical Control Framework ── */}
-              {(mcBoxStats || stressData?.stressBoxStats) && (() => {
-                // ── Live stats ──────────────────────────────────────────
+              {/* ── SQN Distribution ── */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>SQN Distribution</div>
+                <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 8 }}>
+                  med={r.summary.med.sqn.toFixed(2)} · p5={r.summary.p5.sqn.toFixed(2)} · p95={r.summary.p95.sqn.toFixed(2)}
+                </div>
+                <ResponsiveContainer width="100%" height={isMobile ? 140 : 180}>
+                  <BarChart data={r.sqnDistribution} margin={{ top: 4, right: 8, bottom: 4, left: 0 }} barSize={14}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
+                    <XAxis dataKey="bin" stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickFormatter={v => v.toFixed(1)} />
+                    <YAxis stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} />
+                    <Tooltip formatter={(v: any, n: any) => [v, 'Симуляцій']} labelFormatter={v => `SQN ≈ ${Number(v).toFixed(2)}`} contentStyle={{ background: 'var(--surface2)', border: '1px solid var(--border)', fontSize: 11 }} />
+                    <Bar dataKey="count" fill="#a78bfa" radius={[2, 2, 0, 0]} />
+                    <ReferenceLine x={r.summary.med.sqn} stroke={MC_MED_COLOR} strokeWidth={2} label={{ value: 'med', position: 'top', fontSize: 9, fill: MC_MED_COLOR }} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* ── Survival Rate ── */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>Survival Rate</div>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3,1fr)', gap: 10 }}>
+                  {[
+                    { label: 'Survival Rate', value: `${r.survivalRate}%`, sub: `DD < ${stressParams.survivalThreshold}R`, color: r.survivalRate >= 90 ? '#4ade80' : r.survivalRate >= 70 ? '#facc15' : '#f87171' },
+                    { label: 'Медіанна Max DD', value: `${r.ddMed.toFixed(2)}R`, sub: `p5 просадки: ${r.ddP5.toFixed(2)}R`, color: '#fb923c' },
+                    { label: `P(DD > ${stressParams.survivalThreshold}R)`, value: `${r.ddProbAboveThreshold}%`, sub: 'ймовірність blown account', color: r.ddProbAboveThreshold <= 10 ? '#4ade80' : r.ddProbAboveThreshold <= 30 ? '#facc15' : '#f87171' },
+                  ].map(card => (
+                    <div key={card.label} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>{card.label}</div>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: card.color, fontVariantNumeric: 'tabular-nums' }}>{card.value}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>{card.sub}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Max DD Distribution ── */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>Max DD Distribution</div>
+                <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 8 }}>
+                  мед={r.ddMed.toFixed(2)}R · p5 (гірший) = {r.ddP5.toFixed(2)}R
+                </div>
+                <ResponsiveContainer width="100%" height={isMobile ? 140 : 180}>
+                  <BarChart data={r.ddDistribution} margin={{ top: 4, right: 8, bottom: 4, left: 0 }} barSize={14}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
+                    <XAxis dataKey="bin" stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickFormatter={v => v.toFixed(1)} label={{ value: 'DD (R)', position: 'insideBottomRight', offset: -4, fontSize: 9, fill: '#5a5f6a' }} />
+                    <YAxis stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} />
+                    <Tooltip formatter={(v: any) => [v, 'Симуляцій']} labelFormatter={v => `Max DD ≈ ${Number(v).toFixed(2)}R`} contentStyle={{ background: 'var(--surface2)', border: '1px solid var(--border)', fontSize: 11 }} />
+                    <Bar dataKey="count" fill="#fb923c" radius={[2, 2, 0, 0]} />
+                    <ReferenceLine x={r.ddMed} stroke="#facc15" strokeWidth={2} label={{ value: 'med', position: 'top', fontSize: 9, fill: '#facc15' }} />
+                    <ReferenceLine x={stressParams.survivalThreshold} stroke="#f87171" strokeWidth={1.5} strokeDasharray="4 2" label={{ value: 'threshold', position: 'insideTopRight', fontSize: 9, fill: '#f87171' }} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* ── Statistical Control Framework (stress-only) ── */}
+              {r.boxStats && (() => {
                 const lvTotalR = lvStats?.totalR ?? 0;
                 const lvWR     = lvStats?.wr ?? 0;
                 const lvSQN    = lvStats?.sqn ?? 0;
                 const lvMaxDD  = lvStats?.maxDD ?? 0;
-                const lvEq: number[] = (d as any).lvEquity ?? [];
-                const btEq: number[] = (d as any).btEquity ?? [];
-                const lvNets: number[] = lvEq.map((v: number, i: number) => i === 0 ? v : v - lvEq[i - 1]);
+                const lvEqArr: number[] = (d as any).lvEquity ?? [];
+                const lvNets: number[] = lvEqArr.map((v: number, i: number) => i === 0 ? v : v - lvEqArr[i - 1]);
                 let lvStreak = 0, lvStreakCur = 0;
-                for (const r of lvNets) { if (r < 0) { lvStreakCur++; if (lvStreakCur > lvStreak) lvStreak = lvStreakCur; } else lvStreakCur = 0; }
+                for (const rv of lvNets) { if (rv < 0) { lvStreakCur++; if (lvStreakCur > lvStreak) lvStreak = lvStreakCur; } else lvStreakCur = 0; }
 
-                type BoxStat = { p5: number; p25: number; med: number; p75: number; p95: number };
-
-                // ── Meta per metric ──────────────────────────────────────
-                const METRICS: {
-                  key: keyof { return: BoxStat; drawdown: BoxStat; sqn: BoxStat; wr: BoxStat; streak: BoxStat };
-                  label: string;
-                  liveVal: number;
-                  higherIsBetter: boolean;
-                  pct?: boolean;
-                  explain: string;
-                  deviationLabel: (dev: number, liveV: number, medV: number) => string;
+                type BoxStat2 = { p5: number; p25: number; med: number; p75: number; p95: number };
+                const METRICS2: {
+                  key: keyof typeof r.boxStats;
+                  label: string; liveVal: number; higherIsBetter: boolean; pct?: boolean; explain: string;
+                  deviationLabel: (dev: number) => string;
                 }[] = [
-                  {
-                    key: 'return',
-                    label: 'Total R',
-                    liveVal: lvTotalR,
-                    higherIsBetter: true,
-                    explain: 'Сумарний прибуток у одиницях ризику (R). Показує масштаб результату відносно розміру ризику на угоду.',
-                    deviationLabel: (dev, lv, med) => dev >= 0
-                      ? `+${dev.toFixed(2)}R вище медіани MC`
-                      : `${dev.toFixed(2)}R нижче медіани MC`,
-                  },
-                  {
-                    key: 'drawdown',
-                    label: 'Max Drawdown',
-                    liveVal: lvMaxDD,
-                    higherIsBetter: false,
-                    explain: 'Найбільше падіння капіталу від піку до дна (у R). Менше — краще. Критичний індикатор стійкості системи.',
-                    deviationLabel: (dev, lv, med) => dev <= 0
-                      ? `${Math.abs(dev).toFixed(2)}R менше медіани — просадка в нормі`
-                      : `+${dev.toFixed(2)}R більше медіани — просадка перевищена`,
-                  },
-                  {
-                    key: 'wr',
-                    label: 'Win Rate',
-                    liveVal: lvWR,
-                    higherIsBetter: true,
-                    pct: true,
-                    explain: 'Відсоток прибуткових угод від загальної кількості. Важливо порівнювати з бектестом — великий розрив може вказувати на вибіркове виконання.',
-                    deviationLabel: (dev, lv, med) => {
-                      const pDev = (dev * 100).toFixed(1);
-                      return dev >= 0 ? `+${pDev}% вище медіани MC` : `${pDev}% нижче медіани MC`;
-                    },
-                  },
-                  {
-                    key: 'sqn',
-                    label: 'SQN',
-                    liveVal: lvSQN,
-                    higherIsBetter: true,
-                    explain: 'System Quality Number — якість системи. >2 = прийнятно, >3 = добре, >5 = відмінно. Враховує і дохідність, і стабільність.',
-                    deviationLabel: (dev, lv, med) => dev >= 0
-                      ? `+${dev.toFixed(2)} вище медіани — система стабільна`
-                      : `${dev.toFixed(2)} нижче медіани — якість знижена`,
-                  },
-                  {
-                    key: 'streak',
-                    label: 'Loss Streak',
-                    liveVal: lvStreak,
-                    higherIsBetter: false,
-                    explain: 'Максимальна послідовна серія збиткових угод. Менше — краще. Якщо live перевищує p75 MC — сигнал до перегляду параметрів ризику.',
-                    deviationLabel: (dev, lv, med) => dev <= 0
-                      ? `${Math.abs(Math.round(dev))} угод менше медіани — в нормі`
-                      : `+${Math.round(dev)} угод понад медіану — тривожний сигнал`,
-                  },
+                  { key: 'return',   label: 'Total R',      liveVal: lvTotalR, higherIsBetter: true,  explain: 'Сумарний прибуток у R. MC = прогноз при заданих стрес-факторах.',    deviationLabel: d => d >= 0 ? `+${d.toFixed(2)}R вище медіани` : `${d.toFixed(2)}R нижче медіани` },
+                  { key: 'drawdown', label: 'Max Drawdown', liveVal: lvMaxDD,  higherIsBetter: false, explain: 'Найбільше падіння від піку. Менше = краще.',                           deviationLabel: d => d <= 0 ? `${Math.abs(d).toFixed(2)}R менше медіани` : `+${d.toFixed(2)}R більше медіани` },
+                  { key: 'wr',       label: 'Win Rate',     liveVal: lvWR,     higherIsBetter: true,  pct: true, explain: 'Відсоток прибуткових угод.',                               deviationLabel: d => d >= 0 ? `+${(d*100).toFixed(1)}% вище медіани` : `${(d*100).toFixed(1)}% нижче медіани` },
+                  { key: 'sqn',      label: 'SQN',          liveVal: lvSQN,    higherIsBetter: true,  explain: 'System Quality Number. >2 = добре, >3 = відмінно.',                   deviationLabel: d => d >= 0 ? `+${d.toFixed(2)} вище медіани` : `${d.toFixed(2)} нижче медіани` },
+                  { key: 'streak',   label: 'Loss Streak',  liveVal: lvStreak, higherIsBetter: false, explain: 'Макс. серія збиткових угод поспіль.',                                 deviationLabel: d => d <= 0 ? `${Math.abs(Math.round(d))} менше медіани` : `+${Math.round(d)} понад медіану` },
                 ];
 
-                // ── helpers ─────────────────────────────────────────────
-                // mini sparkline from equity array (last N points normalised to H)
-                const Sparkline = ({ data, color, W, H }: { data: number[]; color: string; W: number; H: number }) => {
+                const SW = 160, SH = 44;
+                const Sparkline2 = ({ data, color }: { data: number[]; color: string }) => {
                   if (data.length < 2) return null;
                   const slice = data.slice(-40);
-                  const mn = Math.min(...slice), mx = Math.max(...slice);
-                  const rng = mx - mn || 1;
+                  const mn = Math.min(...slice), mx = Math.max(...slice), rng = mx - mn || 1;
                   const pts = slice.map((v, i) => {
-                    const x = (i / (slice.length - 1)) * W;
-                    const y = H - ((v - mn) / rng) * (H - 4) - 2;
+                    const x = (i / (slice.length - 1)) * SW;
+                    const y = SH - ((v - mn) / rng) * (SH - 4) - 2;
                     return `${x.toFixed(1)},${y.toFixed(1)}`;
                   }).join(' ');
-                  return (
-                    <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
-                  );
+                  return <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />;
                 };
-
-                // ── Single metric card ───────────────────────────────────
-                const MetricCard = ({
-                  meta,
-                  box,
-                  rowKey,
-                }: {
-                  meta: typeof METRICS[0];
-                  box: BoxStat;
-                  rowKey: string;
-                }) => {
-                  const { liveVal, higherIsBetter, pct } = meta;
-                  const fmt = (v: number) => pct ? (v * 100).toFixed(1) + '%' : (Number.isInteger(v) ? String(v) : v.toFixed(2));
-
-                  const inBox    = liveVal >= box.p25 && liveVal <= box.p75;
-                  const aboveBox = higherIsBetter ? liveVal > box.p75 : liveVal < box.p25;
-                  const dotColor = inBox ? '#facc15' : aboveBox ? '#4ade80' : '#f87171';
-                  const statusLabel = inBox ? 'В нормі' : aboveBox ? (higherIsBetter ? 'Вище норми' : 'Краще норми') : (higherIsBetter ? 'Нижче норми' : 'Перевищено');
-
-                  const dev = liveVal - box.med;
-                  const devLabel = meta.deviationLabel(dev, liveVal, box.med);
-
-                  const explainKey = `fscf_exp_${rowKey}_${meta.key}`;
-                  const explainOpen = scfOpen.has(explainKey);
-
-                  // sparkline data: for each metric derive a series from lvEquity / btEquity
-                  // return→lvEq, drawdown→running dd from lvEq, wr→rolling 20-trade, sqn→rolling, streak→rolling
-                  // For simplicity: use lvEq for return, and MC box percentiles as static reference
-                  const sparkData: number[] = (() => {
-                    if (meta.key === 'return') return lvEq;
-                    if (meta.key === 'drawdown') {
-                      let pk = -Infinity, res: number[] = [];
-                      for (const v of lvEq) { if (v > pk) pk = v; res.push(pk === -Infinity ? 0 : pk - v); }
-                      return res;
-                    }
-                    // for wr/sqn/streak: rolling 20-trade window on lvNets
-                    if (meta.key === 'wr') {
-                      const res: number[] = [];
-                      for (let i = 0; i < lvNets.length; i++) {
-                        const w = lvNets.slice(Math.max(0, i - 19), i + 1);
-                        res.push(w.filter(x => x > 0).length / (w.length || 1));
-                      }
-                      return res;
-                    }
-                    if (meta.key === 'sqn') {
-                      const res: number[] = [];
-                      for (let i = 0; i < lvNets.length; i++) {
-                        const w = lvNets.slice(Math.max(0, i - 19), i + 1);
-                        if (w.length < 2) { res.push(0); continue; }
-                        const mean = w.reduce((a, b) => a + b, 0) / w.length;
-                        const std  = Math.sqrt(w.reduce((a, b) => a + (b - mean) ** 2, 0) / w.length) || 1;
-                        res.push(mean / std * Math.sqrt(w.length));
-                      }
-                      return res;
-                    }
-                    if (meta.key === 'streak') {
-                      const res: number[] = [];
-                      for (let i = 0; i < lvNets.length; i++) {
-                        const w = lvNets.slice(Math.max(0, i - 19), i + 1);
-                        let mx2 = 0, cur = 0;
-                        for (const r of w) { if (r < 0) { cur++; if (cur > mx2) mx2 = cur; } else cur = 0; }
-                        res.push(mx2);
-                      }
-                      return res;
-                    }
-                    return lvEq;
-                  })();
-
-                  const SW = 160, SH = 48;
-
-                  return (
-                    <div style={{
-                      flex: '1 1 0',
-                      minWidth: 0,
-                      background: 'var(--bg2)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 8,
-                      padding: '12px 14px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 8,
-                    }}>
-                      {/* ─ header ─ */}
-                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.8 }}>{meta.label}</div>
-
-                      {/* ─ sparkline ─ */}
-                      <div style={{ background: 'var(--bg)', borderRadius: 5, overflow: 'hidden', height: SH }}>
-                        <svg width="100%" height={SH} viewBox={`0 0 ${SW} ${SH}`} preserveAspectRatio="none">
-                          {/* p25-p75 band */}
-                          {(() => {
-                            const scale = pct ? 100 : 1;
-                            const mn2 = Math.min(...sparkData.length ? sparkData : [0]);
-                            const mx2 = Math.max(...sparkData.length ? sparkData : [1]);
-                            const rng2 = mx2 - mn2 || 1;
-                            const toSY = (v: number) => SH - ((v - mn2) / rng2) * (SH - 4) - 2;
-                            const medY2 = toSY(box.med * (pct ? scale : 1) / (pct ? scale : 1));
-                            // map box values into sparkline Y space
-                            const bMed = pct ? box.med : box.med;
-                            const bP25 = pct ? box.p25 : box.p25;
-                            const bP75 = pct ? box.p75 : box.p75;
-                            // we need to map box values which are in same units as sparkData last value
-                            // for return: box is in R, sparkData[-1] ≈ lvTotalR
-                            // approximate: use sparkData range to position box reference lines
-                            const refY   = (v: number) => {
-                              const clamped = Math.max(mn2, Math.min(mx2, v));
-                              return SH - ((clamped - mn2) / rng2) * (SH - 4) - 2;
-                            };
-                            const p25y = refY(bP25 * (pct ? 1 : 1));
-                            const p75y = refY(bP75 * (pct ? 1 : 1));
-                            const medy = refY(bMed);
-                            return (<>
-                              <rect x={0} y={Math.min(p25y, p75y)} width={SW} height={Math.abs(p25y - p75y) || 1} fill="rgba(255,255,255,0.04)" />
-                              <line x1={0} y1={medy} x2={SW} y2={medy} stroke="rgba(255,255,255,0.18)" strokeWidth={1} strokeDasharray="3,3" />
-                            </>);
-                          })()}
-                          <Sparkline data={sparkData} color={LIVE_COLOR} W={SW} H={SH} />
-                        </svg>
-                      </div>
-
-                      {/* ─ values stacked ─ */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                          <span style={{ color: 'var(--text2)' }}>Live</span>
-                          <span style={{ color: 'var(--text)', fontWeight: 700, fontFamily: 'monospace' }}>{fmt(liveVal)}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                          <span style={{ color: 'var(--text2)' }}>Медіана MC</span>
-                          <span style={{ color: 'var(--text)', fontFamily: 'monospace' }}>{fmt(box.med)}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                          <span style={{ color: 'var(--text2)' }}>Діапазон (p25–p75)</span>
-                          <span style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{fmt(box.p25)} – {fmt(box.p75)}</span>
-                        </div>
-                      </div>
-
-                      {/* ─ deviation — always visible, single block ─ */}
-                      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor, flexShrink: 0, display: 'inline-block' }} />
-                          <span style={{ fontSize: 10, color: 'var(--text)', fontWeight: 600 }}>{statusLabel}</span>
-                        </div>
-                        <div style={{ fontSize: 10, color: 'var(--text2)', lineHeight: 1.5, paddingLeft: 13 }}>
-                          {devLabel}
-                        </div>
-                      </div>
-
-                      {/* ─ explain toggle ─ */}
-                      <button
-                        onClick={() => toggleScf(explainKey)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 8px', cursor: 'pointer', textAlign: 'left', width: '100%' }}
-                      >
-                        <span style={{ fontSize: 9, color: 'var(--text2)' }}>{explainOpen ? '▲' : '▼'} Пояснення</span>
-                      </button>
-                      {explainOpen && (
-                        <div style={{ fontSize: 10, color: 'var(--text2)', lineHeight: 1.55, borderTop: '1px solid var(--border)', paddingTop: 6 }}>
-                          {meta.explain}
-                        </div>
-                      )}
-
-                      {/* ─ factor impact (stress row only) ─ */}
-                      {rowKey === 'stress' && (() => {
-                        const impactKey = `fscf_impact_${meta.key}`;
-                        const impactOpen = scfOpen.has(impactKey);
-                        const metricImpact: { key: string; label: string; pct: number; delta: number }[] =
-                          (impactData?.impact as Record<string, { key: string; label: string; pct: number; delta: number }[]> | undefined)?.[meta.key] ?? [];
-                        return (
-                          <>
-                            <button
-                              onClick={() => { toggleScf(impactKey); fetchImpact(); }}
-                              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 8px', cursor: 'pointer', textAlign: 'left', width: '100%' }}
-                            >
-                              <span style={{ fontSize: 9, color: 'var(--text2)' }}>{impactOpen ? '▲' : '▼'} Які фактори впливали</span>
-                            </button>
-                            {impactOpen && (
-                              <div style={{ fontSize: 10, color: 'var(--text2)', borderTop: '1px solid var(--border)', paddingTop: 6 }}>
-                                {impactLoading && <div style={{ color: 'var(--text2)', fontStyle: 'italic' }}>Розраховую...</div>}
-                                {!impactLoading && metricImpact.length === 0 && (
-                                  <div style={{ fontStyle: 'italic' }}>Усі фактори нейтральні</div>
-                                )}
-                                {!impactLoading && metricImpact.map(f => (
-                                  <div key={f.key} style={{ marginBottom: 5 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                                      <span>{f.label}</span>
-                                      <span style={{ fontFamily: 'monospace', color: 'var(--text)', fontWeight: 600 }}>{f.pct}%</span>
-                                    </div>
-                                    <div style={{ background: 'var(--bg)', borderRadius: 3, height: 4, overflow: 'hidden' }}>
-                                      <div style={{ width: `${f.pct}%`, height: '100%', background: '#f87171', borderRadius: 3 }} />
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </div>
-                  );
-                };
-
-                // ── Row of 5 cards ────────────────────────────────────────
-                const MetricRow = ({ box, rowLabel, rowKey }: {
-                  box: { return: BoxStat; drawdown: BoxStat; sqn: BoxStat; wr: BoxStat; streak: BoxStat };
-                  rowLabel: string;
-                  rowKey: string;
-                }) => (
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-                      {rowLabel}
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: 10, alignItems: 'flex-start' }}>
-                      {METRICS.map(m => (
-                        <MetricCard key={m.key} meta={m} box={box[m.key]} rowKey={rowKey} />
-                      ))}
-                    </div>
-                  </div>
-                );
 
                 return (
-                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginTop: 8 }}>
-                    {/* ─ section header ─ */}
-                    <div style={{ marginBottom: 20 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
-                        Statistical Control Framework
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.6, maxWidth: 720 }}>
-                        Порівняння показників живої торгівлі з діапазоном результатів MC-симуляцій.
-                        Допомагає виявити, які метрики відхиляються від очікуваного — і через які стрес-фактори.
-                      </div>
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24 }}>
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Statistical Control Framework</div>
+                      <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.6 }}>Порівняння live-показників з діапазоном MC-симуляції зі стрес-факторами.</div>
                     </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)', gap: 10 }}>
+                      {METRICS2.map(meta => {
+                        const box: BoxStat2 = r.boxStats[meta.key];
+                        const { liveVal, higherIsBetter, pct } = meta;
+                        const fmt = (v: number) => pct ? (v * 100).toFixed(1) + '%' : (Number.isInteger(v) ? String(v) : v.toFixed(2));
+                        const inBox    = liveVal >= box.p25 && liveVal <= box.p75;
+                        const aboveBox = higherIsBetter ? liveVal > box.p75 : liveVal < box.p25;
+                        const dotColor = inBox ? '#facc15' : aboveBox ? '#4ade80' : '#f87171';
+                        const statusLabel = inBox ? 'В нормі' : aboveBox ? (higherIsBetter ? 'Вище норми' : 'Краще') : (higherIsBetter ? 'Нижче норми' : 'Перевищено');
+                        const dev = liveVal - box.med;
+                        const explainKey = `scf2_${meta.key}`;
+                        const explainOpen = scfOpen.has(explainKey);
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-                      {mcBoxStats && (
-                        <MetricRow box={mcBoxStats} rowLabel="MC Normal — без стрес-факторів" rowKey="normal" />
-                      )}
-                      {stressData?.stressBoxStats && (
-                        <MetricRow box={stressData.stressBoxStats} rowLabel="MC Stress — зі стрес-факторами" rowKey="stress" />
-                      )}
+                        const sparkData = (() => {
+                          if (meta.key === 'return') return lvEqArr;
+                          if (meta.key === 'drawdown') { let pk = -Infinity; return lvEqArr.map(v => { if (v > pk) pk = v; return pk === -Infinity ? 0 : pk - v; }); }
+                          if (meta.key === 'wr') return lvNets.map((_, i) => { const w = lvNets.slice(Math.max(0, i - 19), i + 1); return w.filter(x => x > 0).length / (w.length || 1); });
+                          if (meta.key === 'sqn') return lvNets.map((_, i) => { const w = lvNets.slice(Math.max(0, i - 19), i + 1); if (w.length < 2) return 0; const m = w.reduce((a, b) => a + b, 0) / w.length; const s = Math.sqrt(w.reduce((a, b) => a + (b - m) ** 2, 0) / w.length) || 1; return m / s * Math.sqrt(w.length); });
+                          if (meta.key === 'streak') return lvNets.map((_, i) => { const w = lvNets.slice(Math.max(0, i - 19), i + 1); let mx2 = 0, cur = 0; for (const rv of w) { if (rv < 0) { cur++; if (cur > mx2) mx2 = cur; } else cur = 0; } return mx2; });
+                          return lvEqArr;
+                        })();
+
+                        return (
+                          <div key={meta.key} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.8 }}>{meta.label}</div>
+                            <div style={{ background: 'var(--bg)', borderRadius: 5, overflow: 'hidden', height: SH }}>
+                              <svg width="100%" height={SH} viewBox={`0 0 ${SW} ${SH}`} preserveAspectRatio="none">
+                                {(() => {
+                                  const mn2 = Math.min(...(sparkData.length ? sparkData : [0]));
+                                  const mx2 = Math.max(...(sparkData.length ? sparkData : [1]));
+                                  const rng2 = mx2 - mn2 || 1;
+                                  const refY = (v: number) => { const c = Math.max(mn2, Math.min(mx2, v)); return SH - ((c - mn2) / rng2) * (SH - 4) - 2; };
+                                  return (<>
+                                    <rect x={0} y={Math.min(refY(box.p25), refY(box.p75))} width={SW} height={Math.abs(refY(box.p25) - refY(box.p75)) || 1} fill="rgba(255,255,255,0.04)" />
+                                    <line x1={0} y1={refY(box.med)} x2={SW} y2={refY(box.med)} stroke="rgba(255,255,255,0.18)" strokeWidth={1} strokeDasharray="3,3" />
+                                  </>);
+                                })()}
+                                <Sparkline2 data={sparkData} color={LIVE_COLOR} />
+                              </svg>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>Live</span><span style={{ color: 'var(--text)', fontWeight: 700, fontFamily: 'monospace' }}>{fmt(liveVal)}</span></div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>MC медіана</span><span style={{ fontFamily: 'monospace' }}>{fmt(box.med)}</span></div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>p25–p75</span><span style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{fmt(box.p25)} – {fmt(box.p75)}</span></div>
+                            </div>
+                            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '6px 8px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor, display: 'inline-block', flexShrink: 0 }} />
+                                <span style={{ fontSize: 10, color: 'var(--text)', fontWeight: 600 }}>{statusLabel}</span>
+                              </div>
+                              <div style={{ fontSize: 10, color: 'var(--text2)', paddingLeft: 13 }}>{meta.deviationLabel(dev)}</div>
+                            </div>
+                            <button onClick={() => toggleScf(explainKey)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 8px', cursor: 'pointer', width: '100%' }}>
+                              <span style={{ fontSize: 9, color: 'var(--text2)' }}>{explainOpen ? '▲' : '▼'} Пояснення</span>
+                            </button>
+                            {explainOpen && <div style={{ fontSize: 10, color: 'var(--text2)', lineHeight: 1.55, borderTop: '1px solid var(--border)', paddingTop: 6 }}>{meta.explain}</div>}
+                          </div>
+                        );
+                      })}
                     </div>
-
-                    {/* legend */}
-                    <div style={{ display: 'flex', gap: 20, marginTop: 18, flexWrap: 'wrap', alignItems: 'center' }}>
-                      {[
-                        { color: '#4ade80', label: 'Краще очікуваного' },
-                        { color: '#facc15', label: 'В межах норми (25–75%)' },
-                        { color: '#f87171', label: 'Нижче очікуваного' },
-                      ].map(({ color, label }) => (
+                    <div style={{ display: 'flex', gap: 16, marginTop: 14, flexWrap: 'wrap' }}>
+                      {[{ color: '#4ade80', label: 'Краще очікуваного' }, { color: '#facc15', label: 'В нормі (25–75%)' }, { color: '#f87171', label: 'Нижче очікуваного' }].map(({ color, label }) => (
                         <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--text2)' }}>
                           <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, display: 'inline-block' }} />
                           {label}
                         </div>
                       ))}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--text2)' }}>
-                        <svg width={24} height={8}><line x1={0} y1={4} x2={24} y2={4} stroke="rgba(255,255,255,0.18)" strokeWidth={1} strokeDasharray="3,3" /></svg>
-                        Медіана MC
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--text2)' }}>
-                        <svg width={24} height={8}><rect x={0} y={2} width={24} height={4} fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.1)" strokeWidth={1} rx={1} /></svg>
-                        Зона 25–75%
-                      </div>
                     </div>
                   </div>
                 );
               })()}
-            </>
-          )}
-          </div>
+
+            </div>
+          );
+        })()}
+
       </div>
     </div>
     </AccessWrapper>
-  );
-}
