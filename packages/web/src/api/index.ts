@@ -1817,7 +1817,8 @@ async function parseTradesWithOCR(imageBuffer: Buffer, mimeType: string): Promis
     };
 
     const cleanDate = (s: string) => s.replace(/\s*-\s*/g, '-').replace(/[^0-9\-]/g, '');
-    const parseNum = (s: string) => parseFloat(s.replace(',', '.'));
+    // handles: spaces inside numbers (-0, 10 → -0.10), commas as decimal, trailing dots
+    const parseNum = (s: string) => parseFloat(s.replace(/\s/g, '').replace(/,/g, '.').replace(/\.+$/, ''));
 
     const rows: any[] = [];
     for (const rawLine of text.split('\n')) {
@@ -1826,12 +1827,23 @@ async function parseTradesWithOCR(imageBuffer: Buffer, mimeType: string): Promis
       // skip summary/header lines
       if (/summary|SUMMARY|WR|Date|Direction|Session/i.test(line) && !/^\d/.test(line)) continue;
 
+      // strip leading garbage before the ID number (e.g. "+ +", "—_", "* ")
+      line = line.replace(/^[^0-9]+/, '');
+      if (!line) continue;
+
+      // after ID digits + optional dot, strip any non-date garbage (e.g. "21. + +2024" -> "21. 2024")
+      line = line.replace(/^(\d+\.?)\s+[^0-9]+/, '$1 ');
+
+      // strip em-dash, en-dash, underscores (OCR noise in session area)
+      line = line.replace(/[—–_]/g, '');
+
       // strip trailing OCR noise chars: ) ] ! ; ' :
       line = line.replace(/[)\]!;':]+(\s|$)/g, ' ').replace(/\s+/g, ' ').trim();
 
       // match: ID  date(may have spaces around dash)  direction  rr  session(may have leading _)  result  grossR  netR  cost
+      // numbers allow internal spaces/commas (OCR noise), parseNum cleans them
       const m = line.match(
-        /^(\d+)\.?\s+(\d{4}\s*-\s*\d{2}(?:\s*-\s*\d{2})?|\d{2}\.\d{4}|\d{2}\.\d{2}\.\d{4})\s+(long|short)\s+([\d,\.]+)\s+[_\s]*([\w][\w\s]*?)\s+(tp|sl|be)\s+([-\d,\.]+)\s+([-\d,\.]+)\s+([-\d,\.]+)/i
+        /^(\d+)\.?\s+(\d{4}\s*-\s*\d{2}(?:\s*-\s*\d{2})?|\d{2}\.\d{4}|\d{2}\.\d{2}\.\d{4})\s+(long|short)\s+([\d,\.\s]+?)\s+[_\s]*([\w][\w\s]*?)\s+(tp|sl|be)\s+([-\d,\.\s]+?)\s+([-\d,\.\s]+?)\s+([-\d,\.\s]+)$/i
       );
       if (!m) continue;
 
