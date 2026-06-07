@@ -441,7 +441,7 @@ function Chip({ label, active, onClick, color }: { label: string; active: boolea
 
 function fmtMonth(m: string) {
   const d = new Date(m + '-01');
-  return isNaN(d.getTime()) ? m : d.toLocaleString('uk-UA', { month: 'short' });
+  return isNaN(d.getTime()) ? m : d.toLocaleString('en-US', { month: 'short' });
 }
 
 // Per-asset drill-down: shows years, then months per selected year
@@ -739,8 +739,8 @@ export default function Charts() {
   const [mcRunResult, setMcRunResult] = useState<MCRunResult | null>(null);
   const [mcRunLoading, setMcRunLoading] = useState(false);
   const [mcRunError,   setMcRunError]   = useState<string | null>(null);
-  const [mcShowBt,     setMcShowBt]     = useState(true);
-  const [mcShowLv,     setMcShowLv]     = useState(true);
+  const [mcShowBt,     setMcShowBt]     = useState(false);
+  const [mcShowLv,     setMcShowLv]     = useState(false);
   const [mcShowBtGross,setMcShowBtGross]= useState(false);
   const [mcShowLvGross,setMcShowLvGross]= useState(false);
   const [mcImpactRef,  setMcImpactRef]  = useState<'bt' | 'lv'>('bt');
@@ -1352,7 +1352,7 @@ export default function Charts() {
                 {(['n-1', 'n'] as const).map(f => (
                   <button key={f} onClick={() => setMcStdDev(f)} style={{
                     flex: 1, padding: '5px 0', fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: 'pointer', border: 'none',
-                    background: mcStdDev === f ? '#a78bfa' : 'var(--surface)', color: mcStdDev === f ? '#fff' : 'var(--text2)',
+                    background: mcStdDev === f ? '#4b5563' : 'var(--surface)', color: mcStdDev === f ? 'var(--text)' : 'var(--text2)', border: `1px solid ${mcStdDev === f ? '#6b7280' : 'var(--border)'}`,
                   }}>{f === 'n-1' ? 'N−1' : 'N'}</button>
                 ))}
               </div>
@@ -1433,13 +1433,15 @@ export default function Charts() {
             onClick={runMCSimulation}
             disabled={mcRunLoading}
             style={{
-              background: mcRunLoading ? 'var(--surface2)' : 'linear-gradient(135deg, #7c3aed, #a78bfa)',
-              border: 'none', borderRadius: 10, padding: '13px 0', fontSize: 14, fontWeight: 700,
-              color: '#fff', cursor: mcRunLoading ? 'not-allowed' : 'pointer', width: '100%',
-              opacity: mcRunLoading ? 0.7 : 1, letterSpacing: 0.5,
+              background: mcRunLoading ? 'var(--surface2)' : 'var(--surface2)',
+              border: `1px solid ${mcRunLoading ? 'var(--border)' : '#6b7280'}`,
+              borderRadius: 10, padding: '13px 0', fontSize: 14, fontWeight: 700,
+              color: mcRunLoading ? 'var(--text2)' : 'var(--text)',
+              cursor: mcRunLoading ? 'not-allowed' : 'pointer', width: '100%',
+              opacity: mcRunLoading ? 0.6 : 1, letterSpacing: 0.5,
             }}
           >
-            {mcRunLoading ? `Симулюю ${mcNSim.toLocaleString()} сценаріїв...` : '▶ ЗАПУСТИТИ СИМУЛЯЦІЮ'}
+            {mcRunLoading ? `Running ${mcNSim.toLocaleString()} simulations...` : '▶ Run Simulation'}
           </button>
           {mcRunError && <div style={{ color: '#f87171', fontSize: 12, padding: '8px 12px', background: 'rgba(248,113,113,0.1)', borderRadius: 8 }}>Помилка: {mcRunError}</div>}
         </div>
@@ -1553,9 +1555,9 @@ export default function Charts() {
                         {r.mcPathsSample.map((_, pi) => (
                           <Line key={`path_${pi}`} type="monotone" dataKey={`path_${pi}`} stroke="#2a5580" strokeWidth={0.6} dot={false} isAnimationActive={false} legendType="none" connectNulls />
                         ))}
-                        <Line type="monotone" dataKey="p5"  stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
-                        <Line type="monotone" dataKey="p95" stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
-                        <Line type="monotone" dataKey="p50" stroke={MC_MED_COLOR}  strokeWidth={2.5} dot={false} connectNulls />
+                        <Line type="linear" dataKey="p5"  stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
+                        <Line type="linear" dataKey="p95" stroke={MC_BAND_COLOR} strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
+                        <Line type="linear" dataKey="p50" stroke={MC_MED_COLOR}  strokeWidth={2.5} dot={false} connectNulls />
                         {mcShowBt      && <Line type="monotone" dataKey="BT Net"    stroke={BT_COLOR}   strokeWidth={2}   dot={false} connectNulls />}
                         {mcShowBtGross && <Line type="monotone" dataKey="BT Gross"  stroke="#c4b5fd"    strokeWidth={1.5} strokeDasharray="4 2" dot={false} connectNulls />}
                         {mcShowLv      && <Line type="monotone" dataKey="Live Net"  stroke={LIVE_COLOR} strokeWidth={2.5} dot={false} connectNulls />}
@@ -1580,6 +1582,7 @@ export default function Charts() {
                 const refVal   = mcImpactRef === 'bt'
                   ? (r.btNetEq[r.btNetEq.length - 1] ?? 0)
                   : (r.lvNetEq[r.lvNetEq.length - 1] ?? 0);
+                const refBaseline = Math.abs(refVal) > 0 ? refVal : null;
 
                 return (
                   <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
@@ -1608,9 +1611,16 @@ export default function Charts() {
                             <div key={row.key}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
                                 <span style={{ fontSize: 11, color: isActive ? 'var(--text)' : 'var(--text2)' }}>{row.label}</span>
-                                <span style={{ fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: row.impact < 0 ? '#f87171' : row.impact > 0 ? '#4ade80' : 'var(--text2)' }}>
-                                  {row.impact === 0 ? '—' : `${row.impact >= 0 ? '+' : ''}${row.impact.toFixed(1)}R`}
-                                </span>
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                                  {isActive && refBaseline != null && (
+                                    <span style={{ fontSize: 10, color: row.impact < 0 ? '#f87171' : '#4ade80', fontVariantNumeric: 'tabular-nums' }}>
+                                      {row.impact < 0 ? '' : '+'}{(row.impact / Math.abs(refBaseline) * 100).toFixed(1)}%
+                                    </span>
+                                  )}
+                                  <span style={{ fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: row.impact < 0 ? '#f87171' : row.impact > 0 ? '#4ade80' : 'var(--text2)' }}>
+                                    {row.impact === 0 ? '—' : `${row.impact >= 0 ? '+' : ''}${row.impact.toFixed(1)}R`}
+                                  </span>
+                                </div>
                               </div>
                               {isActive && (
                                 <div style={{ height: 4, background: 'var(--surface)', borderRadius: 2 }}>
@@ -1628,6 +1638,57 @@ export default function Charts() {
                         <div style={{ fontSize: 9, color: '#4b5563' }}>* Аналітична оцінка. Сума може відрізнятись від MC через взаємодію факторів.</div>
                       </div>
                     )}
+
+                    {/* Key metrics summary vs ref */}
+                    {refVal !== 0 && (() => {
+                      const refBtStats  = { totalR: r.btNetEq[r.btNetEq.length-1] ?? 0, sqn: r.summary.med.sqn };
+                      const refLvStats  = { totalR: r.lvNetEq[r.lvNetEq.length-1] ?? 0 };
+                      const medR  = r.summary.med.totalR;
+                      const p5R   = r.summary.p5.totalR;
+                      const p95R  = r.summary.p95.totalR;
+                      const refR  = refVal;
+                      const rows2 = [
+                        { label: 'Total R',       ref: refR,  med: medR,  p5: p5R,   p95: p95R,  fmt: (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}R` },
+                        { label: 'SQN',           ref: mcImpactRef === 'bt' ? btStats?.sqn ?? 0 : lvStats?.sqn ?? 0, med: r.summary.med.sqn, p5: r.summary.p5.sqn, p95: r.summary.p95.sqn, fmt: (v: number) => v.toFixed(2) },
+                        { label: 'Max DD',        ref: mcImpactRef === 'bt' ? btStats?.maxDD ?? 0 : lvStats?.maxDD ?? 0, med: r.ddMed, p5: r.ddP5, p95: r.ddP5, fmt: (v: number) => `${v.toFixed(2)}R` },
+                        { label: 'Survival',      ref: 100,   med: r.survivalRate, p5: null, p95: null, fmt: (v: number | null) => v == null ? '—' : `${v.toFixed(v % 1 === 0 ? 0 : 1)}%` },
+                      ];
+                      return (
+                        <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Ключові метрики</div>
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                              <thead>
+                                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                  <th style={{ textAlign: 'left', padding: '4px 8px', color: 'var(--text2)', fontWeight: 600, fontSize: 10 }}>Метрика</th>
+                                  <th style={{ textAlign: 'right', padding: '4px 8px', color: '#6b7280', fontWeight: 600, fontSize: 10 }}>{refLabel}</th>
+                                  <th style={{ textAlign: 'right', padding: '4px 8px', color: MC_MED_COLOR, fontWeight: 600, fontSize: 10 }}>MC медіана</th>
+                                  <th style={{ textAlign: 'right', padding: '4px 8px', color: MC_BAND_COLOR, fontWeight: 600, fontSize: 10 }}>p5</th>
+                                  <th style={{ textAlign: 'right', padding: '4px 8px', color: MC_BAND_COLOR, fontWeight: 600, fontSize: 10 }}>p95</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rows2.map(row => {
+                                  const devMed = row.med != null && row.ref !== 0 ? ((row.med - row.ref) / Math.abs(row.ref) * 100) : null;
+                                  return (
+                                    <tr key={row.label} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                      <td style={{ padding: '5px 8px', color: 'var(--text2)', fontWeight: 600 }}>{row.label}</td>
+                                      <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#9ca3af' }}>{row.fmt(row.ref)}</td>
+                                      <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace', color: MC_MED_COLOR }}>
+                                        {row.fmt(row.med)}
+                                        {devMed != null && <span style={{ fontSize: 9, color: devMed >= 0 ? '#4ade80' : '#f87171', marginLeft: 4 }}>({devMed >= 0 ? '+' : ''}{devMed.toFixed(1)}%)</span>}
+                                      </td>
+                                      <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace', color: 'var(--text2)' }}>{row.p5 != null ? row.fmt(row.p5) : '—'}</td>
+                                      <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace', color: 'var(--text2)' }}>{row.p95 != null ? row.fmt(row.p95) : '—'}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })()}
