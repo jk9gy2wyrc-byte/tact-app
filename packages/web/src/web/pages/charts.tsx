@@ -837,20 +837,36 @@ export default function Charts() {
     const lo = Math.floor(t), hi = Math.min(Math.ceil(t), arr.length - 1);
     return arr[lo]! + (arr[hi]! - arr[lo]!) * (t - lo);
   };
+  // Normalized mode: clip longer series to shorter+25 trades
+  const NORM_EXTRA = 25;
+  const normMin = Math.min(btEq.length, lvEq.length);
+  const normMax = Math.max(btEq.length, lvEq.length);
+  // Only clip if longer side exceeds shorter+NORM_EXTRA
+  const normBtLen = btEq.length > lvEq.length
+    ? Math.min(btEq.length, normMin + NORM_EXTRA)
+    : btEq.length;
+  const normLvLen = lvEq.length > btEq.length
+    ? Math.min(lvEq.length, normMin + NORM_EXTRA)
+    : lvEq.length;
+  // same for gross
+  const normBtGrossLen = btGrossEq.length > lvGrossEq.length
+    ? Math.min(btGrossEq.length, Math.min(btGrossEq.length, lvGrossEq.length) + NORM_EXTRA)
+    : btGrossEq.length;
+  const normLvGrossLen = lvGrossEq.length > btGrossEq.length
+    ? Math.min(lvGrossEq.length, Math.min(btGrossEq.length, lvGrossEq.length) + NORM_EXTRA)
+    : lvGrossEq.length;
+
   const eqData: any[] = [];
   if (equityViewMode === 'normalized') {
-    // X = normalized index 0..1 (100 pts), Y = cumEq / tradeCount (avg R/trade tempo)
-    const N = 100;
-    for (let i = 0; i < N; i++) {
-      const t = i / (N - 1); // 0..1
-      const btIdx = Math.round(t * (btEq.length - 1));
-      const lvIdx = Math.round(t * (lvEq.length - 1));
-      const btN   = btIdx + 1;
-      const lvN   = lvIdx + 1;
+    // X = trade number (1..N), Y = cumulative R, both series clipped to min+25
+    const maxLen = Math.max(normBtLen, normLvLen, normBtGrossLen, normLvGrossLen);
+    for (let i = 0; i < maxLen; i++) {
       eqData.push({
-        trade: parseFloat(t.toFixed(2)),
-        BT:   btEq.length > 0 ? (btEq[btIdx] ?? null) / btN : null,
-        Live: lvEq.length > 0 ? (lvEq[lvIdx] ?? null) / lvN : null,
+        trade: i + 1,
+        BT:       i < normBtLen      ? (btEq[i]      ?? null) : null,
+        Live:     i < normLvLen      ? (lvEq[i]      ?? null) : null,
+        BTGross:  i < normBtGrossLen ? (btGrossEq[i] ?? null) : null,
+        LvGross:  i < normLvGrossLen ? (lvGrossEq[i] ?? null) : null,
       });
     }
   } else {
@@ -961,8 +977,8 @@ export default function Charts() {
           </div>
         </div>
 
-        {/* Curve visibility toggles — only in cumulative mode */}
-        {equityViewMode === 'cumulative' && (() => {
+        {/* Curve visibility toggles — both modes */}
+        {(() => {
           const curves: { key: keyof typeof eqVisible; label: string; color: string; dash?: string }[] = [
             { key: 'btNet',   label: 'BT Net R',   color: BT_COLOR },
             { key: 'btGross', label: 'BT Gross R', color: '#a78bfa' },
@@ -1013,51 +1029,80 @@ export default function Charts() {
                   </>
                 ) : (
                   <>
-                    <Line type="monotone" dataKey="BT"   stroke={BT_COLOR}   strokeWidth={2}   dot={false} connectNulls />
-                    <Line type="monotone" dataKey="Live" stroke={LIVE_COLOR} strokeWidth={2.5} dot={false} connectNulls />
+                    {eqVisible.btNet   && <Line type="monotone" dataKey="BT"      stroke={BT_COLOR}   strokeWidth={2}   dot={false} connectNulls />}
+                    {eqVisible.btGross && <Line type="monotone" dataKey="BTGross" stroke="#a78bfa"   strokeWidth={1.5} dot={false} connectNulls strokeDasharray="5 3" />}
+                    {eqVisible.lvNet   && <Line type="monotone" dataKey="Live"    stroke={LIVE_COLOR} strokeWidth={2.5} dot={false} connectNulls />}
+                    {eqVisible.lvGross && <Line type="monotone" dataKey="LvGross" stroke="#34d399"   strokeWidth={1.5} dot={false} connectNulls strokeDasharray="5 3" />}
                   </>
                 )}
               </LineChart>
             </ResponsiveContainer>
 
-            {/* Equity deviation summary — live vs bt only */}
-            {lastLvEq != null && (() => {
+            {/* Equity deviation — 4 metrics */}
+            {(() => {
               const isCumul = equityViewMode === 'cumulative';
-              // bt value at same trade count as live
-              const btAtN = btEq.length > 0 ? (btEq[lvEq.length - 1] ?? btEq[btEq.length - 1]) : null;
-              const liveVal = lastLvEq;
-              const btAvgR = btEq.length > 0 && lastBTEq != null ? lastBTEq / btEq.length : null;
-              const lvAvgR = lvEq.length > 0 ? lastLvEq / lvEq.length : null;
-              if (liveVal == null) return null;
-              const ref = isCumul ? btAtN : btAvgR;
-              const val = isCumul ? liveVal : lvAvgR;
-              if (ref == null || val == null) return null;
-              const dR = val - ref;
-              const dP = dR / Math.abs(ref) * 100;
-              const col = dR >= 0 ? '#4ade80' : '#f87171';
+
+              // For normalized mode: use min(btLen, lvLen) as the comparison point
+              const cmpN = isCumul
+                ? undefined  // use full arrays
+                : Math.min(btEq.length, lvEq.length, btGrossEq.length, lvGrossEq.length);
+
+              const getLast = (arr: number[], n?: number) => {
+                if (arr.length === 0) return null;
+                const idx = n != null ? Math.min(n - 1, arr.length - 1) : arr.length - 1;
+                return arr[idx] ?? null;
+              };
+
+              const lvNet   = getLast(lvEq,      cmpN);
+              const btNet   = getLast(btEq,      cmpN);
+              const lvGross = getLast(lvGrossEq, cmpN);
+              const btGross = getLast(btGrossEq, cmpN);
+
+              if (lvNet == null && btNet == null) return null;
+
+              const fmtDev = (a: number | null, b: number | null) => {
+                if (a == null || b == null) return null;
+                const dR = a - b;
+                const dP = b !== 0 ? dR / Math.abs(b) * 100 : null;
+                const col = dR >= 0 ? '#4ade80' : '#f87171';
+                return { dR, dP, col };
+              };
+
+              const metrics: { label: string; a: number | null; b: number | null; aLabel: string; bLabel: string }[] = [
+                { label: 'Live Gross vs BT Gross', a: lvGross, b: btGross, aLabel: 'Live Gross R', bLabel: 'BT Gross R' },
+                { label: 'Live Net vs BT Net',     a: lvNet,   b: btNet,   aLabel: 'Live Net R',   bLabel: 'BT Net R'   },
+                { label: 'Live Net vs Live Gross',  a: lvNet,   b: lvGross, aLabel: 'Live Net R',   bLabel: 'Live Gross R' },
+                { label: 'BT Net vs BT Gross',      a: btNet,   b: btGross, aLabel: 'BT Net R',     bLabel: 'BT Gross R'  },
+              ];
+
+              const nLabel = cmpN != null ? ` (по ${cmpN} уг.)` : '';
+
               return (
-                <div style={{ marginTop: 10, padding: '10px 14px', background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start', fontSize: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>Live</div>
-                    <div className="mono" style={{ color: LIVE_COLOR, fontSize: 15, fontWeight: 700 }}>
-                      {val.toFixed(2)}{isCumul ? 'R' : 'R/угоду'}
-                    </div>
-                    <div style={{ fontSize: 9, color: '#555', marginTop: 2 }}>{lvEq.length} угод</div>
+                <div style={{ marginTop: 10, padding: '10px 14px', background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 8 }}>
+                    Відхилення{nLabel}
                   </div>
-                  <div>
-                    <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>
-                      {isCumul ? `BT після ${lvEq.length} угод` : 'BT R/угоду'}
-                    </div>
-                    <div className="mono" style={{ color: BT_COLOR, fontSize: 15, fontWeight: 700 }}>
-                      {ref.toFixed(2)}{isCumul ? 'R' : 'R/угоду'}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>Відхилення</div>
-                    <div className="mono" style={{ color: col, fontSize: 15, fontWeight: 700 }}>
-                      {dR >= 0 ? '+' : ''}{dR.toFixed(2)}{isCumul ? 'R' : 'R/угоду'}
-                    </div>
-                    <div style={{ fontSize: 10, color: col }}>({dP >= 0 ? '+' : ''}{dP.toFixed(1)}%)</div>
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                    {metrics.map(m => {
+                      const dev = fmtDev(m.a, m.b);
+                      return (
+                        <div key={m.label} style={{ minWidth: 130 }}>
+                          <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 3 }}>{m.label}</div>
+                          {dev ? (
+                            <>
+                              <div className="mono" style={{ color: dev.col, fontSize: 14, fontWeight: 700 }}>
+                                {dev.dR >= 0 ? '+' : ''}{dev.dR.toFixed(2)}R
+                              </div>
+                              <div style={{ fontSize: 10, color: dev.col }}>
+                                ({dev.dP != null ? `${dev.dP >= 0 ? '+' : ''}${dev.dP.toFixed(1)}%` : '—'})
+                              </div>
+                            </>
+                          ) : (
+                            <div style={{ color: '#555' }}>—</div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -1065,8 +1110,8 @@ export default function Charts() {
 
             <Explanation text={
               equityViewMode === 'cumulative'
-                ? "Кумулятивний: накопичений Net R по всіх угодах. Відхилення = live мінус bt після тієї ж кількості угод."
-                : "Нормалізований: середнє R/угоду наростаючим підсумком — темп зростання. Дозволяє порівняти bt і live незалежно від загальної кількості угод."
+                ? "Кумулятивний: всі угоди обох кривих. Відхилення рахується від фінальних значень кожної серії."
+                : `Нормалізований: криві обрізаються — якщо одна серія довша на більше ніж ${NORM_EXTRA} угод, вона обрізається до коротшої+${NORM_EXTRA}. Відхилення рахується по меншій кількості угод.`
             } />
           </>
         )}
