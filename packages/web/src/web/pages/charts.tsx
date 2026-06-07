@@ -569,7 +569,7 @@ export default function Charts() {
   const { data: mcCustomData } = useQuery({
     queryKey: ['mc-custom', mcQueryParams],
     queryFn: () => fetchMCCustom(mcQueryParams),
-    enabled: !!(mcBtAssets.size || mcLvAssets.size),
+    enabled: true,
   });
 
   const resetMcFilter = () => {
@@ -1296,9 +1296,9 @@ export default function Charts() {
           <div style={{ background: 'var(--surface2)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 10, padding: '12px 14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Backtest — вибір даних</div>
-              {mcRunResult?.btCount != null && (
+              {mcCustomData?.btCount != null && (
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.3)', borderRadius: 4, padding: '1px 7px', fontVariantNumeric: 'tabular-nums' }}>
-                  {mcRunResult.btCount} угод
+                  {mcCustomData.btCount} угод
                 </span>
               )}
             </div>
@@ -1311,9 +1311,9 @@ export default function Charts() {
           <div style={{ background: 'var(--surface2)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 10, padding: '12px 14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Live — вибір даних</div>
-              {mcRunResult?.lvCount != null && (
+              {mcCustomData?.lvCount != null && (
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 4, padding: '1px 7px', fontVariantNumeric: 'tabular-nums' }}>
-                  {mcRunResult.lvCount} угод
+                  {mcCustomData.lvCount} угод
                 </span>
               )}
             </div>
