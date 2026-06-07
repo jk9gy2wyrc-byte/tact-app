@@ -1456,8 +1456,6 @@ const app = new Hono()
         let s = seed;
         return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
       };
-      const rand = rng(42);
-
       const pctOf = (arr: number[], p: number) => {
         if (!arr.length) return 0;
         const s = arr.slice().sort((a, b) => a - b);
@@ -1488,6 +1486,7 @@ const app = new Hono()
       const pathSamples: number[][] = [];
 
       for (let si = 0; si < N_SIM; si++) {
+        const rand = rng(si * 1664525 + 42);
         let acc = 0, peak = 0, maxDD = 0;
         const netArr: number[] = [];
 
@@ -1551,7 +1550,7 @@ const app = new Hono()
         if (maxDD < params.survivalThreshold) survivedCount++;
 
         // Store path sample
-        if (si < 50) pathSamples.push(sampleIdx.map((ti, si2) => Math.round((byTrade[si2][byTrade[si2].length - 1] ?? 0) * 100) / 100));
+        if (si < 50) pathSamples.push(sampleIdx.map((_ti, tIdx) => Math.round((byTrade[tIdx][si] ?? 0) * 100) / 100));
       }
 
       // ── Equity curve percentiles ──────────────────────────────────────────

@@ -1487,7 +1487,7 @@ export default function Charts() {
 
               {/* Meta */}
               <div style={{ fontSize: 10, color: 'var(--text2)' }}>
-                {r.nSim.toLocaleString()} симуляцій · горизонт {r.horizon} угод · {r.mcMedian.length} pts · trade cost {r.tradeCost >= 0 ? '+' : ''}{r.tradeCost.toFixed(4)}R/угода
+                {r.nSim.toLocaleString()} симуляцій · горизонт {r.horizon} угод · trade cost {r.tradeCost >= 0 ? '+' : ''}{r.tradeCost.toFixed(4)}R/угода
                 {r.tradeCost === r.avgCostBt ? ' (avg з BT)' : ' (власний)'}
               </div>
 
