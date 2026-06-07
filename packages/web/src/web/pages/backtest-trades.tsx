@@ -663,26 +663,33 @@ export default function BacktestTrades() {
               <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 8 }}>
                 Натисни <strong style={{ color: 'var(--text)' }}>Скопіювати</strong> та встав у свій Excel файл (<code>Cmd+V</code> / <code>Ctrl+V</code>) — отримаєш готову таблицю:
               </div>
-              <button
-                className="btn-ghost"
-                style={{ width: '100%', padding: '8px', fontSize: 13, fontWeight: 600 }}
-                onClick={() => {
-                  const header = 'ID\tDate\tDirection\tRR\tSession\tResult\tGrossR\tNetR\tAVG Costs\tWR';
-                  const rows = Array.from({ length: 20 }, (_, i) => {
-                    const row = i + 2;
-                    return `${i + 1}\t\t\t\t\t\t\t=G${row}+I${row}\t-0,10\t`;
-                  });
-                  const tsv = [header, ...rows].join('\n');
-                  navigator.clipboard.writeText(tsv).then(() => {
-                    const btn = document.activeElement as HTMLButtonElement;
-                    const orig = btn.textContent;
-                    btn.textContent = '✅ Скопійовано!';
-                    setTimeout(() => { btn.textContent = orig; }, 2000);
-                  });
-                }}
-              >
-                📋 Скопіювати шаблон таблиці
-              </button>
+              {(() => {
+                const [copied, setCopied] = (window as any).__copyState || [false, null];
+                return (
+                  <button
+                    className="btn-ghost"
+                    style={{ width: '100%', padding: '8px', fontSize: 13, fontWeight: 600 }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const header = 'ID\tDate\tDirection\tRR\tSession\tResult\tGrossR\tNetR\tAVG Costs';
+                      const emptyRows = Array.from({ length: 20 }, (_, i) => `${i + 1}\t\t\t\t\t\t\t\t`);
+                      const tsv = [header, ...emptyRows].join('\n');
+                      navigator.clipboard.writeText(tsv).catch(() => {
+                        const ta = document.createElement('textarea');
+                        ta.value = tsv; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                        document.body.appendChild(ta); ta.select();
+                        document.execCommand('copy'); document.body.removeChild(ta);
+                      });
+                      const btn = e.currentTarget;
+                      btn.textContent = '✅ Скопійовано!';
+                      setTimeout(() => { btn.textContent = '📋 Скопіювати шаблон таблиці'; }, 2000);
+                    }}
+                  >
+                    📋 Скопіювати шаблон таблиці
+                  </button>
+                );
+              })()}
             </div>
 
             {/* CTA */}
