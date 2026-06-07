@@ -36,35 +36,52 @@ const MC_BAND_COLOR = '#e8830a'; // orange for p5/p95
 const EXP_COLOR   = '#e8eaed'; // same as mc med
 
 // ── Custom tooltip: shows % deviation from BT and from MC median ──────────────
+const EQUITY_SERIES: { key: string; label: string; color: string }[] = [
+  { key: 'BT',      label: 'BT Net R',    color: BT_COLOR   },
+  { key: 'BTGross', label: 'BT Gross R',  color: '#a78bfa'  },
+  { key: 'Live',    label: 'Live Net R',  color: LIVE_COLOR },
+  { key: 'LvGross', label: 'Live Gross R', color: '#34d399' },
+];
+
 const DeviationTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
 
-  const bt   = payload.find((p: any) => p.dataKey === 'BT')?.value;
-  const live = payload.find((p: any) => p.dataKey === 'Live')?.value;
-  const med  = payload.find((p: any) => p.dataKey === 'MC p50')?.value;
+  // Also handle MC chart keys (MC p50, MC p5, MC p95, Live, Backtest)
+  const isMC = payload.some((p: any) => String(p.dataKey).startsWith('MC') || p.dataKey === 'Backtest');
 
-  const devFromBT  = bt   != null && live != null && bt  !== 0 ? ((live - bt)  / Math.abs(bt)  * 100).toFixed(1) : null;
-  const devFromMed = med  != null && live != null && med !== 0 ? ((live - med) / Math.abs(med) * 100).toFixed(1) : null;
+  if (isMC) {
+    const bt   = payload.find((p: any) => p.dataKey === 'BT' || p.dataKey === 'Backtest')?.value;
+    const live = payload.find((p: any) => p.dataKey === 'Live')?.value;
+    const med  = payload.find((p: any) => p.dataKey === 'MC p50')?.value;
+    const devFromBT  = bt != null && live != null && bt !== 0 ? ((live - bt) / Math.abs(bt) * 100).toFixed(1) : null;
+    const devFromMed = med != null && live != null && med !== 0 ? ((live - med) / Math.abs(med) * 100).toFixed(1) : null;
+    return (
+      <div style={{ background: '#1c1f23', border: '1px solid var(--border)', padding: '10px 14px', fontSize: 11, borderRadius: 8, minWidth: 160 }}>
+        <div style={{ color: 'var(--text2)', marginBottom: 6, fontWeight: 600 }}>Trade #{label}</div>
+        {bt   != null && <div style={{ color: BT_COLOR,     marginBottom: 2 }}>BT: <span className="mono">{(bt as number).toFixed(2)}R</span></div>}
+        {med  != null && <div style={{ color: MC_MED_COLOR, marginBottom: 2 }}>Expected: <span className="mono">{(med as number).toFixed(2)}R</span></div>}
+        {live != null && <div style={{ color: LIVE_COLOR,   marginBottom: 6 }}>Live: <span className="mono">{(live as number).toFixed(2)}R</span></div>}
+        {devFromBT  != null && <div style={{ color: Number(devFromBT)  >= 0 ? '#4ade80' : '#f87171', marginBottom: 2 }}>vs BT: <span className="mono">{Number(devFromBT) >= 0 ? '+' : ''}{devFromBT}%</span></div>}
+        {devFromMed != null && <div style={{ color: Number(devFromMed) >= 0 ? '#4ade80' : '#f87171' }}>vs Expected: <span className="mono">{Number(devFromMed) >= 0 ? '+' : ''}{devFromMed}%</span></div>}
+      </div>
+    );
+  }
+
+  // Equity chart: show all 4 series that have values at this point
+  const entries = EQUITY_SERIES
+    .map(s => ({ ...s, value: payload.find((p: any) => p.dataKey === s.key)?.value }))
+    .filter(s => s.value != null);
+
+  if (!entries.length) return null;
 
   return (
-    <div style={{
-      background: '#1c1f23', border: '1px solid var(--border)',
-      padding: '10px 14px', fontSize: 11, borderRadius: 8, minWidth: 160,
-    }}>
+    <div style={{ background: '#1c1f23', border: '1px solid var(--border)', padding: '10px 14px', fontSize: 11, borderRadius: 8, minWidth: 150 }}>
       <div style={{ color: 'var(--text2)', marginBottom: 6, fontWeight: 600 }}>Trade #{label}</div>
-      {bt   != null && <div style={{ color: BT_COLOR,     marginBottom: 2 }}>BT: <span className="mono">{typeof bt === 'number' ? bt.toFixed(3) : bt}</span></div>}
-      {med  != null && <div style={{ color: MC_MED_COLOR, marginBottom: 2 }}>Expected: <span className="mono">{typeof med === 'number' ? med.toFixed(3) : med}</span></div>}
-      {live != null && <div style={{ color: LIVE_COLOR,   marginBottom: 6 }}>Live: <span className="mono">{typeof live === 'number' ? live.toFixed(3) : live}</span></div>}
-      {devFromBT  != null && (
-        <div style={{ color: Number(devFromBT)  >= 0 ? '#4ade80' : '#f87171', marginBottom: 2 }}>
-          vs BT: <span className="mono">{Number(devFromBT) >= 0 ? '+' : ''}{devFromBT}%</span>
+      {entries.map(s => (
+        <div key={s.key} style={{ color: s.color, marginBottom: 2 }}>
+          {s.label}: <span className="mono">{(s.value as number).toFixed(2)}R</span>
         </div>
-      )}
-      {devFromMed != null && (
-        <div style={{ color: Number(devFromMed) >= 0 ? '#4ade80' : '#f87171' }}>
-          vs Expected: <span className="mono">{Number(devFromMed) >= 0 ? '+' : ''}{devFromMed}%</span>
-        </div>
-      )}
+      ))}
     </div>
   );
 };
