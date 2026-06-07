@@ -1841,7 +1841,7 @@ async function parseTradesWithOCR(imageBuffer: Buffer, mimeType: string): Promis
         date = `${yr}-${mo}-${d}`;
       }
 
-      const sessionRaw = m[4].trim().toLowerCase().replace(/\s+/g, ' ');
+      const sessionRaw = m[4].trim().toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim();
       const session = SESSION_MAP[sessionRaw] ?? sessionRaw;
 
       rows.push({
