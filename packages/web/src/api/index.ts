@@ -1558,6 +1558,12 @@ const app = new Hono()
       const mcp5: number[]     = [];
       const mcp95: number[]    = [];
 
+      // DEBUG: log first 5 byTrade arrays to check variance
+      for (let di = 0; di < Math.min(5, byTrade.length); di++) {
+        const a = byTrade[di];
+        console.log(`[MC-DEBUG] byTrade[${di}] len=${a.length} min=${Math.min(...a).toFixed(2)} max=${Math.max(...a).toFixed(2)} p50=${pctOf(a,0.5).toFixed(2)}`);
+      }
+
       for (let i = 0; i < sampleIdx.length; i++) {
         const arr = byTrade[i];
         mcMedian.push(Math.round(pctOf(arr, 0.50) * 100) / 100);
