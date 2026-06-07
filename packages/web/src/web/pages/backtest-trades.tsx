@@ -621,7 +621,7 @@ export default function BacktestTrades() {
           <div style={{
             background: 'var(--surface)', border: '1px solid var(--border)',
             borderRadius: 14, padding: '28px 28px 24px',
-            maxWidth: 420, width: '90%', position: 'relative',
+            maxWidth: 480, width: '90%', position: 'relative',
           }}>
             {/* Close X */}
             <button
@@ -637,6 +637,13 @@ export default function BacktestTrades() {
               Обов'язкові поля для позицій
             </div>
 
+            {/* Preview image */}
+            <img
+              src="https://storage.googleapis.com/runable-templates/cli-uploads%2FyWU6F2OopHdw0bQIxNc7YVgN2QUzEepa%2FZhgLnmnTM2V0ldapzw_WQ%2Fimage_FxgLef.png"
+              alt="Приклад таблиці"
+              style={{ width: '100%', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 14 }}
+            />
+
             {/* Required fields */}
             <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, marginBottom: 10 }}>
               <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Дата</strong> — формат <code>MM.YYYY</code> або <code>DD.MM.YYYY</code><br />
@@ -647,8 +654,35 @@ export default function BacktestTrades() {
             </div>
 
             {/* Warning */}
-            <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 20 }}>
+            <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 14 }}>
               (Попередження: завжди перевіряйте правильність заповнених даних самотужки для уникнення помилок)
+            </div>
+
+            {/* Copy Excel template */}
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 8 }}>
+                Натисни <strong style={{ color: 'var(--text)' }}>Скопіювати</strong> та встав у свій Excel файл (<code>Cmd+V</code> / <code>Ctrl+V</code>) — отримаєш готову таблицю:
+              </div>
+              <button
+                className="btn-ghost"
+                style={{ width: '100%', padding: '8px', fontSize: 13, fontWeight: 600 }}
+                onClick={() => {
+                  const header = 'ID\tDate\tDirection\tRR\tSession\tResult\tGrossR\tNetR\tAVG Costs\tWR';
+                  const rows = Array.from({ length: 20 }, (_, i) => {
+                    const row = i + 2;
+                    return `${i + 1}\t\t\t\t\t\t\t=G${row}+I${row}\t-0,10\t`;
+                  });
+                  const tsv = [header, ...rows].join('\n');
+                  navigator.clipboard.writeText(tsv).then(() => {
+                    const btn = document.activeElement as HTMLButtonElement;
+                    const orig = btn.textContent;
+                    btn.textContent = '✅ Скопійовано!';
+                    setTimeout(() => { btn.textContent = orig; }, 2000);
+                  });
+                }}
+              >
+                📋 Скопіювати шаблон таблиці
+              </button>
             </div>
 
             {/* CTA */}
