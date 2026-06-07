@@ -1809,3 +1809,5 @@ export default function Charts() {
       </div>
     </div>
     </AccessWrapper>
+  );
+}
