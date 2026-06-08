@@ -1682,8 +1682,8 @@ export default function Charts() {
                           const isActive = row.impact !== 0;
                           // % = частка цього фактора серед загального abs впливу
                           const weightPct = totalAbsImpact > 0 ? Math.abs(row.impact) / totalAbsImpact * 100 : 0;
-                          // відображуване значення = пропорційна частка Σ (MC_median - refVal)
-                          const displayVal = totalAbsImpact > 0 ? (Math.abs(row.impact) / totalAbsImpact) * totalImpact * (row.impact < 0 ? -1 : 1) : 0;
+                          // відображуване значення = пропорційна частка Σ, знак = знак Σ (totalImpact)
+                          const displayVal = totalAbsImpact > 0 ? (Math.abs(row.impact) / totalAbsImpact) * totalImpact : 0;
                           const barW = weightPct;
                           return (
                             <div key={row.key}>
