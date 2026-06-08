@@ -766,6 +766,7 @@ export default function Charts() {
   const [mcShowBtGross,setMcShowBtGross]= useState(false);
   const [mcShowLvGross,setMcShowLvGross]= useState(false);
   const [mcImpactRef,  setMcImpactRef]  = useState<'bt' | 'lv'>('bt');
+  const [jitterOpen,   setJitterOpen]   = useState(false);
 
   const runMCSimulation = useCallback(async () => {
     setMcRunLoading(true);
@@ -1433,30 +1434,25 @@ export default function Charts() {
           {/* Jitter + Max DD threshold row */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
             <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
-              {(() => {
-                const [jitterOpen, setJitterOpen] = React.useState(false);
-                return (<>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
-                    <div style={{ fontSize: 10, color: 'var(--text2)' }}>Bootstrap Jitter</div>
-                    <button onClick={() => setJitterOpen(o => !o)} style={{ width: 14, height: 14, borderRadius: '50%', border: '1px solid var(--border)', background: jitterOpen ? 'var(--accent)' : 'var(--bg)', color: jitterOpen ? '#fff' : 'var(--text2)', fontSize: 9, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0, lineHeight: 1 }}>?</button>
-                  </div>
-                  {jitterOpen && (
-                    <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', marginBottom: 6, fontSize: 10, color: 'var(--text2)', lineHeight: 1.6 }}>
-                      <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Що моделює: </span>Природну мінливість розміру трейдів — spread, re-quote, різниця між бектест-ціною і реальним виконанням.</div>
-                      <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Сценарій: </span>Ринок рухається на тебе під час виконання — ти отримуєш трейд, але з іншим RR ніж у бектесті.</div>
-                      <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Як працює: </span>До кожного семплованого трейду додається нормальний шум N(0, std × jitter). При jitter=0.15 це ±15% від стандартного відхилення вибірки.</div>
-                      <div><span style={{ color: 'var(--text)', fontWeight: 700 }}>Вплив: </span>Розширює розкид кривих при малих датасетах. Корисно коли вибірка &lt;100 трейдів — без jitter криві виглядають штучно рівними.</div>
-                    </div>
-                  )}
-                  <input
-                    type="number" min={0} max={1} step={0.05}
-                    value={mcJitter}
-                    onChange={e => setMcJitter(Math.max(0, Math.min(1, Number(e.target.value) || 0)))}
-                    style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', fontSize: 13, fontWeight: 700, color: 'var(--text)', boxSizing: 'border-box' }}
-                  />
-                  <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>0 = вимкнено · 0.15 = ±15% std шум · збільшує розкид при малих датасетах</div>
-                </>);
-              })()}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                <div style={{ fontSize: 10, color: 'var(--text2)' }}>Bootstrap Jitter</div>
+                <button onClick={() => setJitterOpen(o => !o)} style={{ width: 14, height: 14, borderRadius: '50%', border: '1px solid var(--border)', background: jitterOpen ? 'var(--accent)' : 'var(--bg)', color: jitterOpen ? '#fff' : 'var(--text2)', fontSize: 9, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0, lineHeight: 1 }}>?</button>
+              </div>
+              {jitterOpen && (
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', marginBottom: 6, fontSize: 10, color: 'var(--text2)', lineHeight: 1.6 }}>
+                  <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Що моделює: </span>Природну мінливість розміру трейдів — spread, re-quote, різниця між бектест-ціною і реальним виконанням.</div>
+                  <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Сценарій: </span>Ринок рухається на тебе під час виконання — ти отримуєш трейд, але з іншим RR ніж у бектесті.</div>
+                  <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Як працює: </span>До кожного семплованого трейду додається нормальний шум N(0, std × jitter). При jitter=0.15 це ±15% від стандартного відхилення вибірки.</div>
+                  <div><span style={{ color: 'var(--text)', fontWeight: 700 }}>Вплив: </span>Розширює розкид кривих при малих датасетах. Корисно коли вибірка &lt;100 трейдів — без jitter криві виглядають штучно рівними.</div>
+                </div>
+              )}
+              <input
+                type="number" min={0} max={1} step={0.05}
+                value={mcJitter}
+                onChange={e => setMcJitter(Math.max(0, Math.min(1, Number(e.target.value) || 0)))}
+                style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', fontSize: 13, fontWeight: 700, color: 'var(--text)', boxSizing: 'border-box' }}
+              />
+              <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>0 = вимкнено · 0.15 = ±15% std шум · збільшує розкид при малих датасетах</div>
             </div>
             <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
               <StressSlider label="Max DD Threshold" description="Просадка понад цей поріг = blown account. Впливає на Survival Rate." value={stressParams.survivalThreshold} min={2} max={50} step={1} format={v => `${v}R`} onChange={v => setSP('survivalThreshold', v)} accent="#6b7280"
