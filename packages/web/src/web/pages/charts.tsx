@@ -1649,12 +1649,12 @@ export default function Charts() {
                 const totalAbsImpact = activeImpacts.reduce((s, f) => s + Math.abs(f.impact), 0) || 1;
                 const maxAbs = Math.max(...activeImpacts.map(f => Math.abs(f.impact)), 1);
                 const refLabel = mcImpactRef === 'bt' ? 'BT Net' : 'Live Net';
-                // refVal: use equity from MC run, fallback to global stats
+                // refVal: BT or Live total R (clipped to horizon)
                 const refVal   = mcImpactRef === 'bt'
                   ? (r.btNetEq.length > 0 ? r.btNetEq[r.btNetEq.length - 1] : (btStats?.totalR ?? 0))
                   : (r.lvNetEq.length > 0 ? r.lvNetEq[r.lvNetEq.length - 1] : (lvStats?.totalR ?? 0));
                 const refBaseline = Math.abs(refVal) > 0 ? refVal : null;
-                // Σ = MC median total R minus reference (BT or Live) — real simulated delta
+                // Σ = MC median total R minus selected reference (BT or Live)
                 const mcMedTotal = r.summary.med.totalR;
                 const totalImpact = Math.abs(refVal) > 0 ? mcMedTotal - refVal : activeImpacts.reduce((s, f) => s + f.impact, 0);
 
@@ -1671,7 +1671,7 @@ export default function Charts() {
                             color: mcImpactRef === ref ? 'var(--text)' : 'var(--text2)',
                           }}>{ref === 'bt' ? 'vs BT' : 'vs Live'}</button>
                         ))}
-                        {totalImpact !== 0 && <span style={{ fontSize: 11, color: '#f87171', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>Σ {totalImpact.toFixed(1)}R</span>}
+                        {totalImpact !== 0 && <span style={{ fontSize: 11, color: totalImpact < 0 ? '#f87171' : '#4ade80', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>Σ {totalImpact >= 0 ? '+' : ''}{totalImpact.toFixed(1)}R</span>}
                       </div>
                     </div>
                     {activeImpacts.length === 0 ? (
@@ -1681,14 +1681,16 @@ export default function Charts() {
                         {[...r.factorImpacts].sort((a, b) => a.impact - b.impact).map(row => {
                           const isActive = row.impact !== 0;
                           const barW = Math.abs(row.impact / maxAbs * 100);
+                          // % = частка цього фактора серед загального abs впливу (вага серед усіх факторів)
+                          const weightPct = totalAbsImpact > 0 ? Math.abs(row.impact) / totalAbsImpact * 100 : 0;
                           return (
                             <div key={row.key}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
                                 <span style={{ fontSize: 11, color: isActive ? 'var(--text)' : 'var(--text2)' }}>{row.label}</span>
                                 <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
-                                  {isActive && refBaseline != null && (
-                                    <span style={{ fontSize: 10, color: row.impact < 0 ? '#f87171' : '#4ade80', fontVariantNumeric: 'tabular-nums' }}>
-                                      {row.impact < 0 ? '' : '+'}{(row.impact / Math.abs(refBaseline) * 100).toFixed(1)}%
+                                  {isActive && (
+                                    <span style={{ fontSize: 10, color: 'var(--text2)', fontVariantNumeric: 'tabular-nums' }}>
+                                      {weightPct.toFixed(1)}%
                                     </span>
                                   )}
                                   <span style={{ fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: row.impact < 0 ? '#f87171' : row.impact > 0 ? '#4ade80' : 'var(--text2)' }}>
@@ -1709,7 +1711,7 @@ export default function Charts() {
                             {refLabel} {refVal >= 0 ? '+' : ''}{refVal.toFixed(2)}R → MC медіана {mcMedTotal >= 0 ? '+' : ''}{mcMedTotal.toFixed(2)}R <span style={{ color: totalImpact < 0 ? '#f87171' : '#4ade80', fontWeight: 700 }}>({totalImpact >= 0 ? '+' : ''}{totalImpact.toFixed(2)}R)</span>
                           </div>
                         )}
-                        <div style={{ fontSize: 9, color: '#4b5563' }}>* Аналітичний розбір по факторах. Σ = реальна різниця MC медіани vs {refLabel}.</div>
+                        <div style={{ fontSize: 9, color: '#4b5563' }}>* Аналітичний розбір по факторах. % = вага фактора серед загального впливу. Σ = реальна різниця MC медіани vs {refLabel}.</div>
                       </div>
                     )}
 
