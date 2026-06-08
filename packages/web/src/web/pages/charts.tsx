@@ -2087,7 +2087,7 @@ export default function Charts() {
                 // ═══════════════════════════════════════════════════════════
                 // BLOCK 2 — Max DD
                 // ═══════════════════════════════════════════════════════════
-                const ddWorst  = r.ddP95 ?? (r.boxStats.drawdown?.p95 ?? 0); // worst = p95 (largest DD)
+                const ddWorst  = r.ddP5 ?? (r.boxStats.drawdown?.p95 ?? 0); // worst = p5 (95th pctile of positives = largest DD)
                 const ddMedian = r.ddMed;
                 const ddLimit  = survivalThreshold;
 
