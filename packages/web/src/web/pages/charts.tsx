@@ -687,14 +687,15 @@ export default function Charts() {
   type ImpactResult = { impact: Record<string, ImpactEntry[]>; baseline: Record<string, number> };
   const [impactData, setImpactData] = useState<ImpactResult | null>(null);
   const [impactLoading, setImpactLoading] = useState(false);
-  const fetchImpact = async () => {
-    if (impactData || impactLoading) return;
+  const fetchImpact = async (params?: typeof stressParams) => {
+    if (impactLoading) return;
     setImpactLoading(true);
+    setImpactData(null);
     try {
       const res = await fetch(`/api/mc-stress-impact${uidParam()}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(stressParams),
+        body: JSON.stringify(params ?? stressParams),
       });
       if (res.ok) setImpactData(await res.json());
     } finally {
@@ -772,6 +773,7 @@ export default function Charts() {
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? 'Server error'); }
       setMcRunResult(await res.json());
+      fetchImpact(stressParams);
     } catch (e: any) {
       setMcRunError(e.message ?? 'Помилка симуляції');
     }
