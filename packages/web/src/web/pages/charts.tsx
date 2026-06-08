@@ -1615,7 +1615,7 @@ export default function Charts() {
                     return pt;
                   });
                   return (
-                    <ResponsiveContainer width="100%" height={isMobile ? 200 : 280}>
+                    <ResponsiveContainer width="100%" height={isMobile ? 220 : 380}>
                       <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
                         <XAxis dataKey="trade" stroke="#5a5f6a" tick={{ fontSize: 10, fill: '#8b9098' }} label={{ value: 'trades', position: 'insideBottomRight', offset: -4, fontSize: 9, fill: '#5a5f6a' }} />
