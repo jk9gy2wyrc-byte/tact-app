@@ -1941,7 +1941,19 @@ export default function Charts() {
 
                         return (
                           <div key={meta.key} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.8 }}>{meta.label}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.8 }}>{meta.label}</span>
+                              <button
+                                onClick={() => toggleScf(explainKey)}
+                                title={meta.explain}
+                                style={{ width: 14, height: 14, borderRadius: '50%', border: '1px solid var(--border)', background: explainOpen ? 'var(--accent)' : 'var(--bg)', color: explainOpen ? '#fff' : 'var(--text2)', fontSize: 9, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0, lineHeight: 1 }}
+                              >?</button>
+                            </div>
+                            {explainOpen && (
+                              <div style={{ fontSize: 10, color: 'var(--text2)', lineHeight: 1.55, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '6px 8px', marginTop: -4 }}>
+                                {meta.explain}
+                              </div>
+                            )}
                             <div style={{ background: 'var(--bg)', borderRadius: 5, overflow: 'hidden', height: SH }}>
                               <svg width="100%" height={SH} viewBox={`0 0 ${SW} ${SH}`} preserveAspectRatio="none">
                                 {(() => {
@@ -2021,10 +2033,7 @@ export default function Charts() {
                                 </div>
                               );
                             })()}
-                            <button onClick={() => toggleScf(explainKey)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 8px', cursor: 'pointer', width: '100%' }}>
-                              <span style={{ fontSize: 9, color: 'var(--text2)' }}>{explainOpen ? '▲' : '▼'} Пояснення</span>
-                            </button>
-                            {explainOpen && <div style={{ fontSize: 10, color: 'var(--text2)', lineHeight: 1.55, borderTop: '1px solid var(--border)', paddingTop: 6 }}>{meta.explain}</div>}
+
                           </div>
                         );
                       })}
