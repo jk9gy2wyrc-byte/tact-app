@@ -2011,12 +2011,55 @@ export default function Charts() {
                             return src[idx];
                           });
                         })();
-                        // Shared scale across all three series
-                        const allSparkVals = [...lvSparkLive, ...lvSparkBT, ...lvSparkMC].filter(v => isFinite(v));
-                        const sparkMn = allSparkVals.length ? Math.min(...allSparkVals) : 0;
-                        const sparkMx = allSparkVals.length ? Math.max(...allSparkVals) : 1;
+
+                        // ── Normalisation for return & drawdown ──────────────────────────
+                        // medianFinalR: final value of MC median equity curve
+                        const medianFinalR = r.summary.med.totalR || 1;
+                        const isReturnKey   = meta.key === 'return';
+                        const isDrawdownKey = meta.key === 'drawdown';
+                        const needsNorm     = isReturnKey || isDrawdownKey;
+
+                        // Normalise a series to % of medianFinalR
+                        // return:   (v / medianFinalR - 1) * 100  → 0% = median
+                        // drawdown: (v / Math.abs(medianFinalR)) * 100 → dd as % of median R
+                        const normSeries = (arr: number[]) => {
+                          if (!needsNorm || !arr.length) return arr;
+                          if (isReturnKey) return arr.map(v => (medianFinalR !== 0 ? (v / medianFinalR - 1) * 100 : 0));
+                          // drawdown: show as % of |medianFinalR|
+                          return arr.map(v => medianFinalR !== 0 ? (v / Math.abs(medianFinalR)) * 100 : 0);
+                        };
+
+                        const normLive = normSeries(lvSparkLive);
+                        const normBT   = normSeries(lvSparkBT);
+                        const normMC   = normSeries(lvSparkMC);
+
+                        const dispLive = needsNorm ? normLive : lvSparkLive;
+                        const dispBT   = needsNorm ? normBT   : lvSparkBT;
+                        const dispMC   = needsNorm ? normMC   : lvSparkMC;
+
+                        // Shared scale
+                        const allSparkVals = [...dispLive, ...dispBT, ...dispMC].filter(v => isFinite(v));
+
+                        // For return: always centre on 0 (median), extend symmetrically by at least ±50
+                        let sparkMn: number, sparkMx: number;
+                        if (isReturnKey) {
+                          const absMax = Math.max(50, ...allSparkVals.map(Math.abs));
+                          sparkMn = -absMax; sparkMx = absMax;
+                        } else if (isDrawdownKey) {
+                          sparkMn = 0;
+                          sparkMx = Math.max(...allSparkVals.filter(v => isFinite(v)), 10);
+                        } else {
+                          sparkMn = allSparkVals.length ? Math.min(...allSparkVals) : 0;
+                          sparkMx = allSparkVals.length ? Math.max(...allSparkVals) : 1;
+                        }
                         const sparkRng = sparkMx - sparkMn || 1;
-                        const sparkData = lvSparkLive; // kept for p25/p75 band calculation
+
+                        // Normalised live scalar for display under card
+                        const liveNormPct  = isReturnKey   ? (medianFinalR !== 0 ? (liveVal / medianFinalR - 1) * 100 : 0) : null;
+                        const ddNormPct    = isDrawdownKey ? (medianFinalR !== 0 ? (liveVal / Math.abs(medianFinalR)) * 100 : 0) : null;
+                        const medNormPct   = isReturnKey   ? 0 : null; // median is always 0% for return
+                        const p25NormPct   = isReturnKey   ? (medianFinalR !== 0 ? (box.p25 / medianFinalR - 1) * 100 : 0) : null;
+                        const p75NormPct   = isReturnKey   ? (medianFinalR !== 0 ? (box.p75 / medianFinalR - 1) * 100 : 0) : null;
 
                         return (
                           <div key={meta.key} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -2037,18 +2080,56 @@ export default function Charts() {
                               <svg width="100%" height={SH} viewBox={`0 0 ${SW} ${SH}`} preserveAspectRatio="none">
                                 {(() => {
                                   const refY = (v: number) => SH - ((Math.max(sparkMn, Math.min(sparkMx, v)) - sparkMn) / sparkRng) * (SH - 6) - 3;
-                                  const p25y = refY(box.p25), p75y = refY(box.p75);
+                                  if (isReturnKey) {
+                                    // Zone bands: >+50 green, +25..+50 light green, -25..+25 neutral, -50..-25 light red, <-50 red
+                                    const y0   = refY(0);
+                                    const yP25 = refY(25);  const yP50 = refY(50);
+                                    const yN25 = refY(-25); const yN50 = refY(-50);
+                                    return (<>
+                                      {/* above +50 — strong green */}
+                                      <rect x={0} y={Math.min(SH, refY(sparkMx))} width={SW} height={Math.abs(refY(sparkMx) - yP50)} fill="rgba(74,222,128,0.12)" />
+                                      {/* +25..+50 — light green */}
+                                      <rect x={0} y={Math.min(yP25, yP50)} width={SW} height={Math.abs(yP50 - yP25)} fill="rgba(74,222,128,0.07)" />
+                                      {/* -25..+25 — neutral zone */}
+                                      <rect x={0} y={Math.min(y0 - 0, yN25)} width={SW} height={Math.abs(yP25 - yN25)} fill="rgba(255,255,255,0.03)" />
+                                      {/* -50..-25 — light red */}
+                                      <rect x={0} y={Math.min(yN25, yN50)} width={SW} height={Math.abs(yN25 - yN50)} fill="rgba(248,113,113,0.07)" />
+                                      {/* below -50 — strong red */}
+                                      <rect x={0} y={Math.max(yN50, refY(sparkMn))} width={SW} height={Math.abs(yN50 - refY(sparkMn))} fill="rgba(248,113,113,0.12)" />
+                                      {/* +50 line */}
+                                      <line x1={0} y1={yP50} x2={SW} y2={yP50} stroke="rgba(74,222,128,0.3)" strokeWidth={0.8} strokeDasharray="3,2" />
+                                      {/* +25 line */}
+                                      <line x1={0} y1={yP25} x2={SW} y2={yP25} stroke="rgba(74,222,128,0.2)" strokeWidth={0.7} strokeDasharray="2,3" />
+                                      {/* 0% = median — orange dashed */}
+                                      <line x1={0} y1={y0} x2={SW} y2={y0} stroke="rgba(251,146,60,0.55)" strokeWidth={1} strokeDasharray="3,2" />
+                                      {/* -25 line */}
+                                      <line x1={0} y1={yN25} x2={SW} y2={yN25} stroke="rgba(248,113,113,0.2)" strokeWidth={0.7} strokeDasharray="2,3" />
+                                      {/* -50 line */}
+                                      <line x1={0} y1={yN50} x2={SW} y2={yN50} stroke="rgba(248,113,113,0.3)" strokeWidth={0.8} strokeDasharray="3,2" />
+                                    </>);
+                                  }
+                                  if (isDrawdownKey) {
+                                    const refY2 = (v: number) => SH - ((Math.max(sparkMn, Math.min(sparkMx, v)) - sparkMn) / sparkRng) * (SH - 6) - 3;
+                                    const medDDPct = medianFinalR !== 0 ? (box.med / Math.abs(medianFinalR)) * 100 : 0;
+                                    const medY = refY2(medDDPct);
+                                    return (<>
+                                      <line x1={0} y1={medY} x2={SW} y2={medY} stroke="rgba(251,146,60,0.45)" strokeWidth={1} strokeDasharray="3,2" />
+                                    </>);
+                                  }
+                                  // default (wr / sqn / streak)
+                                  const refY2 = (v: number) => SH - ((Math.max(sparkMn, Math.min(sparkMx, v)) - sparkMn) / sparkRng) * (SH - 6) - 3;
+                                  const p25y = refY2(box.p25), p75y = refY2(box.p75);
                                   return (<>
                                     <rect x={0} y={Math.min(p25y, p75y)} width={SW} height={Math.abs(p25y - p75y) || 1} fill="rgba(255,255,255,0.04)" />
-                                    <line x1={0} y1={refY(box.med)} x2={SW} y2={refY(box.med)} stroke="rgba(251,146,60,0.4)" strokeWidth={1} strokeDasharray="3,2" />
+                                    <line x1={0} y1={refY2(box.med)} x2={SW} y2={refY2(box.med)} stroke="rgba(251,146,60,0.4)" strokeWidth={1} strokeDasharray="3,2" />
                                   </>);
                                 })()}
                                 {/* BT — стандарт, сірий */}
-                                {lvSparkBT.length > 1 && <polyline points={makeSparkPoints(lvSparkBT, sparkMn, sparkRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="4,2" />}
+                                {dispBT.length > 1 && <polyline points={makeSparkPoints(dispBT, sparkMn, sparkRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="4,2" />}
                                 {/* MC median — expected, помаранчевий */}
-                                {lvSparkMC.length > 1 && <polyline points={makeSparkPoints(lvSparkMC, sparkMn, sparkRng)} fill="none" stroke="#fb923c" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />}
+                                {dispMC.length > 1 && <polyline points={makeSparkPoints(dispMC, sparkMn, sparkRng)} fill="none" stroke="#fb923c" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />}
                                 {/* Live — current, синій */}
-                                {lvSparkLive.length > 1 && <polyline points={makeSparkPoints(lvSparkLive, sparkMn, sparkRng)} fill="none" stroke={LIVE_COLOR} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />}
+                                {dispLive.length > 1 && <polyline points={makeSparkPoints(dispLive, sparkMn, sparkRng)} fill="none" stroke={LIVE_COLOR} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />}
                               </svg>
                             </div>
                             {/* Легенда */}
@@ -2056,11 +2137,23 @@ export default function Charts() {
                               <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'var(--text2)' }}><span style={{ width: 14, height: 2, background: LIVE_COLOR, display: 'inline-block', borderRadius: 1 }} />Current</div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'var(--text2)' }}><span style={{ width: 14, height: 2, background: '#fb923c', display: 'inline-block', borderRadius: 1 }} />Expected</div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'var(--text2)' }}><svg width="14" height="4" viewBox="0 0 14 4"><line x1="0" y1="2" x2="14" y2="2" stroke="#6b7280" strokeWidth="1.2" strokeDasharray="4,2"/></svg>Standard</div>
+                              {isReturnKey && <span style={{ fontSize: 9, color: 'var(--text2)', marginLeft: 'auto' }}>% від медіани MC</span>}
+                              {isDrawdownKey && <span style={{ fontSize: 9, color: 'var(--text2)', marginLeft: 'auto' }}>% від |median R|</span>}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>Live</span><span style={{ color: 'var(--text)', fontWeight: 700, fontFamily: 'monospace' }}>{fmt(liveVal)}</span></div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>MC медіана</span><span style={{ fontFamily: 'monospace' }}>{fmt(box.med)}</span></div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>p25–p75</span><span style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{fmt(box.p25)} – {fmt(box.p75)}</span></div>
+                              {isReturnKey ? (<>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>Live</span><span style={{ color: 'var(--text)', fontWeight: 700, fontFamily: 'monospace' }}>{liveNormPct !== null ? `${liveNormPct >= 0 ? '+' : ''}${liveNormPct.toFixed(1)}%` : fmt(liveVal)} <span style={{ color: 'var(--text2)', fontWeight: 400 }}>({liveVal.toFixed(1)}R)</span></span></div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>MC медіана</span><span style={{ fontFamily: 'monospace' }}>0% <span style={{ color: 'var(--text2)' }}>({box.med.toFixed(1)}R)</span></span></div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>p25–p75</span><span style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{p25NormPct !== null ? `${p25NormPct >= 0 ? '+' : ''}${p25NormPct.toFixed(0)}%` : ''} – {p75NormPct !== null ? `${p75NormPct >= 0 ? '+' : ''}${p75NormPct.toFixed(0)}%` : ''}</span></div>
+                              </>) : isDrawdownKey ? (<>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>Live</span><span style={{ color: 'var(--text)', fontWeight: 700, fontFamily: 'monospace' }}>{ddNormPct !== null ? `${ddNormPct.toFixed(1)}%` : fmt(liveVal)} <span style={{ color: 'var(--text2)', fontWeight: 400 }}>({liveVal.toFixed(1)}R)</span></span></div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>MC медіана</span><span style={{ fontFamily: 'monospace' }}>{medianFinalR !== 0 ? `${(box.med / Math.abs(medianFinalR) * 100).toFixed(1)}%` : fmt(box.med)} <span style={{ color: 'var(--text2)' }}>({box.med.toFixed(1)}R)</span></span></div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>p25–p75</span><span style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{(box.p25 / Math.abs(medianFinalR) * 100).toFixed(0)}% – {(box.p75 / Math.abs(medianFinalR) * 100).toFixed(0)}%</span></div>
+                              </>) : (<>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>Live</span><span style={{ color: 'var(--text)', fontWeight: 700, fontFamily: 'monospace' }}>{fmt(liveVal)}</span></div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>MC медіана</span><span style={{ fontFamily: 'monospace' }}>{fmt(box.med)}</span></div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>p25–p75</span><span style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{fmt(box.p25)} – {fmt(box.p75)}</span></div>
+                              </>)}
                             </div>
                             <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '6px 8px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
