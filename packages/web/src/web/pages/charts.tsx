@@ -736,6 +736,7 @@ export default function Charts() {
     factorImpacts: { key: string; label: string; impact: number }[];
     boxStats: { return: any; drawdown: any; sqn: any; wr: any; streak: any };
     horizon: number; nSim: number; tradeCost: number; avgCostBt: number; jitter: number;
+    btTotalR: number | null; lvTotalR: number | null;
   };
   const [mcRunResult, setMcRunResult] = useState<MCRunResult | null>(null);
   const [mcRunLoading, setMcRunLoading] = useState(false);
@@ -1608,13 +1609,15 @@ export default function Charts() {
                 const activeImpacts = r.factorImpacts.filter(f => f.impact !== 0);
                 const totalAbsImpact = activeImpacts.reduce((s, f) => s + Math.abs(f.impact), 0) || 1;
                 const maxAbs = Math.max(...activeImpacts.map(f => Math.abs(f.impact)), 1);
-                const totalImpact = activeImpacts.reduce((s, f) => s + f.impact, 0);
                 const refLabel = mcImpactRef === 'bt' ? 'BT Net' : 'Live Net';
                 // refVal: use equity from MC run, fallback to global stats
                 const refVal   = mcImpactRef === 'bt'
                   ? (r.btNetEq.length > 0 ? r.btNetEq[r.btNetEq.length - 1] : (btStats?.totalR ?? 0))
                   : (r.lvNetEq.length > 0 ? r.lvNetEq[r.lvNetEq.length - 1] : (lvStats?.totalR ?? 0));
                 const refBaseline = Math.abs(refVal) > 0 ? refVal : null;
+                // Σ = MC median total R minus reference (BT or Live) — real simulated delta
+                const mcMedTotal = r.summary.med.totalR;
+                const totalImpact = Math.abs(refVal) > 0 ? mcMedTotal - refVal : activeImpacts.reduce((s, f) => s + f.impact, 0);
 
                 return (
                   <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
@@ -1664,10 +1667,10 @@ export default function Charts() {
                         })}
                         {refVal !== 0 && (
                           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 4, fontSize: 11, color: 'var(--text2)' }}>
-                            Від {refLabel} ({refVal >= 0 ? '+' : ''}{refVal.toFixed(2)}R): очікуваний вплив {totalImpact.toFixed(1)}R → ~{(refVal + totalImpact).toFixed(2)}R
+                            {refLabel} {refVal >= 0 ? '+' : ''}{refVal.toFixed(2)}R → MC медіана {mcMedTotal >= 0 ? '+' : ''}{mcMedTotal.toFixed(2)}R <span style={{ color: totalImpact < 0 ? '#f87171' : '#4ade80', fontWeight: 700 }}>({totalImpact >= 0 ? '+' : ''}{totalImpact.toFixed(2)}R)</span>
                           </div>
                         )}
-                        <div style={{ fontSize: 9, color: '#4b5563' }}>* Аналітична оцінка. Сума може відрізнятись від MC через взаємодію факторів.</div>
+                        <div style={{ fontSize: 9, color: '#4b5563' }}>* Аналітичний розбір по факторах. Σ = реальна різниця MC медіани vs {refLabel}.</div>
                       </div>
                     )}
 

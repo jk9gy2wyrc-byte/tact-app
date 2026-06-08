@@ -1689,6 +1689,9 @@ const app = new Hono()
         ddMed: Math.round(pctOf(maxDDs, 0.50) * 100) / 100,
         ddP5:  Math.round(pctOf(maxDDs, 0.05) * 100) / 100,
         ddProbAboveThreshold: Math.round(maxDDs.filter(d => d > params.survivalThreshold).length / N_SIM * 1000) / 10,
+        // Reference totals for SCF delta
+        btTotalR: btNetEq.length > 0 ? btNetEq[btNetEq.length - 1] : null,
+        lvTotalR: lvNetEq.length > 0 ? lvNetEq[lvNetEq.length - 1] : null,
         // Factor impacts
         factorImpacts,
         boxStats,
