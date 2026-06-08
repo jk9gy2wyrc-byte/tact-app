@@ -358,7 +358,7 @@ function StressSlider({
   accent?: string;
   explain?: { models: string; scenario: string; how: string; impact: string };
 }) {
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = useState(false);
   const fmt = format ?? ((v: number) => v.toFixed(step < 0.01 ? 3 : step < 0.1 ? 2 : 1));
   const pct = Math.round(((value - min) / (max - min)) * 100);
   return (
