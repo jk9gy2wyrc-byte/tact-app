@@ -546,6 +546,79 @@ function MCFilterPanel({ tree, selAssets, selYears, selMonths, onToggleAsset, on
   );
 }
 
+// ─── SCF helper components (outside Charts to avoid remount on re-render) ──────
+
+const ScfBlockCard = ({ children }: { children: React.ReactNode }) => (
+  <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+    {children}
+  </div>
+);
+
+const ScfStatusBadge = ({ label, color }: { label: string; color: string }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: `1px solid ${color}44`, borderRadius: 6, padding: '5px 8px' }}>
+    <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0, display: 'inline-block' }} />
+    <span style={{ fontSize: 11, fontWeight: 700, color }}>{label}</span>
+  </div>
+);
+
+const LIVE_COLOR_SCF = '#22d3ee';
+
+const ScfSeriesToggle = ({ metaKey, hasBt, hasLv, isBtOn, isLvOn, toggleBt, toggleLv }: {
+  metaKey: string; hasBt: boolean; hasLv: boolean;
+  isBtOn: (k: string) => boolean; isLvOn: (k: string) => boolean;
+  toggleBt: (k: string) => void; toggleLv: (k: string) => void;
+}) => (
+  <div style={{ display: 'flex', gap: 6 }}>
+    {hasLv && (
+      <button onClick={() => toggleLv(metaKey)} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, padding: '2px 6px', borderRadius: 4, border: `1px solid ${isLvOn(metaKey) ? LIVE_COLOR_SCF : 'var(--border)'}`, background: isLvOn(metaKey) ? `${LIVE_COLOR_SCF}22` : 'transparent', color: isLvOn(metaKey) ? LIVE_COLOR_SCF : 'var(--text2)', cursor: 'pointer' }}>
+        <span style={{ width: 10, height: 2, background: LIVE_COLOR_SCF, display: 'inline-block', borderRadius: 1, opacity: isLvOn(metaKey) ? 1 : 0.3 }} />Live
+      </button>
+    )}
+    {hasBt && (
+      <button onClick={() => toggleBt(metaKey)} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, padding: '2px 6px', borderRadius: 4, border: `1px solid ${isBtOn(metaKey) ? '#6b7280' : 'var(--border)'}`, background: isBtOn(metaKey) ? '#6b728022' : 'transparent', color: isBtOn(metaKey) ? '#9ca3af' : 'var(--text2)', cursor: 'pointer' }}>
+        <svg width="10" height="4" viewBox="0 0 10 4" style={{ opacity: isBtOn(metaKey) ? 1 : 0.3 }}><line x1="0" y1="2" x2="10" y2="2" stroke="#6b7280" strokeWidth="1.5" strokeDasharray="3,2"/></svg>BT
+      </button>
+    )}
+  </div>
+);
+
+const ScfFactorAccordion = ({ id, label, factors, scfOpen, toggleScf }: {
+  id: string; label: string;
+  factors: { key: string; label: string; impact: number; pct: number }[];
+  scfOpen: Set<string>; toggleScf: (k: string) => void;
+}) => {
+  const open = scfOpen.has(id);
+  return (
+    <div style={{ borderTop: '1px solid var(--border)', marginTop: 4, paddingTop: 4 }}>
+      <button
+        onClick={() => toggleScf(id)}
+        style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: '3px 0', color: 'var(--text2)', fontSize: 10 }}
+      >
+        <span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6 }}>{label}</span>
+        <span style={{ fontSize: 9, opacity: 0.6 }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 4 }}>
+          {factors.length === 0
+            ? <span style={{ fontSize: 10, color: 'var(--text2)' }}>Всі фактори = 0</span>
+            : factors.map(f => (
+              <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ flex: 1, fontSize: 10, color: 'var(--text2)' }}>{f.label}</div>
+                <div style={{ width: 60, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ width: `${f.pct}%`, height: '100%', background: '#fb923c', borderRadius: 2 }} />
+                </div>
+                <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--text)', width: 34, textAlign: 'right' }}>{f.pct.toFixed(0)}%</div>
+              </div>
+            ))
+          }
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 export default function Charts() {
   const isMobile = useMobile();
   const { data: accessData } = useQuery({ queryKey: ['access'], queryFn: fetchAccess, staleTime: 60_000 });
@@ -700,6 +773,8 @@ export default function Charts() {
   const [stressDescOpen, setStressDescOpen] = useState<Set<string>>(new Set());
   const [scfOpen, setScfOpen] = useState<Set<string>>(new Set());
   const toggleScf = (k: string) => setScfOpen(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
+  const [scfShowBt, setScfShowBt] = useState<Record<string, boolean>>({});
+  const [scfShowLv, setScfShowLv] = useState<Record<string, boolean>>({});
 
   type ImpactEntry = { key: string; label: string; pct: number; delta: number };
   type ImpactResult = { impact: Record<string, ImpactEntry[]>; baseline: Record<string, number> };
@@ -752,8 +827,11 @@ export default function Charts() {
     sqnDistribution: { bin: number; count: number }[];
     ddDistribution: { bin: number; count: number }[];
     summary: { med: { totalR: number; sqn: number }; p5: { totalR: number; sqn: number }; p95: { totalR: number; sqn: number } };
-    survivalRate: number; ddMed: number; ddP5: number; ddProbAboveThreshold: number;
+    survivalRate: number; ddMed: number; ddP5: number; ddP95: number; ddProbAboveThreshold: number;
     factorImpacts: { key: string; label: string; impact: number }[];
+    ddFactorImpacts: { key: string; label: string; impact: number }[];
+    sqnFactorImpacts: { key: string; label: string; impact: number }[];
+    wrFactorImpacts: { key: string; label: string; impact: number }[];
     boxStats: { return: any; drawdown: any; sqn: any; wr: any; streak: any };
     horizon: number; nSim: number; tradeCost: number; avgCostBt: number; jitter: number;
     btTotalR: number | null; lvTotalR: number | null;
@@ -1895,338 +1973,427 @@ export default function Charts() {
                 </ResponsiveContainer>
               </div>
 
-              {/* ── Statistical Control Framework (stress-only) ── */}
+              {/* ── Statistical Control Framework ── */}
               {r.boxStats && (() => {
-                const lvTotalR = lvStats?.totalR ?? 0;
-                const lvWR     = lvStats?.wr ?? 0;
-                const lvSQN    = lvStats?.sqn ?? 0;
-                const lvMaxDD  = lvStats?.maxDD ?? 0;
-                const lvEqArr: number[] = (d as any).lvEquity ?? [];
-                const lvNets: number[] = lvEqArr.map((v: number, i: number) => i === 0 ? v : v - lvEqArr[i - 1]);
-                let lvStreak = 0, lvStreakCur = 0;
-                for (const rv of lvNets) { if (rv < 0) { lvStreakCur++; if (lvStreakCur > lvStreak) lvStreak = lvStreakCur; } else lvStreakCur = 0; }
+                const lvTotalR  = lvStats?.totalR  ?? 0;
+                const lvWR      = lvStats?.wr       ?? 0;
+                const lvSQN     = lvStats?.sqn      ?? 0;
+                const lvMaxDD   = lvStats?.maxDD    ?? 0;
+                const lvEqArr: number[]  = (d as any).lvEquity ?? [];
+                const lvNets: number[]   = lvEqArr.map((v: number, i: number) => i === 0 ? v : v - lvEqArr[i - 1]);
+                const btEqFull: number[] = r.btNetEq;
+                const btNets: number[]   = btEqFull.map((v: number, i: number) => i === 0 ? v : v - btEqFull[i - 1]);
 
-                type BoxStat2 = { p5: number; p25: number; med: number; p75: number; p95: number };
-                // Factor-to-metric mapping with display labels and formatters
-                const FACTOR_META: Record<string, { label: string; fmt: (v: number) => string; default: number }> = {
-                  lossAmp:          { label: 'Loss Amp',      fmt: v => `×${v.toFixed(2)}`,            default: 1 },
-                  winReduction:     { label: 'Win Reduc',     fmt: v => `×${v.toFixed(2)}`,            default: 1 },
-                  wrDegradation:    { label: 'WR Degrad',     fmt: v => `${(v*100).toFixed(0)}%`,      default: 0 },
-                  slippage:         { label: 'Slippage',      fmt: v => `−${v.toFixed(2)}R`,           default: 0 },
-                  humanError:       { label: 'Human Err',     fmt: v => `${(v*100).toFixed(1)}%`,      default: 0 },
-                  fatigue:          { label: 'Fatigue',       fmt: v => `−${(v*100).toFixed(0)}%`,     default: 0 },
-                  badSlipProb:      { label: 'Bad Slip P',    fmt: v => `${(v*100).toFixed(0)}%`,      default: 0 },
-                  badSlipMult:      { label: 'Bad Slip ×',    fmt: v => `×${v.toFixed(1)}`,            default: 1 },
-                  missedWin:        { label: 'Missed Win',    fmt: v => `${(v*100).toFixed(0)}%`,      default: 0 },
-                };
-                const METRIC_FACTORS: Record<string, string[]> = {
-                  return:   ['lossAmp', 'winReduction', 'wrDegradation', 'slippage', 'humanError', 'fatigue', 'missedWin', 'badSlipProb', 'badSlipMult'],
-                  drawdown: ['lossAmp', 'wrDegradation', 'humanError', 'fatigue'],
-                  wr:       ['wrDegradation', 'humanError', 'missedWin'],
-                  sqn:      ['lossAmp', 'winReduction', 'wrDegradation', 'slippage', 'humanError', 'fatigue', 'missedWin', 'badSlipProb', 'badSlipMult'],
-                  streak:   ['wrDegradation', 'humanError', 'lossAmp'],
+                // rolling WR helper
+                const rollingWR = (nets: number[], w = 20) => nets.map((_, i) => {
+                  const sl = nets.slice(Math.max(0, i - w + 1), i + 1);
+                  return sl.filter(x => x > 0).length / (sl.length || 1);
+                });
+                // rolling SQN helper
+                const rollingSQN = (nets: number[], w = 20) => nets.map((_, i) => {
+                  const sl = nets.slice(Math.max(0, i - w + 1), i + 1);
+                  if (sl.length < 2) return 0;
+                  const m = sl.reduce((a, b) => a + b, 0) / sl.length;
+                  const s = Math.sqrt(sl.reduce((a, b) => a + (b - m) ** 2, 0) / sl.length) || 1;
+                  return m / s * Math.sqrt(sl.length);
+                });
+                // rolling DD helper
+                const rollingDD = (eq: number[]) => {
+                  let pk = -Infinity;
+                  return eq.map(v => { if (v > pk) pk = v; return pk === -Infinity ? 0 : pk - v; });
                 };
 
-                const METRICS2: {
-                  key: keyof typeof r.boxStats;
-                  label: string; liveVal: number; higherIsBetter: boolean; pct?: boolean; explain: string;
-                  deviationLabel: (dev: number) => string;
-                }[] = [
-                  { key: 'return',   label: 'Total R',      liveVal: lvTotalR, higherIsBetter: true,  explain: 'Сумарний прибуток у R. MC = прогноз при заданих стрес-факторах.',    deviationLabel: d => d >= 0 ? `+${d.toFixed(2)}R вище медіани` : `${d.toFixed(2)}R нижче медіани` },
-                  { key: 'drawdown', label: 'Max Drawdown', liveVal: lvMaxDD,  higherIsBetter: false, explain: 'Найбільше падіння від піку. Менше = краще.',                           deviationLabel: d => d <= 0 ? `${Math.abs(d).toFixed(2)}R менше медіани` : `+${d.toFixed(2)}R більше медіани` },
-                  { key: 'wr',       label: 'Win Rate',     liveVal: lvWR,     higherIsBetter: true,  pct: true, explain: 'Відсоток прибуткових угод.',                               deviationLabel: d => d >= 0 ? `+${(d*100).toFixed(1)}% вище медіани` : `${(d*100).toFixed(1)}% нижче медіани` },
-                  { key: 'sqn',      label: 'SQN',          liveVal: lvSQN,    higherIsBetter: true,  explain: 'System Quality Number. >2 = добре, >3 = відмінно.',                   deviationLabel: d => d >= 0 ? `+${d.toFixed(2)} вище медіани` : `${d.toFixed(2)} нижче медіани` },
-                  { key: 'streak',   label: 'Loss Streak',  liveVal: lvStreak, higherIsBetter: false, explain: 'Макс. серія збиткових угод поспіль.',                                 deviationLabel: d => d <= 0 ? `${Math.abs(Math.round(d))} менше медіани` : `+${Math.round(d)} понад медіану` },
-                ];
+                const survivalThreshold = stressParams.survivalThreshold;
 
-                const SW = 200, SH = 90;
-                // Multi-series sparkline — normalises all series to shared scale
-                const makeSparkPoints = (data: number[], mn: number, rng: number) => {
+                // per-metric factor impacts from API (with fallback)
+                const ddFactors  = r.ddFactorImpacts  ?? [];
+                const sqnFactors = r.sqnFactorImpacts ?? [];
+                const wrFactors  = r.wrFactorImpacts  ?? [];
+                const retFactors = r.factorImpacts     ?? [];
+
+                // normalise impacts to % contribution
+                const toFactorPct = (arr: { key: string; label: string; impact: number }[]) => {
+                  const total = arr.reduce((s, f) => s + Math.abs(f.impact), 0) || 1;
+                  return arr
+                    .filter(f => f.impact !== 0)
+                    .map(f => ({ ...f, pct: Math.abs(f.impact) / total * 100 }))
+                    .sort((a, b) => b.pct - a.pct);
+                };
+
+                // ── shared SVG sparkline util ──────────────────────────────
+                const SW = 300, SH = 110;
+                const mkPts = (data: number[], mn: number, rng: number) => {
                   if (data.length < 2) return '';
-                  const slice = data.slice(-60);
-                  return slice.map((v, i) => {
-                    const x = (i / (slice.length - 1)) * SW;
-                    const y = SH - ((v - mn) / rng) * (SH - 6) - 3;
+                  const n = Math.min(120, data.length);
+                  const step = Math.max(1, Math.floor(data.length / n));
+                  const pts: number[] = [];
+                  for (let i = 0; i < data.length; i += step) pts.push(data[i]);
+                  if (pts[pts.length - 1] !== data[data.length - 1]) pts.push(data[data.length - 1]);
+                  return pts.map((v, i) => {
+                    const x = (i / (pts.length - 1)) * SW;
+                    const y = SH - ((Math.max(mn, Math.min(mn + rng, v)) - mn) / rng) * (SH - 8) - 4;
                     return `${x.toFixed(1)},${y.toFixed(1)}`;
                   }).join(' ');
                 };
-                const Sparkline2 = ({ data, color }: { data: number[]; color: string }) => {
-                  if (data.length < 2) return null;
-                  const slice = data.slice(-60);
-                  const mn = Math.min(...slice), mx = Math.max(...slice), rng = mx - mn || 1;
-                  const pts = makeSparkPoints(data, mn, rng);
-                  return <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />;
-                };
+                const refY = (v: number, mn: number, rng: number) =>
+                  SH - ((Math.max(mn, Math.min(mn + rng, v)) - mn) / rng) * (SH - 8) - 4;
+
+                // Factor breakdown accordion row
+
+
+                // ── Curve visibility toggles ──────────────────────────────
+                const isBtOn = (k: string) => scfShowBt[k] !== false;
+                const isLvOn = (k: string) => scfShowLv[k] !== false;
+                const toggleBt = (k: string) => setScfShowBt(p => ({ ...p, [k]: !isBtOn(k) }));
+                const toggleLv = (k: string) => setScfShowLv(p => ({ ...p, [k]: !isLvOn(k) }));
+
+                // ═══════════════════════════════════════════════════════════
+                // BLOCK 1 — Equity / Return
+                // ═══════════════════════════════════════════════════════════
+                const medProfit = r.summary.med.totalR;  // expected median profit (positive)
+                const medLoss   = r.summary.p5.totalR;   // expected median loss (p5, likely negative)
+
+                // equity series
+                const eqLive = lvEqArr;
+                const eqBT   = btEqFull;
+                const eqAllVals = [
+                  ...(isLvOn('eq') ? eqLive : []),
+                  ...(isBtOn('eq') ? eqBT   : []),
+                  medProfit, medLoss, 0,
+                ].filter(isFinite);
+                const eqMn  = Math.min(...eqAllVals);
+                const eqMx  = Math.max(...eqAllVals);
+                const eqRng = eqMx - eqMn || 1;
+
+                // live final equity for status
+                const lvFinalEq = eqLive.length > 0 ? eqLive[eqLive.length - 1] : lvTotalR;
+                const btFinalEq = eqBT.length   > 0 ? eqBT[eqBT.length - 1]     : (btStats?.totalR ?? 0);
+                const eqDevLive = lvFinalEq - medProfit;
+                const eqDevBt   = btFinalEq - medProfit;
+
+                // status
+                let eqStatus = '', eqStatusColor = '';
+                if (lvFinalEq > 0 && lvFinalEq < medProfit) {
+                  eqStatus = 'В нормі'; eqStatusColor = '#facc15';
+                } else if (lvFinalEq <= 0) {
+                  eqStatus = 'Нижче норми'; eqStatusColor = '#f87171';
+                } else if (lvFinalEq >= medProfit) {
+                  eqStatus = 'В нормі'; eqStatusColor = '#4ade80';
+                }
+                if (lvFinalEq <= medLoss) {
+                  eqStatus = 'Нижче норми !!!'; eqStatusColor = '#f87171';
+                }
+
+                // ═══════════════════════════════════════════════════════════
+                // BLOCK 2 — Max DD
+                // ═══════════════════════════════════════════════════════════
+                const ddWorst  = r.ddP95 ?? (r.boxStats.drawdown?.p95 ?? 0); // worst = p95 (largest DD)
+                const ddMedian = r.ddMed;
+                const ddLimit  = survivalThreshold;
+
+                const ddLiveSeries = rollingDD(eqLive);
+                const ddBtSeries   = rollingDD(eqBT);
+                const lvFinalDD    = lvMaxDD;
+
+                const ddAllVals = [
+                  ...(isLvOn('dd') ? ddLiveSeries : []),
+                  ...(isBtOn('dd') ? ddBtSeries   : []),
+                  ddWorst, ddMedian, ddLimit, 0,
+                ].filter(isFinite);
+                const ddMn  = 0;
+                const ddMx  = Math.max(...ddAllVals, ddWorst * 1.05, 1);
+                const ddRng = ddMx - ddMn || 1;
+
+                let ddStatus = '', ddStatusColor = '';
+                if (lvFinalDD > ddWorst) {
+                  ddStatus = 'Вище норми !!!'; ddStatusColor = '#f87171';
+                } else if (lvFinalDD > ddLimit) {
+                  ddStatus = 'Вище норми'; ddStatusColor = '#f87171';
+                } else if (lvFinalDD <= ddMedian) {
+                  ddStatus = 'Нижче норми'; ddStatusColor = '#4ade80';
+                } else {
+                  ddStatus = 'В нормі'; ddStatusColor = '#fb923c';
+                }
+
+                // ═══════════════════════════════════════════════════════════
+                // BLOCK 3 — SQN
+                // ═══════════════════════════════════════════════════════════
+                const sqnBox   = r.boxStats.sqn;
+                const sqnP5    = sqnBox?.p5  ?? 0;
+                const sqnMed   = sqnBox?.med ?? 0;
+                const sqnP95   = sqnBox?.p95 ?? 0;
+
+                const sqnLiveSeries = rollingSQN(lvNets);
+                const sqnBtSeries   = rollingSQN(btNets);
+                const lvFinalSQN    = lvSQN;
+
+                const sqnAllVals = [
+                  ...(isLvOn('sqn') ? sqnLiveSeries : []),
+                  ...(isBtOn('sqn') ? sqnBtSeries   : []),
+                  sqnP5, sqnMed, sqnP95,
+                ].filter(isFinite);
+                const sqnMn  = Math.min(...sqnAllVals, sqnP5 - 0.5);
+                const sqnMx  = Math.max(...sqnAllVals, sqnP95 + 0.5);
+                const sqnRng = sqnMx - sqnMn || 1;
+
+                let sqnStatus = '', sqnStatusColor = '';
+                if (lvFinalSQN < sqnP5) {
+                  sqnStatus = 'Нижче норми'; sqnStatusColor = '#f87171';
+                } else if (lvFinalSQN < sqnMed) {
+                  sqnStatus = 'В нормі'; sqnStatusColor = '#facc15';
+                } else if (lvFinalSQN < sqnP95) {
+                  sqnStatus = 'В нормі'; sqnStatusColor = '#4ade80';
+                } else {
+                  sqnStatus = 'Вище норми'; sqnStatusColor = '#4ade80';
+                }
+
+                // ═══════════════════════════════════════════════════════════
+                // BLOCK 4 — Win Rate
+                // ═══════════════════════════════════════════════════════════
+                const wrBox  = r.boxStats.wr;
+                const wrP5   = wrBox?.p5  ?? 0;
+                const wrMed  = wrBox?.med ?? 0;
+
+                const wrLiveSeries = rollingWR(lvNets);
+                const wrBtSeries   = rollingWR(btNets);
+                const lvFinalWR    = lvWR;
+
+                const wrAllVals = [
+                  ...(isLvOn('wr') ? wrLiveSeries : []),
+                  ...(isBtOn('wr') ? wrBtSeries   : []),
+                  wrP5, wrMed,
+                ].filter(isFinite);
+                const wrMn  = Math.max(0, Math.min(...wrAllVals) - 0.05);
+                const wrMx  = Math.min(1, Math.max(...wrAllVals) + 0.05);
+                const wrRng = wrMx - wrMn || 1;
+
+                let wrStatus = '', wrStatusColor = '';
+                if (lvFinalWR < wrP5) {
+                  wrStatus = 'Нижче норми !!!'; wrStatusColor = '#f87171';
+                } else if (lvFinalWR < wrMed) {
+                  wrStatus = 'Нижче норми'; wrStatusColor = '#fb923c';
+                } else {
+                  wrStatus = 'В нормі'; wrStatusColor = '#4ade80';
+                }
+
+                const fmtR   = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}R`;
+                const fmtDD  = (v: number) => `${v.toFixed(2)}R`;
+                const fmtPct = (v: number) => `${(v * 100).toFixed(1)}%`;
+
+
 
                 return (
-                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24 }}>
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Statistical Control Framework</div>
-                      <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.6 }}>Порівняння live-показників з діапазоном MC-симуляції зі стрес-факторами.</div>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)', gap: 10 }}>
-                      {METRICS2.map(meta => {
-                        const box: BoxStat2 = r.boxStats[meta.key];
-                        const { liveVal, higherIsBetter, pct } = meta;
-                        const fmt = (v: number) => pct ? (v * 100).toFixed(1) + '%' : (Number.isInteger(v) ? String(v) : v.toFixed(2));
-                        const inBox    = liveVal >= box.p25 && liveVal <= box.p75;
-                        const aboveBox = higherIsBetter ? liveVal > box.p75 : liveVal < box.p25;
-                        const dotColor = inBox ? '#facc15' : aboveBox ? '#4ade80' : '#f87171';
-                        const statusLabel = inBox ? 'В нормі' : aboveBox ? (higherIsBetter ? 'Вище норми' : 'Краще') : (higherIsBetter ? 'Нижче норми' : 'Перевищено');
-                        const dev = liveVal - box.med;
-                        const explainKey = `scf2_${meta.key}`;
-                        const explainOpen = scfOpen.has(explainKey);
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Statistical Control Framework</div>
 
-                        // BT rolling series per metric
-                        const btNets: number[] = (btEq as number[]).map((v: number, i: number) => i === 0 ? v : v - (btEq as number[])[i - 1]);
-                        const btRollingWR   = btNets.map((_, i) => { const w = btNets.slice(Math.max(0, i - 19), i + 1); return w.filter(x => x > 0).length / (w.length || 1); });
-                        const btRollingSQN  = btNets.map((_, i) => { const w = btNets.slice(Math.max(0, i - 19), i + 1); if (w.length < 2) return 0; const m = w.reduce((a, b) => a + b, 0) / w.length; const s = Math.sqrt(w.reduce((a, b) => a + (b - m) ** 2, 0) / w.length) || 1; return m / s * Math.sqrt(w.length); });
-                        const btRollingDD   = (() => { let pk = -Infinity; return (btEq as number[]).map(v => { if (v > pk) pk = v; return pk === -Infinity ? 0 : pk - v; }); })();
-                        const btRollingStrk = btNets.map((_, i) => { const w = btNets.slice(Math.max(0, i - 19), i + 1); let mx2 = 0, cur = 0; for (const rv of w) { if (rv < 0) { cur++; if (cur > mx2) mx2 = cur; } else cur = 0; } return mx2; });
+                    {/* ── BLOCK 1: Equity / Return ── */}
+                    <ScfBlockCard>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text2)' }}>Statistical Box (R)</span>
+                        <ScfSeriesToggle metaKey="eq" hasBt={eqBT.length > 1} hasLv={eqLive.length > 1} isBtOn={isBtOn} isLvOn={isLvOn} toggleBt={toggleBt} toggleLv={toggleLv} />
+                      </div>
 
-                        // Live rolling series
-                        const lvSparkLive = (() => {
-                          if (meta.key === 'return') return lvEqArr;
-                          if (meta.key === 'drawdown') { let pk = -Infinity; return lvEqArr.map(v => { if (v > pk) pk = v; return pk === -Infinity ? 0 : pk - v; }); }
-                          if (meta.key === 'wr') return lvNets.map((_, i) => { const w = lvNets.slice(Math.max(0, i - 19), i + 1); return w.filter(x => x > 0).length / (w.length || 1); });
-                          if (meta.key === 'sqn') return lvNets.map((_, i) => { const w = lvNets.slice(Math.max(0, i - 19), i + 1); if (w.length < 2) return 0; const m = w.reduce((a, b) => a + b, 0) / w.length; const s = Math.sqrt(w.reduce((a, b) => a + (b - m) ** 2, 0) / w.length) || 1; return m / s * Math.sqrt(w.length); });
-                          if (meta.key === 'streak') return lvNets.map((_, i) => { const w = lvNets.slice(Math.max(0, i - 19), i + 1); let mx2 = 0, cur = 0; for (const rv of w) { if (rv < 0) { cur++; if (cur > mx2) mx2 = cur; } else cur = 0; } return mx2; });
-                          return lvEqArr;
-                        })();
-                        const lvSparkBT = (() => {
-                          if (meta.key === 'return') return btEq as number[];
-                          if (meta.key === 'drawdown') return btRollingDD;
-                          if (meta.key === 'wr') return btRollingWR;
-                          if (meta.key === 'sqn') return btRollingSQN;
-                          if (meta.key === 'streak') return btRollingStrk;
-                          return btEq as number[];
-                        })();
-                        // MC median curve — downsample r.mcMedian to spark length
-                        const lvSparkMC = (() => {
-                          if (!r.mcMedian || r.mcMedian.length < 2) return [];
-                          const src = r.mcMedian;
-                          const n = Math.min(60, src.length);
-                          return Array.from({ length: n }, (_, i) => {
-                            const idx = Math.round(i / (n - 1) * (src.length - 1));
-                            return src[idx];
-                          });
-                        })();
+                      {/* SVG chart */}
+                      <div style={{ background: 'var(--bg)', borderRadius: 6, overflow: 'hidden', height: SH }}>
+                        <svg width="100%" height={SH} viewBox={`0 0 ${SW} ${SH}`} preserveAspectRatio="none">
+                          {/* Zone: above medProfit — green */}
+                          <rect x={0} y={0} width={SW} height={refY(medProfit, eqMn, eqRng)} fill="rgba(74,222,128,0.08)" />
+                          {/* Zone: between medLoss and medProfit — neutral */}
+                          <rect x={0} y={refY(medProfit, eqMn, eqRng)} width={SW} height={Math.abs(refY(medProfit, eqMn, eqRng) - refY(medLoss, eqMn, eqRng))} fill="rgba(255,255,255,0.02)" />
+                          {/* Zone: below medLoss — red */}
+                          <rect x={0} y={refY(medLoss, eqMn, eqRng)} width={SW} height={SH - refY(medLoss, eqMn, eqRng)} fill="rgba(248,113,113,0.08)" />
+                          {/* medProfit line */}
+                          <line x1={0} y1={refY(medProfit, eqMn, eqRng)} x2={SW} y2={refY(medProfit, eqMn, eqRng)} stroke="rgba(74,222,128,0.6)" strokeWidth={1} strokeDasharray="4,2" />
+                          {/* medLoss line */}
+                          <line x1={0} y1={refY(medLoss, eqMn, eqRng)} x2={SW} y2={refY(medLoss, eqMn, eqRng)} stroke="rgba(248,113,113,0.6)" strokeWidth={1} strokeDasharray="4,2" />
+                          {/* zero line */}
+                          {eqMn <= 0 && eqMx >= 0 && <line x1={0} y1={refY(0, eqMn, eqRng)} x2={SW} y2={refY(0, eqMn, eqRng)} stroke="rgba(255,255,255,0.15)" strokeWidth={0.8} />}
+                          {/* BT equity */}
+                          {isBtOn('eq') && eqBT.length > 1 && <polyline points={mkPts(eqBT, eqMn, eqRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeDasharray="4,2" strokeLinejoin="round" strokeLinecap="round" />}
+                          {/* Live equity */}
+                          {isLvOn('eq') && eqLive.length > 1 && <polyline points={mkPts(eqLive, eqMn, eqRng)} fill="none" stroke={LIVE_COLOR} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />}
+                        </svg>
+                      </div>
 
-                        // ── Normalisation for return & drawdown ──────────────────────────
-                        // medianFinalR: final value of MC median equity curve
-                        const medianFinalR = r.summary.med.totalR || 1;
-                        const isReturnKey   = meta.key === 'return';
-                        const isDrawdownKey = meta.key === 'drawdown';
-                        const needsNorm     = isReturnKey || isDrawdownKey;
+                      {/* Legend */}
+                      <div style={{ display: 'flex', gap: 10, fontSize: 9, color: 'var(--text2)', flexWrap: 'wrap' }}>
+                        <span><span style={{ color: '#4ade80' }}>━</span> Med. profit ({fmtR(medProfit)})</span>
+                        <span><span style={{ color: '#f87171' }}>━</span> Med. loss ({fmtR(medLoss)})</span>
+                      </div>
 
-                        // Normalise a series to % of medianFinalR
-                        // return:   (v / medianFinalR - 1) * 100  → 0% = median
-                        // drawdown: (v / Math.abs(medianFinalR)) * 100 → dd as % of median R
-                        const normSeries = (arr: number[]) => {
-                          if (!needsNorm || !arr.length) return arr;
-                          if (isReturnKey) return arr.map(v => (medianFinalR !== 0 ? (v / medianFinalR - 1) * 100 : 0));
-                          // drawdown: show as % of |medianFinalR|
-                          return arr.map(v => medianFinalR !== 0 ? (v / Math.abs(medianFinalR)) * 100 : 0);
-                        };
-
-                        const normLive = normSeries(lvSparkLive);
-                        const normBT   = normSeries(lvSparkBT);
-                        const normMC   = normSeries(lvSparkMC);
-
-                        const dispLive = needsNorm ? normLive : lvSparkLive;
-                        const dispBT   = needsNorm ? normBT   : lvSparkBT;
-                        const dispMC   = needsNorm ? normMC   : lvSparkMC;
-
-                        // Shared scale
-                        const allSparkVals = [...dispLive, ...dispBT, ...dispMC].filter(v => isFinite(v));
-
-                        // For return: always centre on 0 (median), extend symmetrically by at least ±50
-                        let sparkMn: number, sparkMx: number;
-                        if (isReturnKey) {
-                          const absMax = Math.max(50, ...allSparkVals.map(Math.abs));
-                          sparkMn = -absMax; sparkMx = absMax;
-                        } else if (isDrawdownKey) {
-                          sparkMn = 0;
-                          sparkMx = Math.max(...allSparkVals.filter(v => isFinite(v)), 10);
-                        } else {
-                          sparkMn = allSparkVals.length ? Math.min(...allSparkVals) : 0;
-                          sparkMx = allSparkVals.length ? Math.max(...allSparkVals) : 1;
-                        }
-                        const sparkRng = sparkMx - sparkMn || 1;
-
-                        // Normalised live scalar for display under card
-                        const liveNormPct  = isReturnKey   ? (medianFinalR !== 0 ? (liveVal / medianFinalR - 1) * 100 : 0) : null;
-                        const ddNormPct    = isDrawdownKey ? (medianFinalR !== 0 ? (liveVal / Math.abs(medianFinalR)) * 100 : 0) : null;
-                        const medNormPct   = isReturnKey   ? 0 : null; // median is always 0% for return
-                        const p25NormPct   = isReturnKey   ? (medianFinalR !== 0 ? (box.p25 / medianFinalR - 1) * 100 : 0) : null;
-                        const p75NormPct   = isReturnKey   ? (medianFinalR !== 0 ? (box.p75 / medianFinalR - 1) * 100 : 0) : null;
-
-                        return (
-                          <div key={meta.key} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.8 }}>{meta.label}</span>
-                              <button
-                                onClick={() => toggleScf(explainKey)}
-                                title={meta.explain}
-                                style={{ width: 14, height: 14, borderRadius: '50%', border: '1px solid var(--border)', background: explainOpen ? 'var(--accent)' : 'var(--bg)', color: explainOpen ? '#fff' : 'var(--text2)', fontSize: 9, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0, lineHeight: 1 }}
-                              >?</button>
-                            </div>
-                            {explainOpen && (
-                              <div style={{ fontSize: 10, color: 'var(--text2)', lineHeight: 1.55, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '6px 8px', marginTop: -4 }}>
-                                {meta.explain}
-                              </div>
-                            )}
-                            <div style={{ background: 'var(--bg)', borderRadius: 5, overflow: 'hidden', height: SH }}>
-                              <svg width="100%" height={SH} viewBox={`0 0 ${SW} ${SH}`} preserveAspectRatio="none">
-                                {(() => {
-                                  const refY = (v: number) => SH - ((Math.max(sparkMn, Math.min(sparkMx, v)) - sparkMn) / sparkRng) * (SH - 6) - 3;
-                                  if (isReturnKey) {
-                                    // Zone bands: >+50 green, +25..+50 light green, -25..+25 neutral, -50..-25 light red, <-50 red
-                                    const y0   = refY(0);
-                                    const yP25 = refY(25);  const yP50 = refY(50);
-                                    const yN25 = refY(-25); const yN50 = refY(-50);
-                                    return (<>
-                                      {/* above +50 — strong green */}
-                                      <rect x={0} y={Math.min(SH, refY(sparkMx))} width={SW} height={Math.abs(refY(sparkMx) - yP50)} fill="rgba(74,222,128,0.12)" />
-                                      {/* +25..+50 — light green */}
-                                      <rect x={0} y={Math.min(yP25, yP50)} width={SW} height={Math.abs(yP50 - yP25)} fill="rgba(74,222,128,0.07)" />
-                                      {/* -25..+25 — neutral zone */}
-                                      <rect x={0} y={Math.min(y0 - 0, yN25)} width={SW} height={Math.abs(yP25 - yN25)} fill="rgba(255,255,255,0.03)" />
-                                      {/* -50..-25 — light red */}
-                                      <rect x={0} y={Math.min(yN25, yN50)} width={SW} height={Math.abs(yN25 - yN50)} fill="rgba(248,113,113,0.07)" />
-                                      {/* below -50 — strong red */}
-                                      <rect x={0} y={Math.max(yN50, refY(sparkMn))} width={SW} height={Math.abs(yN50 - refY(sparkMn))} fill="rgba(248,113,113,0.12)" />
-                                      {/* +50 line */}
-                                      <line x1={0} y1={yP50} x2={SW} y2={yP50} stroke="rgba(74,222,128,0.3)" strokeWidth={0.8} strokeDasharray="3,2" />
-                                      {/* +25 line */}
-                                      <line x1={0} y1={yP25} x2={SW} y2={yP25} stroke="rgba(74,222,128,0.2)" strokeWidth={0.7} strokeDasharray="2,3" />
-                                      {/* 0% = median — orange dashed */}
-                                      <line x1={0} y1={y0} x2={SW} y2={y0} stroke="rgba(251,146,60,0.55)" strokeWidth={1} strokeDasharray="3,2" />
-                                      {/* -25 line */}
-                                      <line x1={0} y1={yN25} x2={SW} y2={yN25} stroke="rgba(248,113,113,0.2)" strokeWidth={0.7} strokeDasharray="2,3" />
-                                      {/* -50 line */}
-                                      <line x1={0} y1={yN50} x2={SW} y2={yN50} stroke="rgba(248,113,113,0.3)" strokeWidth={0.8} strokeDasharray="3,2" />
-                                    </>);
-                                  }
-                                  if (isDrawdownKey) {
-                                    const refY2 = (v: number) => SH - ((Math.max(sparkMn, Math.min(sparkMx, v)) - sparkMn) / sparkRng) * (SH - 6) - 3;
-                                    const medDDPct = medianFinalR !== 0 ? (box.med / Math.abs(medianFinalR)) * 100 : 0;
-                                    const medY = refY2(medDDPct);
-                                    return (<>
-                                      <line x1={0} y1={medY} x2={SW} y2={medY} stroke="rgba(251,146,60,0.45)" strokeWidth={1} strokeDasharray="3,2" />
-                                    </>);
-                                  }
-                                  // default (wr / sqn / streak)
-                                  const refY2 = (v: number) => SH - ((Math.max(sparkMn, Math.min(sparkMx, v)) - sparkMn) / sparkRng) * (SH - 6) - 3;
-                                  const p25y = refY2(box.p25), p75y = refY2(box.p75);
-                                  return (<>
-                                    <rect x={0} y={Math.min(p25y, p75y)} width={SW} height={Math.abs(p25y - p75y) || 1} fill="rgba(255,255,255,0.04)" />
-                                    <line x1={0} y1={refY2(box.med)} x2={SW} y2={refY2(box.med)} stroke="rgba(251,146,60,0.4)" strokeWidth={1} strokeDasharray="3,2" />
-                                  </>);
-                                })()}
-                                {/* BT — стандарт, сірий */}
-                                {dispBT.length > 1 && <polyline points={makeSparkPoints(dispBT, sparkMn, sparkRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="4,2" />}
-                                {/* MC median — expected, помаранчевий */}
-                                {dispMC.length > 1 && <polyline points={makeSparkPoints(dispMC, sparkMn, sparkRng)} fill="none" stroke="#fb923c" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />}
-                                {/* Live — current, синій */}
-                                {dispLive.length > 1 && <polyline points={makeSparkPoints(dispLive, sparkMn, sparkRng)} fill="none" stroke={LIVE_COLOR} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />}
-                              </svg>
-                            </div>
-                            {/* Легенда */}
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'var(--text2)' }}><span style={{ width: 14, height: 2, background: LIVE_COLOR, display: 'inline-block', borderRadius: 1 }} />Current</div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'var(--text2)' }}><span style={{ width: 14, height: 2, background: '#fb923c', display: 'inline-block', borderRadius: 1 }} />Expected</div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'var(--text2)' }}><svg width="14" height="4" viewBox="0 0 14 4"><line x1="0" y1="2" x2="14" y2="2" stroke="#6b7280" strokeWidth="1.2" strokeDasharray="4,2"/></svg>Standard</div>
-                              {isReturnKey && <span style={{ fontSize: 9, color: 'var(--text2)', marginLeft: 'auto' }}>% від медіани MC</span>}
-                              {isDrawdownKey && <span style={{ fontSize: 9, color: 'var(--text2)', marginLeft: 'auto' }}>% від |median R|</span>}
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                              {isReturnKey ? (<>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>Live</span><span style={{ color: 'var(--text)', fontWeight: 700, fontFamily: 'monospace' }}>{liveNormPct !== null ? `${liveNormPct >= 0 ? '+' : ''}${liveNormPct.toFixed(1)}%` : fmt(liveVal)} <span style={{ color: 'var(--text2)', fontWeight: 400 }}>({liveVal.toFixed(1)}R)</span></span></div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>MC медіана</span><span style={{ fontFamily: 'monospace' }}>0% <span style={{ color: 'var(--text2)' }}>({box.med.toFixed(1)}R)</span></span></div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>p25–p75</span><span style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{p25NormPct !== null ? `${p25NormPct >= 0 ? '+' : ''}${p25NormPct.toFixed(0)}%` : ''} – {p75NormPct !== null ? `${p75NormPct >= 0 ? '+' : ''}${p75NormPct.toFixed(0)}%` : ''}</span></div>
-                              </>) : isDrawdownKey ? (<>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>Live</span><span style={{ color: 'var(--text)', fontWeight: 700, fontFamily: 'monospace' }}>{ddNormPct !== null ? `${ddNormPct.toFixed(1)}%` : fmt(liveVal)} <span style={{ color: 'var(--text2)', fontWeight: 400 }}>({liveVal.toFixed(1)}R)</span></span></div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>MC медіана</span><span style={{ fontFamily: 'monospace' }}>{medianFinalR !== 0 ? `${(box.med / Math.abs(medianFinalR) * 100).toFixed(1)}%` : fmt(box.med)} <span style={{ color: 'var(--text2)' }}>({box.med.toFixed(1)}R)</span></span></div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>p25–p75</span><span style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{(box.p25 / Math.abs(medianFinalR) * 100).toFixed(0)}% – {(box.p75 / Math.abs(medianFinalR) * 100).toFixed(0)}%</span></div>
-                              </>) : (<>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>Live</span><span style={{ color: 'var(--text)', fontWeight: 700, fontFamily: 'monospace' }}>{fmt(liveVal)}</span></div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>MC медіана</span><span style={{ fontFamily: 'monospace' }}>{fmt(box.med)}</span></div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>p25–p75</span><span style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{fmt(box.p25)} – {fmt(box.p75)}</span></div>
-                              </>)}
-                            </div>
-                            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 5, padding: '6px 8px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                                <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor, display: 'inline-block', flexShrink: 0 }} />
-                                <span style={{ fontSize: 10, color: 'var(--text)', fontWeight: 600 }}>{statusLabel}</span>
-                              </div>
-                              <div style={{ fontSize: 10, color: 'var(--text2)', paddingLeft: 13 }}>{meta.deviationLabel(dev)}</div>
-                            </div>
-                            {/* Factor breakdown for this metric */}
-                            {(() => {
-                              const factors = METRIC_FACTORS[meta.key] ?? [];
-                              const activeFactors = factors
-                                .map(k => ({ k, meta2: FACTOR_META[k], val: (stressParams as any)[k] }))
-                                .filter(({ meta2, val }) => meta2 && val !== meta2.default);
-                              const allFactors = factors
-                                .map(k => ({ k, meta2: FACTOR_META[k], val: (stressParams as any)[k] }))
-                                .filter(({ meta2 }) => meta2);
-                              return (
-                                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 7 }}>
-                                  <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 5 }}>
-                                    Стрес-фактори
-                                  </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                    {allFactors.map(({ k, meta2, val }) => {
-                                      const isActive = val !== meta2.default;
-                                      const impactEntry = impactData?.impact?.[meta.key]?.find(e => e.key === k);
-                                      return (
-                                        <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 9.5, gap: 4 }}>
-                                          <span style={{ color: isActive ? 'var(--text)' : 'var(--text2)', opacity: isActive ? 1 : 0.45, flex: 1, minWidth: 0 }}>{meta2.label}</span>
-                                          <span style={{
-                                            fontFamily: 'monospace',
-                                            color: isActive ? '#fb923c' : 'var(--text2)',
-                                            fontWeight: isActive ? 700 : 400,
-                                            opacity: isActive ? 1 : 0.4,
-                                          }}>{meta2.fmt(val)}</span>
-                                          {impactData ? (
-                                            <span style={{
-                                              fontFamily: 'monospace',
-                                              fontSize: 9,
-                                              minWidth: 36,
-                                              textAlign: 'right',
-                                              color: isActive && impactEntry ? '#fb923c' : 'var(--text2)',
-                                              opacity: isActive && impactEntry ? 1 : 0.4,
-                                              fontWeight: isActive && impactEntry ? 700 : 400,
-                                            }}>
-                                              {impactEntry ? `${impactEntry.pct.toFixed(1)}%` : '—'}
-                                            </span>
-                                          ) : (
-                                            <span style={{ fontFamily: 'monospace', fontSize: 9, minWidth: 36, textAlign: 'right', color: 'var(--text2)', opacity: 0.3 }}>—</span>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                  {activeFactors.length === 0 && (
-                                    <div style={{ fontSize: 9, color: 'var(--text2)', opacity: 0.5, marginTop: 3 }}>всі за замовчуванням</div>
-                                  )}
-                                </div>
-                              );
-                            })()}
-
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div style={{ display: 'flex', gap: 16, marginTop: 14, flexWrap: 'wrap' }}>
-                      {[{ color: '#4ade80', label: 'Краще очікуваного' }, { color: '#facc15', label: 'В нормі (25–75%)' }, { color: '#f87171', label: 'Нижче очікуваного' }].map(({ color, label }) => (
-                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--text2)' }}>
-                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, display: 'inline-block' }} />
-                          {label}
+                      {/* Stats row */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>Live final R</span>
+                          <span style={{ fontWeight: 700, fontFamily: 'monospace', color: lvFinalEq >= 0 ? '#4ade80' : '#f87171' }}>{fmtR(lvFinalEq)}</span>
                         </div>
-                      ))}
-                    </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>Dev. від med. profit</span>
+                          <span style={{ fontFamily: 'monospace', color: eqDevLive >= 0 ? '#4ade80' : '#f87171' }}>{fmtR(eqDevLive)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>BT dev. від med. profit</span>
+                          <span style={{ fontFamily: 'monospace', color: eqDevBt >= 0 ? '#4ade80' : '#f87171' }}>{fmtR(eqDevBt)}</span>
+                        </div>
+                      </div>
+
+                      <ScfStatusBadge label={eqStatus} color={eqStatusColor} />
+
+                      <ScfFactorAccordion id="scf3_eq_profit" label="Exp. Med. Profit — фактори" factors={toFactorPct(retFactors.filter((f: any) => f.impact < 0))} scfOpen={scfOpen} toggleScf={toggleScf} />
+                      <ScfFactorAccordion id="scf3_eq_loss" label="Exp. Med. Loss — фактори" factors={toFactorPct(retFactors.filter((f: any) => f.impact < 0))} scfOpen={scfOpen} toggleScf={toggleScf} />
+                    </ScfBlockCard>
+
+                    {/* ── BLOCK 2: Max DD ── */}
+                    <ScfBlockCard>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text2)' }}>Max Drawdown</span>
+                        <ScfSeriesToggle metaKey="dd" hasBt={ddBtSeries.length > 1} hasLv={ddLiveSeries.length > 1} isBtOn={isBtOn} isLvOn={isLvOn} toggleBt={toggleBt} toggleLv={toggleLv} />
+                      </div>
+
+                      <div style={{ background: 'var(--bg)', borderRadius: 6, overflow: 'hidden', height: SH }}>
+                        <svg width="100%" height={SH} viewBox={`0 0 ${SW} ${SH}`} preserveAspectRatio="none">
+                          {/* Zone: above ddWorst — red */}
+                          <rect x={0} y={0} width={SW} height={refY(ddWorst, ddMn, ddRng)} fill="rgba(248,113,113,0.1)" />
+                          {/* Zone: ddMedian..ddWorst — neutral */}
+                          <rect x={0} y={refY(ddWorst, ddMn, ddRng)} width={SW} height={Math.abs(refY(ddWorst, ddMn, ddRng) - refY(ddMedian, ddMn, ddRng))} fill="rgba(255,255,255,0.02)" />
+                          {/* Zone: below ddMedian — green */}
+                          <rect x={0} y={refY(ddMedian, ddMn, ddRng)} width={SW} height={SH - refY(ddMedian, ddMn, ddRng)} fill="rgba(74,222,128,0.07)" />
+                          {/* ddWorst line */}
+                          <line x1={0} y1={refY(ddWorst, ddMn, ddRng)} x2={SW} y2={refY(ddWorst, ddMn, ddRng)} stroke="rgba(248,113,113,0.7)" strokeWidth={1} strokeDasharray="4,2" />
+                          {/* ddMedian line */}
+                          <line x1={0} y1={refY(ddMedian, ddMn, ddRng)} x2={SW} y2={refY(ddMedian, ddMn, ddRng)} stroke="rgba(251,146,60,0.6)" strokeWidth={1} strokeDasharray="4,2" />
+                          {/* ddLimit (user threshold) */}
+                          {ddLimit > 0 && <line x1={0} y1={refY(ddLimit, ddMn, ddRng)} x2={SW} y2={refY(ddLimit, ddMn, ddRng)} stroke="rgba(250,204,21,0.7)" strokeWidth={1.2} />}
+                          {/* BT DD */}
+                          {isBtOn('dd') && ddBtSeries.length > 1 && <polyline points={mkPts(ddBtSeries, ddMn, ddRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeDasharray="4,2" strokeLinejoin="round" strokeLinecap="round" />}
+                          {/* Live DD */}
+                          {isLvOn('dd') && ddLiveSeries.length > 1 && <polyline points={mkPts(ddLiveSeries, ddMn, ddRng)} fill="none" stroke={LIVE_COLOR} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />}
+                        </svg>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 10, fontSize: 9, color: 'var(--text2)', flexWrap: 'wrap' }}>
+                        <span><span style={{ color: '#f87171' }}>- -</span> Worst p95 ({fmtDD(ddWorst)})</span>
+                        <span><span style={{ color: '#fb923c' }}>- -</span> Median ({fmtDD(ddMedian)})</span>
+                        <span><span style={{ color: '#facc15' }}>━</span> Limit ({fmtDD(ddLimit)}R)</span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>Live Max DD</span>
+                          <span style={{ fontWeight: 700, fontFamily: 'monospace', color: lvFinalDD > ddLimit ? '#f87171' : '#4ade80' }}>{fmtDD(lvFinalDD)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>Median DD</span>
+                          <span style={{ fontFamily: 'monospace' }}>{fmtDD(ddMedian)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>Worst DD (p95)</span>
+                          <span style={{ fontFamily: 'monospace', color: '#f87171' }}>{fmtDD(ddWorst)}</span>
+                        </div>
+                      </div>
+
+                      <ScfStatusBadge label={ddStatus} color={ddStatusColor} />
+
+                      <ScfFactorAccordion id="scf3_dd_med" label="Med. DD — фактори" factors={toFactorPct(ddFactors)} scfOpen={scfOpen} toggleScf={toggleScf} />
+                    </ScfBlockCard>
+
+                    {/* ── BLOCK 3: SQN ── */}
+                    <ScfBlockCard>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text2)' }}>SQN</span>
+                        <ScfSeriesToggle metaKey="sqn" hasBt={sqnBtSeries.length > 1} hasLv={sqnLiveSeries.length > 1} isBtOn={isBtOn} isLvOn={isLvOn} toggleBt={toggleBt} toggleLv={toggleLv} />
+                      </div>
+
+                      <div style={{ background: 'var(--bg)', borderRadius: 6, overflow: 'hidden', height: SH }}>
+                        <svg width="100%" height={SH} viewBox={`0 0 ${SW} ${SH}`} preserveAspectRatio="none">
+                          {/* Zone: above sqnMed — green */}
+                          <rect x={0} y={0} width={SW} height={refY(sqnMed, sqnMn, sqnRng)} fill="rgba(74,222,128,0.08)" />
+                          {/* Zone: sqnP5..sqnMed — orange */}
+                          <rect x={0} y={refY(sqnMed, sqnMn, sqnRng)} width={SW} height={Math.abs(refY(sqnMed, sqnMn, sqnRng) - refY(sqnP5, sqnMn, sqnRng))} fill="rgba(251,146,60,0.07)" />
+                          {/* Zone: below sqnP5 — red */}
+                          <rect x={0} y={refY(sqnP5, sqnMn, sqnRng)} width={SW} height={SH - refY(sqnP5, sqnMn, sqnRng)} fill="rgba(248,113,113,0.08)" />
+                          {/* p95 line */}
+                          <line x1={0} y1={refY(sqnP95, sqnMn, sqnRng)} x2={SW} y2={refY(sqnP95, sqnMn, sqnRng)} stroke="rgba(74,222,128,0.4)" strokeWidth={0.8} strokeDasharray="3,2" />
+                          {/* med line */}
+                          <line x1={0} y1={refY(sqnMed, sqnMn, sqnRng)} x2={SW} y2={refY(sqnMed, sqnMn, sqnRng)} stroke="rgba(251,146,60,0.6)" strokeWidth={1} strokeDasharray="4,2" />
+                          {/* p5 line */}
+                          <line x1={0} y1={refY(sqnP5, sqnMn, sqnRng)} x2={SW} y2={refY(sqnP5, sqnMn, sqnRng)} stroke="rgba(248,113,113,0.6)" strokeWidth={1} strokeDasharray="4,2" />
+                          {/* BT SQN */}
+                          {isBtOn('sqn') && sqnBtSeries.length > 1 && <polyline points={mkPts(sqnBtSeries, sqnMn, sqnRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeDasharray="4,2" strokeLinejoin="round" strokeLinecap="round" />}
+                          {/* Live SQN */}
+                          {isLvOn('sqn') && sqnLiveSeries.length > 1 && <polyline points={mkPts(sqnLiveSeries, sqnMn, sqnRng)} fill="none" stroke={LIVE_COLOR} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />}
+                        </svg>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 10, fontSize: 9, color: 'var(--text2)', flexWrap: 'wrap' }}>
+                        <span><span style={{ color: '#4ade80' }}>- -</span> p95 ({sqnP95.toFixed(2)})</span>
+                        <span><span style={{ color: '#fb923c' }}>- -</span> Med ({sqnMed.toFixed(2)})</span>
+                        <span><span style={{ color: '#f87171' }}>- -</span> p5 ({sqnP5.toFixed(2)})</span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>Live SQN</span>
+                          <span style={{ fontWeight: 700, fontFamily: 'monospace' }}>{lvFinalSQN.toFixed(2)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>p5 – Med – p95</span>
+                          <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{sqnP5.toFixed(2)} – {sqnMed.toFixed(2)} – {sqnP95.toFixed(2)}</span>
+                        </div>
+                      </div>
+
+                      <ScfStatusBadge label={sqnStatus} color={sqnStatusColor} />
+
+                      <ScfFactorAccordion id="scf3_sqn_med" label="Med. SQN — фактори" factors={toFactorPct(sqnFactors)} scfOpen={scfOpen} toggleScf={toggleScf} />
+                    </ScfBlockCard>
+
+                    {/* ── BLOCK 4: Win Rate ── */}
+                    <ScfBlockCard>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text2)' }}>Win Rate</span>
+                        <ScfSeriesToggle metaKey="wr" hasBt={wrBtSeries.length > 1} hasLv={wrLiveSeries.length > 1} isBtOn={isBtOn} isLvOn={isLvOn} toggleBt={toggleBt} toggleLv={toggleLv} />
+                      </div>
+
+                      <div style={{ background: 'var(--bg)', borderRadius: 6, overflow: 'hidden', height: SH }}>
+                        <svg width="100%" height={SH} viewBox={`0 0 ${SW} ${SH}`} preserveAspectRatio="none">
+                          {/* Zone: above wrMed — green */}
+                          <rect x={0} y={0} width={SW} height={refY(wrMed, wrMn, wrRng)} fill="rgba(74,222,128,0.08)" />
+                          {/* Zone: wrP5..wrMed — orange */}
+                          <rect x={0} y={refY(wrMed, wrMn, wrRng)} width={SW} height={Math.abs(refY(wrMed, wrMn, wrRng) - refY(wrP5, wrMn, wrRng))} fill="rgba(251,146,60,0.07)" />
+                          {/* Zone: below wrP5 — red */}
+                          <rect x={0} y={refY(wrP5, wrMn, wrRng)} width={SW} height={SH - refY(wrP5, wrMn, wrRng)} fill="rgba(248,113,113,0.08)" />
+                          {/* wrMed line */}
+                          <line x1={0} y1={refY(wrMed, wrMn, wrRng)} x2={SW} y2={refY(wrMed, wrMn, wrRng)} stroke="rgba(251,146,60,0.6)" strokeWidth={1} strokeDasharray="4,2" />
+                          {/* wrP5 line */}
+                          <line x1={0} y1={refY(wrP5, wrMn, wrRng)} x2={SW} y2={refY(wrP5, wrMn, wrRng)} stroke="rgba(248,113,113,0.6)" strokeWidth={1} strokeDasharray="4,2" />
+                          {/* BT WR */}
+                          {isBtOn('wr') && wrBtSeries.length > 1 && <polyline points={mkPts(wrBtSeries, wrMn, wrRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeDasharray="4,2" strokeLinejoin="round" strokeLinecap="round" />}
+                          {/* Live WR */}
+                          {isLvOn('wr') && wrLiveSeries.length > 1 && <polyline points={mkPts(wrLiveSeries, wrMn, wrRng)} fill="none" stroke={LIVE_COLOR} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />}
+                        </svg>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 10, fontSize: 9, color: 'var(--text2)', flexWrap: 'wrap' }}>
+                        <span><span style={{ color: '#fb923c' }}>- -</span> Med ({fmtPct(wrMed)})</span>
+                        <span><span style={{ color: '#f87171' }}>- -</span> p5 ({fmtPct(wrP5)})</span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>Live WR</span>
+                          <span style={{ fontWeight: 700, fontFamily: 'monospace' }}>{fmtPct(lvFinalWR)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>p5 – Med</span>
+                          <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{fmtPct(wrP5)} – {fmtPct(wrMed)}</span>
+                        </div>
+                      </div>
+
+                      <ScfStatusBadge label={wrStatus} color={wrStatusColor} />
+
+                      <ScfFactorAccordion id="scf3_wr_med" label="Med. WR — фактори" factors={toFactorPct(wrFactors)} scfOpen={scfOpen} toggleScf={toggleScf} />
+                    </ScfBlockCard>
+
                   </div>
                 );
               })()}

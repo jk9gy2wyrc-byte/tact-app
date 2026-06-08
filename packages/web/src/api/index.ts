@@ -1640,6 +1640,8 @@ const app = new Hono()
       const avgGrossLoss = btGrossArr.filter(r => r < 0).reduce((s, r) => s + Math.abs(r), 0) / Math.max(1, btGrossArr.filter(r => r < 0).length);
       const N = N_TRADES_MC;
 
+      // ── Per-metric factor impacts ──────────────────────────────────────────
+      // Return (equity) impacts — all factors contribute negatively to total R
       const factorImpacts = [
         { key: 'lossAmp',       label: 'Loss Amplification', impact: -N * (1 - wr) * avgGrossLoss * (params.lossAmp - 1) },
         { key: 'winReduction',  label: 'Win Reduction',      impact: -N * wr * avgGrossWin * (1 - params.winReduction) },
@@ -1649,6 +1651,34 @@ const app = new Hono()
         { key: 'fatigue',       label: 'Fatigue Decay',      impact: -N * wr * avgGrossWin * params.fatigue },
         { key: 'badSlip',       label: 'Extreme Slippage',   impact: -N * (1 - wr) * avgGrossLoss * params.badSlipProb * (params.badSlipMult - 1) },
         { key: 'missedWin',     label: 'Missed Win',         impact: -N * wr * avgGrossWin * params.missedWin },
+      ];
+
+      // DD impacts — factors that increase drawdown (positive = worse DD)
+      const ddFactorImpacts = [
+        { key: 'lossAmp',       label: 'Loss Amplification', impact: (1 - wr) * avgGrossLoss * (params.lossAmp - 1) * Math.sqrt(N) },
+        { key: 'wrDegradation', label: 'WR Degradation',     impact: params.wrDegradation * (avgGrossWin + avgGrossLoss) * Math.sqrt(N) },
+        { key: 'humanError',    label: 'Human Error',        impact: params.humanError * (avgGrossWin + avgGrossLoss) * Math.sqrt(N) },
+        { key: 'badSlip',       label: 'Extreme Slippage',   impact: (1 - wr) * avgGrossLoss * params.badSlipProb * (params.badSlipMult - 1) * Math.sqrt(N) },
+        { key: 'fatigue',       label: 'Fatigue Decay',      impact: wr * avgGrossWin * params.fatigue * 0.5 * Math.sqrt(N) },
+      ];
+
+      // SQN impacts — factors that reduce SQN
+      const sqnFactorImpacts = [
+        { key: 'lossAmp',       label: 'Loss Amplification', impact: -(1 - wr) * avgGrossLoss * (params.lossAmp - 1) },
+        { key: 'winReduction',  label: 'Win Reduction',      impact: -wr * avgGrossWin * (1 - params.winReduction) },
+        { key: 'wrDegradation', label: 'WR Degradation',     impact: -wr * params.wrDegradation * (avgGrossWin + avgGrossLoss) },
+        { key: 'slippage',      label: 'Slippage',           impact: -params.slippage },
+        { key: 'humanError',    label: 'Human Error',        impact: -wr * params.humanError * (avgGrossWin + avgGrossLoss) },
+        { key: 'fatigue',       label: 'Fatigue Decay',      impact: -wr * avgGrossWin * params.fatigue },
+        { key: 'badSlip',       label: 'Extreme Slippage',   impact: -(1 - wr) * avgGrossLoss * params.badSlipProb * (params.badSlipMult - 1) },
+        { key: 'missedWin',     label: 'Missed Win',         impact: -wr * avgGrossWin * params.missedWin },
+      ];
+
+      // WR impacts — only factors that change win rate
+      const wrFactorImpacts = [
+        { key: 'wrDegradation', label: 'WR Degradation',     impact: -params.wrDegradation },
+        { key: 'humanError',    label: 'Human Error',        impact: -wr * params.humanError },
+        { key: 'missedWin',     label: 'Missed Win',         impact: -wr * params.missedWin },
       ];
 
       // ── Box stats helper ──────────────────────────────────────────────────
@@ -1688,12 +1718,16 @@ const app = new Hono()
         survivalRate: Math.round(survivedCount / N_SIM * 1000) / 10,
         ddMed: Math.round(pctOf(maxDDs, 0.50) * 100) / 100,
         ddP5:  Math.round(pctOf(maxDDs, 0.05) * 100) / 100,
+        ddP95: Math.round(pctOf(maxDDs, 0.95) * 100) / 100,
         ddProbAboveThreshold: Math.round(maxDDs.filter(d => d > params.survivalThreshold).length / N_SIM * 1000) / 10,
         // Reference totals for SCF delta
         btTotalR: btNetEq.length > 0 ? btNetEq[btNetEq.length - 1] : null,
         lvTotalR: lvNetEq.length > 0 ? lvNetEq[lvNetEq.length - 1] : null,
-        // Factor impacts
+        // Factor impacts (general + per-metric)
         factorImpacts,
+        ddFactorImpacts,
+        sqnFactorImpacts,
+        wrFactorImpacts,
         boxStats,
         // Params echo
         horizon: N_TRADES_MC,
