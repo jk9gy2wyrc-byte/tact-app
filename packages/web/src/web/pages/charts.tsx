@@ -349,24 +349,42 @@ function FactorDetails({ items }: {
 
 function StressSlider({
   label, description, value, min, max, step, onChange, format,
-  accent = '#f87171',
+  accent = '#f87171', explain,
 }: {
   label: string; description: string;
   value: number; min: number; max: number; step: number;
   onChange: (v: number) => void;
   format?: (v: number) => string;
   accent?: string;
+  explain?: { models: string; scenario: string; how: string; impact: string };
 }) {
+  const [open, setOpen] = React.useState(false);
   const fmt = format ?? ((v: number) => v.toFixed(step < 0.01 ? 3 : step < 0.1 ? 2 : 1));
   const pct = Math.round(((value - min) / (max - min)) * 100);
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{label}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{label}</div>
+          {explain && (
+            <button
+              onClick={() => setOpen(o => !o)}
+              style={{ width: 14, height: 14, borderRadius: '50%', border: '1px solid var(--border)', background: open ? 'var(--accent)' : 'var(--bg)', color: open ? '#fff' : 'var(--text2)', fontSize: 9, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0, lineHeight: 1 }}
+            >?</button>
+          )}
+        </div>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontVariantNumeric: 'tabular-nums', minWidth: 56, textAlign: 'right' }}>
           {fmt(value)}
         </div>
       </div>
+      {explain && open && (
+        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', marginBottom: 6, fontSize: 10, color: 'var(--text2)', lineHeight: 1.6 }}>
+          <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Що моделює: </span>{explain.models}</div>
+          <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Сценарій: </span>{explain.scenario}</div>
+          <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Як працює: </span>{explain.how}</div>
+          <div><span style={{ color: 'var(--text)', fontWeight: 700 }}>Вплив: </span>{explain.impact}</div>
+        </div>
+      )}
       <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 6 }}>{description}</div>
       <div style={{ position: 'relative' }}>
         <div style={{
@@ -1415,17 +1433,35 @@ export default function Charts() {
           {/* Jitter + Max DD threshold row */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
             <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
-              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Bootstrap Jitter</div>
-              <input
-                type="number" min={0} max={1} step={0.05}
-                value={mcJitter}
-                onChange={e => setMcJitter(Math.max(0, Math.min(1, Number(e.target.value) || 0)))}
-                style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', fontSize: 13, fontWeight: 700, color: 'var(--text)', boxSizing: 'border-box' }}
-              />
-              <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>0 = вимкнено · 0.15 = ±15% std шум · збільшує розкид при малих датасетах</div>
+              {(() => {
+                const [jitterOpen, setJitterOpen] = React.useState(false);
+                return (<>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                    <div style={{ fontSize: 10, color: 'var(--text2)' }}>Bootstrap Jitter</div>
+                    <button onClick={() => setJitterOpen(o => !o)} style={{ width: 14, height: 14, borderRadius: '50%', border: '1px solid var(--border)', background: jitterOpen ? 'var(--accent)' : 'var(--bg)', color: jitterOpen ? '#fff' : 'var(--text2)', fontSize: 9, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0, lineHeight: 1 }}>?</button>
+                  </div>
+                  {jitterOpen && (
+                    <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', marginBottom: 6, fontSize: 10, color: 'var(--text2)', lineHeight: 1.6 }}>
+                      <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Що моделює: </span>Природну мінливість розміру трейдів — spread, re-quote, різниця між бектест-ціною і реальним виконанням.</div>
+                      <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Сценарій: </span>Ринок рухається на тебе під час виконання — ти отримуєш трейд, але з іншим RR ніж у бектесті.</div>
+                      <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Як працює: </span>До кожного семплованого трейду додається нормальний шум N(0, std × jitter). При jitter=0.15 це ±15% від стандартного відхилення вибірки.</div>
+                      <div><span style={{ color: 'var(--text)', fontWeight: 700 }}>Вплив: </span>Розширює розкид кривих при малих датасетах. Корисно коли вибірка &lt;100 трейдів — без jitter криві виглядають штучно рівними.</div>
+                    </div>
+                  )}
+                  <input
+                    type="number" min={0} max={1} step={0.05}
+                    value={mcJitter}
+                    onChange={e => setMcJitter(Math.max(0, Math.min(1, Number(e.target.value) || 0)))}
+                    style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', fontSize: 13, fontWeight: 700, color: 'var(--text)', boxSizing: 'border-box' }}
+                  />
+                  <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>0 = вимкнено · 0.15 = ±15% std шум · збільшує розкид при малих датасетах</div>
+                </>);
+              })()}
             </div>
             <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
-              <StressSlider label="Max DD Threshold" description="Просадка понад цей поріг = blown account. Впливає на Survival Rate." value={stressParams.survivalThreshold} min={2} max={50} step={1} format={v => `${v}R`} onChange={v => setSP('survivalThreshold', v)} accent="#6b7280" />
+              <StressSlider label="Max DD Threshold" description="Просадка понад цей поріг = blown account. Впливає на Survival Rate." value={stressParams.survivalThreshold} min={2} max={50} step={1} format={v => `${v}R`} onChange={v => setSP('survivalThreshold', v)} accent="#6b7280"
+                explain={{ models: 'Максимально допустиму просадку рахунку — поріг після якого стратегія вважається провалена.', scenario: 'Ти поставив правило: якщо просадка перевищить X R — зупиняєш торгівлю. Цей параметр симулює скільки симуляцій досягають цього порогу.', how: 'В кожній MC симуляції відстежується максимальна просадка. Якщо вона перевищує threshold — симуляція рахується як "blown". Survival Rate = % симуляцій що вижили.', impact: 'Зменшення порогу різко знижує Survival Rate. При 5R порозі і лосс-стріку 3-4 трейди ти майже гарантовано "підриваєшся". Реалістичний поріг — 10-20R.' }}
+              />
             </div>
           </div>
 
@@ -1437,19 +1473,28 @@ export default function Charts() {
               {/* Left */}
               <div>
                 <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Фактори збитків</div>
-                <StressSlider label="Loss Amplification" description="Збільшити розмір кожного збитку. 1.0 = без змін, 1.2 = збитки на 20% більші" value={stressParams.lossAmp} min={1} max={2} step={0.05} format={v => `×${v.toFixed(2)}`} onChange={v => setSP('lossAmp', v)} accent="#f87171" />
-                <StressSlider label="Win Reduction" description="Зменшити розмір кожного виграшу. 1.0 = без змін, 0.8 = виграші на 20% менші" value={stressParams.winReduction} min={0.4} max={1} step={0.05} format={v => `×${v.toFixed(2)}`} onChange={v => setSP('winReduction', v)} accent="#fb923c" />
-                <StressSlider label="WR Degradation" description="Конвертувати % випадкових TP в SL. 0.1 = 10% виграшів стають програшами" value={stressParams.wrDegradation} min={0} max={0.4} step={0.01} format={v => `${(v * 100).toFixed(0)}%`} onChange={v => setSP('wrDegradation', v)} accent="#facc15" />
-                <StressSlider label="Execution Slippage" description="Додатковий cost per trade в R (окремо від Trade cost). 0.05 = −0.05R" value={stressParams.slippage} min={0} max={0.3} step={0.01} format={v => `−${v.toFixed(2)}R`} onChange={v => setSP('slippage', v)} accent="#a78bfa" />
+                <StressSlider label="Loss Amplification" description="Збільшити розмір кожного збитку. 1.0 = без змін, 1.2 = збитки на 20% більші" value={stressParams.lossAmp} min={1} max={2} step={0.05} format={v => `×${v.toFixed(2)}`} onChange={v => setSP('lossAmp', v)} accent="#f87171"
+                  explain={{ models: 'Систематичне збільшення реальних збитків відносно бектесту — ширший спред, гірше виконання стопів, новинні гепи.', scenario: 'Ти торгуєш бектест з SL=1R, але на реальному ринку стопи спрацьовують по 1.2R через слип та гепи під час волатильності.', how: 'Кожен збитковий трейд у симуляції множиться на цей коефіцієнт. 1.2× означає що -1R стає -1.2R для кожного програшу.', impact: 'Прямо впливає на Total R та Max DD. При ×1.3 і WR 50% система може стати збитковою. Найбільш реалістичний діапазон для активного трейдингу: 1.05–1.2.' }} />
+                <StressSlider label="Win Reduction" description="Зменшити розмір кожного виграшу. 1.0 = без змін, 0.8 = виграші на 20% менші" value={stressParams.winReduction} min={0.4} max={1} step={0.05} format={v => `×${v.toFixed(2)}`} onChange={v => setSP('winReduction', v)} accent="#fb923c"
+                  explain={{ models: 'Ранній вихід з прибуткових угод — ти закрив раніше цілі через страх розвороту або зменшив TP.', scenario: 'Бектест показує середній виграш 2R, але в реальності ти виходиш по 1.6R через психологічний тиск або часткові виходи.', how: 'Кожен прибутковий трейд у симуляції множиться на цей коефіцієнт. 0.8× означає що +2R стає +1.6R.', impact: 'Знижує середнє очікування (EV) та SQN. При 0.7× навіть система з WR 60% може мати від\'ємне EV. Комбінація з Loss Amplification — найжорсткіший стрес-тест.' }} />
+                <StressSlider label="WR Degradation" description="Конвертувати % випадкових TP в SL. 0.1 = 10% виграшів стають програшами" value={stressParams.wrDegradation} min={0} max={0.4} step={0.01} format={v => `${(v * 100).toFixed(0)}%`} onChange={v => setSP('wrDegradation', v)} accent="#facc15"
+                  explain={{ models: 'Деградацію win rate — ринок змінився, сетап відпрацьовує гірше, або фільтрація входів погіршилась.', scenario: 'Бектест показав WR 55%, але через зміну режиму ринку або overtrade 10% виграшів перетворилися на програші.', how: 'Рандомно вибрані X% виграшів конвертуються в збитки (TP → SL). Це знижує реальний WR пропорційно значенню параметра.', impact: 'Найсильніший вплив на системи з низьким RR. При WR 50% і degradation 0.15 реальний WR стає ~42.5% — більшість систем з RR 1:1 стають збитковими.' }} />
+                <StressSlider label="Execution Slippage" description="Додатковий cost per trade в R (окремо від Trade cost). 0.05 = −0.05R" value={stressParams.slippage} min={0} max={0.3} step={0.01} format={v => `−${v.toFixed(2)}R`} onChange={v => setSP('slippage', v)} accent="#a78bfa"
+                  explain={{ models: 'Систематичний сліпаж при виконанні — різниця між очікуваною і реальною ціною входу/виходу.', scenario: 'Ти торгуєш на відкритті свічки, але реально отримуєш ціну на 0.05R гірше через затримку ордера або недостатню ліквідність.', how: 'До кожного трейду (і виграшу і програшу) додається фіксований від\'ємний cost у R. Окремо від Trade Cost — моделює ринковий сліпаж а не комісію.', impact: 'При 100 трейдах і slippage 0.05R це -5R на рік лише від сліпажу. Малий вплив на окремий трейд, але суттєвий на великій вибірці.' }} />
               </div>
               {/* Right */}
               <div>
                 <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Додаткові фактори</div>
-                <StressSlider label="Human Error" description="Тильт, забув стоп. З ймовірністю X% трейд стає −1R незалежно від результату" value={stressParams.humanError} min={0} max={0.2} step={0.005} format={v => `${(v * 100).toFixed(1)}%`} onChange={v => setSP('humanError', v)} accent="#f87171" />
-                <StressSlider label="Fatigue Decay" description="Злякався відкату, вийшов раніше. Кожен прибутковий трейд зменшується на X%" value={stressParams.fatigue} min={0} max={0.5} step={0.01} format={v => `−${(v * 100).toFixed(0)}% від виграшу`} onChange={v => setSP('fatigue', v)} accent="#fb923c" />
-                <StressSlider label="Bad Slip Prob" description="Ймовірність що стоп спрацює по гіршій ціні (гепи, новини)" value={stressParams.badSlipProb} min={0} max={0.5} step={0.01} format={v => `${(v * 100).toFixed(0)}%`} onChange={v => setSP('badSlipProb', v)} accent="#38bdf8" />
-                <StressSlider label="Bad Slip Mult" description="Сила удару при поганому виконанні. 1.4× = збиток −1R стає −1.4R" value={stressParams.badSlipMult} min={1} max={3} step={0.1} format={v => `×${v.toFixed(1)}`} onChange={v => setSP('badSlipMult', v)} accent="#38bdf899" />
-                <StressSlider label="Missed Win" description="Пропустив прибуткову угоду. Прибуток стає 0R" value={stressParams.missedWin} min={0} max={0.5} step={0.01} format={v => `${(v * 100).toFixed(0)}%`} onChange={v => setSP('missedWin', v)} accent="#4ade80" />
+                <StressSlider label="Human Error" description="Тильт, забув стоп. З ймовірністю X% трейд стає −1R незалежно від результату" value={stressParams.humanError} min={0} max={0.2} step={0.005} format={v => `${(v * 100).toFixed(1)}%`} onChange={v => setSP('humanError', v)} accent="#f87171"
+                  explain={{ models: 'Психологічні помилки — тильт, порушення правил, ігнорування стопів під впливом емоцій.', scenario: 'Після серії програшів ти не виставив стоп або переніс його далі. Один раз на 20 трейдів ти отримуєш катастрофічний збиток замість розрахункового.', how: 'З ймовірністю X% будь-який трейд (і виграшний і програшний) замінюється на фіксований -1R — незалежно від оригінального результату.', impact: 'Навіть 2% помилок помітно псують SQN та збільшують Max DD. При 5% частота катастрофічних трейдів стає системною проблемою — система втрачає edge.' }} />
+                <StressSlider label="Fatigue Decay" description="Злякався відкату, вийшов раніше. Кожен прибутковий трейд зменшується на X%" value={stressParams.fatigue} min={0} max={0.5} step={0.01} format={v => `−${(v * 100).toFixed(0)}% від виграшу`} onChange={v => setSP('fatigue', v)} accent="#fb923c"
+                  explain={{ models: 'Накопичену втому від торгівлі — зменшення якості утримання позицій після тривалих сесій або серій трейдів.', scenario: 'До кінця дня або після 5+ трейдів ти виходиш раніше цілі. Виграшний трейд 2R закривається по 1.4R через психологічну втому.', how: 'Кожен прибутковий трейд зменшується на X% від свого значення. 20% decay перетворює +2R на +1.6R на кожному виграші.', impact: 'Поступово "з\'їдає" EV системи. Комбінується з Win Reduction — разом моделюють загальну деградацію утримання прибутків.' }} />
+                <StressSlider label="Bad Slip Prob" description="Ймовірність що стоп спрацює по гіршій ціні (гепи, новини)" value={stressParams.badSlipProb} min={0} max={0.5} step={0.01} format={v => `${(v * 100).toFixed(0)}%`} onChange={v => setSP('badSlipProb', v)} accent="#38bdf8"
+                  explain={{ models: 'Ймовірність екстремального сліпажу при виконанні стопу — геп на відкритті, новини, flash crash.', scenario: 'Ти тримаєш позицію через ніч. Ціна гепує повз твій стоп і ти виходиш по набагато гіршій ціні ніж планував.', how: 'З ймовірністю X% збитковий трейд додатково множиться на Bad Slip Multiplier. Два параметри працюють разом.', impact: 'Самостійно майже не впливає — тільки в парі з Bad Slip Mult. При 20% prob і 2× mult кожен п\'ятий програш стає вдвічі більшим.' }} />
+                <StressSlider label="Bad Slip Mult" description="Сила удару при поганому виконанні. 1.4× = збиток −1R стає −1.4R" value={stressParams.badSlipMult} min={1} max={3} step={0.1} format={v => `×${v.toFixed(1)}`} onChange={v => setSP('badSlipMult', v)} accent="#38bdf899"
+                  explain={{ models: 'Розмір збитку при спрацюванні поганого виконання (в парі з Bad Slip Prob).', scenario: 'Геп через новини — стоп на -1R але реальний вихід по -2.5R. Ринок пройшов ліквідність і пішов далі перед розворотом.', how: 'Коли спрацьовує Bad Slip Prob, збиток множиться на цей коефіцієнт. 2.0× при -1R дає -2R фактичного збитку.', impact: 'Критично впливає на Max DD при комбінації з високим Prob. ×3 навіть при 10% prob може зруйнувати Survival Rate.' }} />
+                <StressSlider label="Missed Win" description="Пропустив прибуткову угоду. Прибуток стає 0R" value={stressParams.missedWin} min={0} max={0.5} step={0.01} format={v => `${(v * 100).toFixed(0)}%`} onChange={v => setSP('missedWin', v)} accent="#4ade80"
+                  explain={{ models: 'Пропущені прибуткові можливості — не встиг увійти, відволікся, вже в позиції, вирішив пропустити сетап.', scenario: 'Сетап спрацював поки ти спав або був зайнятий. 15% сетапів ти просто не берешь — вони відпрацьовують без тебе.', how: 'X% випадково вибраних виграшних трейдів замінюються на 0R — ніби ти не увійшов. Збиткові трейди залишаються незмінними.', impact: 'Асиметрично погіршує результат — ти пропускаєш виграші але не пропускаєш програші. Знижує WR та Total R. 15% missed wins ≈ -15% від загального профіту.' }} />
               </div>
             </div>
           </div>
