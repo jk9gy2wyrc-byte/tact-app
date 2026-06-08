@@ -1943,16 +1943,22 @@ export default function Charts() {
                   { key: 'streak',   label: 'Loss Streak',  liveVal: lvStreak, higherIsBetter: false, explain: 'Макс. серія збиткових угод поспіль.',                                 deviationLabel: d => d <= 0 ? `${Math.abs(Math.round(d))} менше медіани` : `+${Math.round(d)} понад медіану` },
                 ];
 
-                const SW = 160, SH = 44;
-                const Sparkline2 = ({ data, color }: { data: number[]; color: string }) => {
-                  if (data.length < 2) return null;
-                  const slice = data.slice(-40);
-                  const mn = Math.min(...slice), mx = Math.max(...slice), rng = mx - mn || 1;
-                  const pts = slice.map((v, i) => {
+                const SW = 200, SH = 90;
+                // Multi-series sparkline — normalises all series to shared scale
+                const makeSparkPoints = (data: number[], mn: number, rng: number) => {
+                  if (data.length < 2) return '';
+                  const slice = data.slice(-60);
+                  return slice.map((v, i) => {
                     const x = (i / (slice.length - 1)) * SW;
-                    const y = SH - ((v - mn) / rng) * (SH - 4) - 2;
+                    const y = SH - ((v - mn) / rng) * (SH - 6) - 3;
                     return `${x.toFixed(1)},${y.toFixed(1)}`;
                   }).join(' ');
+                };
+                const Sparkline2 = ({ data, color }: { data: number[]; color: string }) => {
+                  if (data.length < 2) return null;
+                  const slice = data.slice(-60);
+                  const mn = Math.min(...slice), mx = Math.max(...slice), rng = mx - mn || 1;
+                  const pts = makeSparkPoints(data, mn, rng);
                   return <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />;
                 };
 
@@ -1975,7 +1981,15 @@ export default function Charts() {
                         const explainKey = `scf2_${meta.key}`;
                         const explainOpen = scfOpen.has(explainKey);
 
-                        const sparkData = (() => {
+                        // BT rolling series per metric
+                        const btNets: number[] = (btEq as number[]).map((v: number, i: number) => i === 0 ? v : v - (btEq as number[])[i - 1]);
+                        const btRollingWR   = btNets.map((_, i) => { const w = btNets.slice(Math.max(0, i - 19), i + 1); return w.filter(x => x > 0).length / (w.length || 1); });
+                        const btRollingSQN  = btNets.map((_, i) => { const w = btNets.slice(Math.max(0, i - 19), i + 1); if (w.length < 2) return 0; const m = w.reduce((a, b) => a + b, 0) / w.length; const s = Math.sqrt(w.reduce((a, b) => a + (b - m) ** 2, 0) / w.length) || 1; return m / s * Math.sqrt(w.length); });
+                        const btRollingDD   = (() => { let pk = -Infinity; return (btEq as number[]).map(v => { if (v > pk) pk = v; return pk === -Infinity ? 0 : pk - v; }); })();
+                        const btRollingStrk = btNets.map((_, i) => { const w = btNets.slice(Math.max(0, i - 19), i + 1); let mx2 = 0, cur = 0; for (const rv of w) { if (rv < 0) { cur++; if (cur > mx2) mx2 = cur; } else cur = 0; } return mx2; });
+
+                        // Live rolling series
+                        const lvSparkLive = (() => {
                           if (meta.key === 'return') return lvEqArr;
                           if (meta.key === 'drawdown') { let pk = -Infinity; return lvEqArr.map(v => { if (v > pk) pk = v; return pk === -Infinity ? 0 : pk - v; }); }
                           if (meta.key === 'wr') return lvNets.map((_, i) => { const w = lvNets.slice(Math.max(0, i - 19), i + 1); return w.filter(x => x > 0).length / (w.length || 1); });
@@ -1983,6 +1997,30 @@ export default function Charts() {
                           if (meta.key === 'streak') return lvNets.map((_, i) => { const w = lvNets.slice(Math.max(0, i - 19), i + 1); let mx2 = 0, cur = 0; for (const rv of w) { if (rv < 0) { cur++; if (cur > mx2) mx2 = cur; } else cur = 0; } return mx2; });
                           return lvEqArr;
                         })();
+                        const lvSparkBT = (() => {
+                          if (meta.key === 'return') return btEq as number[];
+                          if (meta.key === 'drawdown') return btRollingDD;
+                          if (meta.key === 'wr') return btRollingWR;
+                          if (meta.key === 'sqn') return btRollingSQN;
+                          if (meta.key === 'streak') return btRollingStrk;
+                          return btEq as number[];
+                        })();
+                        // MC median curve — downsample r.mcMedian to spark length
+                        const lvSparkMC = (() => {
+                          if (!r.mcMedian || r.mcMedian.length < 2) return [];
+                          const src = r.mcMedian;
+                          const n = Math.min(60, src.length);
+                          return Array.from({ length: n }, (_, i) => {
+                            const idx = Math.round(i / (n - 1) * (src.length - 1));
+                            return src[idx];
+                          });
+                        })();
+                        // Shared scale across all three series
+                        const allSparkVals = [...lvSparkLive, ...lvSparkBT, ...lvSparkMC].filter(v => isFinite(v));
+                        const sparkMn = allSparkVals.length ? Math.min(...allSparkVals) : 0;
+                        const sparkMx = allSparkVals.length ? Math.max(...allSparkVals) : 1;
+                        const sparkRng = sparkMx - sparkMn || 1;
+                        const sparkData = lvSparkLive; // kept for p25/p75 band calculation
 
                         return (
                           <div key={meta.key} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -2002,17 +2040,26 @@ export default function Charts() {
                             <div style={{ background: 'var(--bg)', borderRadius: 5, overflow: 'hidden', height: SH }}>
                               <svg width="100%" height={SH} viewBox={`0 0 ${SW} ${SH}`} preserveAspectRatio="none">
                                 {(() => {
-                                  const mn2 = Math.min(...(sparkData.length ? sparkData : [0]));
-                                  const mx2 = Math.max(...(sparkData.length ? sparkData : [1]));
-                                  const rng2 = mx2 - mn2 || 1;
-                                  const refY = (v: number) => { const c = Math.max(mn2, Math.min(mx2, v)); return SH - ((c - mn2) / rng2) * (SH - 4) - 2; };
+                                  const refY = (v: number) => SH - ((Math.max(sparkMn, Math.min(sparkMx, v)) - sparkMn) / sparkRng) * (SH - 6) - 3;
+                                  const p25y = refY(box.p25), p75y = refY(box.p75);
                                   return (<>
-                                    <rect x={0} y={Math.min(refY(box.p25), refY(box.p75))} width={SW} height={Math.abs(refY(box.p25) - refY(box.p75)) || 1} fill="rgba(255,255,255,0.04)" />
-                                    <line x1={0} y1={refY(box.med)} x2={SW} y2={refY(box.med)} stroke="rgba(255,255,255,0.18)" strokeWidth={1} strokeDasharray="3,3" />
+                                    <rect x={0} y={Math.min(p25y, p75y)} width={SW} height={Math.abs(p25y - p75y) || 1} fill="rgba(255,255,255,0.04)" />
+                                    <line x1={0} y1={refY(box.med)} x2={SW} y2={refY(box.med)} stroke="rgba(251,146,60,0.4)" strokeWidth={1} strokeDasharray="3,2" />
                                   </>);
                                 })()}
-                                <Sparkline2 data={sparkData} color={LIVE_COLOR} />
+                                {/* BT — стандарт, сірий */}
+                                {lvSparkBT.length > 1 && <polyline points={makeSparkPoints(lvSparkBT, sparkMn, sparkRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="4,2" />}
+                                {/* MC median — expected, помаранчевий */}
+                                {lvSparkMC.length > 1 && <polyline points={makeSparkPoints(lvSparkMC, sparkMn, sparkRng)} fill="none" stroke="#fb923c" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />}
+                                {/* Live — current, синій */}
+                                {lvSparkLive.length > 1 && <polyline points={makeSparkPoints(lvSparkLive, sparkMn, sparkRng)} fill="none" stroke={LIVE_COLOR} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />}
                               </svg>
+                            </div>
+                            {/* Легенда */}
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'var(--text2)' }}><span style={{ width: 14, height: 2, background: LIVE_COLOR, display: 'inline-block', borderRadius: 1 }} />Current</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'var(--text2)' }}><span style={{ width: 14, height: 2, background: '#fb923c', display: 'inline-block', borderRadius: 1 }} />Expected</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'var(--text2)' }}><svg width="14" height="4" viewBox="0 0 14 4"><line x1="0" y1="2" x2="14" y2="2" stroke="#6b7280" strokeWidth="1.2" strokeDasharray="4,2"/></svg>Standard</div>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}><span style={{ color: 'var(--text2)' }}>Live</span><span style={{ color: 'var(--text)', fontWeight: 700, fontFamily: 'monospace' }}>{fmt(liveVal)}</span></div>
