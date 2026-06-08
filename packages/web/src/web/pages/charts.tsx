@@ -2051,7 +2051,7 @@ export default function Charts() {
                 // BLOCK 1 — Equity / Return
                 // ═══════════════════════════════════════════════════════════
                 const medProfit = r.summary.med.totalR;  // expected median profit (positive)
-                const medLoss   = r.summary.p5.totalR;   // expected median loss (p5, likely negative)
+                const medLoss   = -r.ddMed;              // expected median loss = negative of median max DD
 
                 // equity series
                 const eqLive = lvEqArr;
