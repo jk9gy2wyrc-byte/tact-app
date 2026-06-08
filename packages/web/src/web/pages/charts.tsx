@@ -677,7 +677,8 @@ export default function Charts() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveComboName, setSaveComboName] = useState('');
   const [savedCombosOpen, setSavedCombosOpen] = useState(false);
-  const [savedCombos, setSavedCombos] = useState<Array<{id: string; name: string; params: typeof defaultStress}>>([]);
+  type SavedCombo = { id: string; name: string; params: typeof defaultStress; mcParams?: { nSim: number; horizon: number | ''; stdDev: 'n-1' | 'n'; tradeCost: number | ''; jitter: number; btAssets: string[]; btYears: string[]; btMonths: string[]; lvAssets: string[]; lvYears: string[]; lvMonths: string[]; } };
+  const [savedCombos, setSavedCombos] = useState<SavedCombo[]>([]);
   const [stressDescOpen, setStressDescOpen] = useState<Set<string>>(new Set());
   const [scfOpen, setScfOpen] = useState<Set<string>>(new Set());
   const toggleScf = (k: string) => setScfOpen(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
@@ -778,8 +779,23 @@ export default function Charts() {
   }, [mcBtAssets, mcBtYears, mcBtMonths, mcLvAssets, mcLvYears, mcLvMonths, mcNSim, mcHorizon, mcStdDev, mcTradeCost, mcJitter, stressParams]);
 
   const resetStress = () => { setStressParams(defaultStress); setStressData(null); };
-  const loadCombo = async (combo: {id: string; name: string; params: typeof defaultStress}) => {
+  const loadCombo = async (combo: SavedCombo) => {
     setStressParams(combo.params);
+    // Restore MC params if saved
+    if (combo.mcParams) {
+      const p = combo.mcParams;
+      setMcNSim(p.nSim);
+      setMcHorizon(p.horizon);
+      setMcStdDev(p.stdDev);
+      setMcTradeCost(p.tradeCost);
+      setMcJitter(p.jitter);
+      if (p.btAssets.length)  setMcBtAssets(new Set(p.btAssets));
+      if (p.btYears.length)   setMcBtYears(new Set(p.btYears));
+      if (p.btMonths.length)  setMcBtMonths(new Set(p.btMonths));
+      if (p.lvAssets.length)  setMcLvAssets(new Set(p.lvAssets));
+      if (p.lvYears.length)   setMcLvYears(new Set(p.lvYears));
+      if (p.lvMonths.length)  setMcLvMonths(new Set(p.lvMonths));
+    }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setStressLoading(true);
     try {
@@ -788,7 +804,7 @@ export default function Charts() {
     } catch (_) {}
     setStressLoading(false);
   };
-  const persistCombos = useCallback((combos: Array<{id: string; name: string; params: typeof defaultStress}>) => {
+  const persistCombos = useCallback((combos: SavedCombo[]) => {
     fetch(`/api/prefs/stressCombos${uidParam()}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -802,7 +818,24 @@ export default function Charts() {
     persistCombos(updated);
   };
   const saveCombo = () => {
-    const combo = { id: Date.now().toString(), name: saveComboName.trim() || 'Без назви', params: { ...stressParams } };
+    const combo: SavedCombo = {
+      id: Date.now().toString(),
+      name: saveComboName.trim() || 'Без назви',
+      params: { ...stressParams },
+      mcParams: {
+        nSim: mcNSim,
+        horizon: mcHorizon,
+        stdDev: mcStdDev,
+        tradeCost: mcTradeCost,
+        jitter: mcJitter,
+        btAssets: [...mcBtAssets],
+        btYears:  [...mcBtYears],
+        btMonths: [...mcBtMonths],
+        lvAssets: [...mcLvAssets],
+        lvYears:  [...mcLvYears],
+        lvMonths: [...mcLvMonths],
+      },
+    };
     const updated = [...savedCombos, combo];
     setSavedCombos(updated);
     persistCombos(updated);
@@ -1448,7 +1481,13 @@ export default function Charts() {
                   <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => loadCombo(combo)}>
                     <div style={{ fontSize: 12, fontWeight: 600 }}>{combo.name}</div>
                     <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>
-                      {(Object.entries(combo.params) as [string, number][]).filter(([k, v]) => v !== (defaultStress as any)[k]).map(([k, v]) => `${k}: ${v}`).join(' · ') || 'всі за замовчуванням'}
+                      {[
+                        combo.mcParams ? `${combo.mcParams.nSim.toLocaleString()} сим` : null,
+                        combo.mcParams?.horizon !== '' && combo.mcParams?.horizon ? `горизонт ${combo.mcParams.horizon}` : null,
+                        combo.mcParams?.jitter ? `jitter ${combo.mcParams.jitter}` : null,
+                        combo.mcParams?.btAssets.length ? `BT: ${combo.mcParams.btAssets.join(',')}` : null,
+                        ...(Object.entries(combo.params) as [string, number][]).filter(([k, v]) => v !== (defaultStress as any)[k]).map(([k, v]) => `${k}: ${v}`),
+                      ].filter(Boolean).join(' · ') || 'всі за замовчуванням'}
                     </div>
                   </div>
                   <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, color: '#7eb8f7', border: '1px solid #1e3a5f' }} onClick={() => loadCombo(combo)}>Застосувати</button>
