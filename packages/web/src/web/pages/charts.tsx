@@ -1680,9 +1680,11 @@ export default function Charts() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {[...r.factorImpacts].sort((a, b) => a.impact - b.impact).map(row => {
                           const isActive = row.impact !== 0;
-                          const barW = Math.abs(row.impact / maxAbs * 100);
-                          // % = частка цього фактора серед загального abs впливу (вага серед усіх факторів)
+                          // % = частка цього фактора серед загального abs впливу
                           const weightPct = totalAbsImpact > 0 ? Math.abs(row.impact) / totalAbsImpact * 100 : 0;
+                          // відображуване значення = пропорційна частка Σ (MC_median - refVal)
+                          const displayVal = totalAbsImpact > 0 ? (Math.abs(row.impact) / totalAbsImpact) * totalImpact * (row.impact < 0 ? -1 : 1) : 0;
+                          const barW = weightPct;
                           return (
                             <div key={row.key}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
@@ -1693,14 +1695,14 @@ export default function Charts() {
                                       {weightPct.toFixed(1)}%
                                     </span>
                                   )}
-                                  <span style={{ fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: row.impact < 0 ? '#f87171' : row.impact > 0 ? '#4ade80' : 'var(--text2)' }}>
-                                    {row.impact === 0 ? '—' : `${row.impact >= 0 ? '+' : ''}${row.impact.toFixed(1)}R`}
+                                  <span style={{ fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: displayVal < 0 ? '#f87171' : displayVal > 0 ? '#4ade80' : 'var(--text2)' }}>
+                                    {!isActive ? '—' : `${displayVal >= 0 ? '+' : ''}${displayVal.toFixed(1)}R`}
                                   </span>
                                 </div>
                               </div>
                               {isActive && (
                                 <div style={{ height: 4, background: 'var(--surface)', borderRadius: 2 }}>
-                                  <div style={{ height: '100%', width: `${barW}%`, background: row.impact < 0 ? '#f87171' : '#4ade80', borderRadius: 2 }} />
+                                  <div style={{ height: '100%', width: `${barW}%`, background: displayVal < 0 ? '#f87171' : '#4ade80', borderRadius: 2 }} />
                                 </div>
                               )}
                             </div>
@@ -1711,7 +1713,7 @@ export default function Charts() {
                             {refLabel} {refVal >= 0 ? '+' : ''}{refVal.toFixed(2)}R → MC медіана {mcMedTotal >= 0 ? '+' : ''}{mcMedTotal.toFixed(2)}R <span style={{ color: totalImpact < 0 ? '#f87171' : '#4ade80', fontWeight: 700 }}>({totalImpact >= 0 ? '+' : ''}{totalImpact.toFixed(2)}R)</span>
                           </div>
                         )}
-                        <div style={{ fontSize: 9, color: '#4b5563' }}>* Аналітичний розбір по факторах. % = вага фактора серед загального впливу. Σ = реальна різниця MC медіани vs {refLabel}.</div>
+                        <div style={{ fontSize: 9, color: '#4b5563' }}>* % = вага фактора. R значення = пропорційна частка Σ (MC медіана vs {refLabel}).</div>
                       </div>
                     )}
 
