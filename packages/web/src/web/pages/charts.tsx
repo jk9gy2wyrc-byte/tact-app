@@ -671,7 +671,7 @@ const ScfFactorAccordion = ({ id, label, factors, scfOpen, toggleScf, stressPara
                   {/* Вплив: бар + % */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, width: 80 }}>
                     <div style={{ flex: 1, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-                      <div style={{ width: `${f.pct}%`, height: '100%', background: '#fb923c', borderRadius: 2 }} />
+                      <div style={{ width: `${f.pct}%`, height: '100%', background: '#ef4444', borderRadius: 2 }} />
                     </div>
                     <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--text)', width: 26, textAlign: 'right' }}>{f.pct.toFixed(0)}%</div>
                   </div>
@@ -2455,8 +2455,8 @@ export default function Charts() {
 
                       <ScfStatusBadge label={eqStatus} color={eqStatusColor} />
 
-                      <ScfFactorAccordion id="scf3_eq_profit" label="Exp. Med. Profit — фактори" factors={toFactorPct(retFactors.filter((f: any) => f.impact < 0))} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
-                      <ScfFactorAccordion id="scf3_eq_loss" label="Exp. Med. Loss — фактори" factors={toFactorPct(retFactors.filter((f: any) => f.impact < 0))} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
+                      <ScfFactorAccordion id="scf3_eq_profit" label="Exp. Med. Profit — фактори які впливали" factors={toFactorPct(retFactors.filter((f: any) => f.impact < 0))} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
+                      <ScfFactorAccordion id="scf3_eq_loss" label="Exp. Med. Loss — фактори які впливали" factors={toFactorPct(retFactors.filter((f: any) => f.impact < 0))} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
                     </ScfBlockCard>
 
                     {/* ── BLOCK 2: Max DD ── */}
@@ -2510,7 +2510,7 @@ export default function Charts() {
 
                       <ScfStatusBadge label={ddStatus} color={ddStatusColor} />
 
-                      <ScfFactorAccordion id="scf3_dd_med" label="Med. DD — фактори" factors={toFactorPct(ddFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
+                      <ScfFactorAccordion id="scf3_dd_med" label="Med. DD — фактори які впливали" factors={toFactorPct(ddFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
                     </ScfBlockCard>
 
                     {/* ── BLOCK 3: SQN ── */}
@@ -2560,7 +2560,7 @@ export default function Charts() {
 
                       <ScfStatusBadge label={sqnStatus} color={sqnStatusColor} />
 
-                      <ScfFactorAccordion id="scf3_sqn_med" label="Med. SQN — фактори" factors={toFactorPct(sqnFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
+                      <ScfFactorAccordion id="scf3_sqn_med" label="Med. SQN — фактори які впливали" factors={toFactorPct(sqnFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
                     </ScfBlockCard>
 
                     {/* ── BLOCK 4: Win Rate ── */}
@@ -2607,7 +2607,7 @@ export default function Charts() {
 
                       <ScfStatusBadge label={wrStatus} color={wrStatusColor} />
 
-                      <ScfFactorAccordion id="scf3_wr_med" label="Med. WR — фактори" factors={toFactorPct(wrFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
+                      <ScfFactorAccordion id="scf3_wr_med" label="Med. WR — фактори які впливали" factors={toFactorPct(wrFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
                     </ScfBlockCard>
 
                     </div>{/* end grid */}
