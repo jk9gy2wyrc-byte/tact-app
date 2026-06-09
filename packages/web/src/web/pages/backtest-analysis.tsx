@@ -961,7 +961,7 @@ export default function BacktestAnalysis() {
               <ResponsiveContainer width="100%" height={isMobile ? 140 : 180}>
                 <BarChart data={monthlyData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: isMobile ? 8 : 11, fill: "#8b9098" }} interval={isMobile ? Math.floor(monthlyData.length / 6) : 0} angle={isMobile ? -40 : 0} textAnchor={isMobile ? "end" : "middle"} height={isMobile ? 40 : 20} />
+                  <XAxis dataKey="label" tick={{ fontSize: isMobile ? 8 : 11, fill: "#8b9098" }} interval={isMobile ? Math.floor(monthlyData.length / 6) : monthlyData.length > 36 ? Math.floor(monthlyData.length / 24) : monthlyData.length > 18 ? Math.floor(monthlyData.length / 12) : 0} angle={isMobile ? -40 : 0} textAnchor={isMobile ? "end" : "middle"} height={isMobile ? 40 : 20} />
                   <YAxis tick={{ fontSize: 9, fill: "#8b9098" }} width={28} />
                   <Tooltip content={<ChartTooltip />} />
                   <ReferenceLine y={0} stroke="#444" />
@@ -975,7 +975,7 @@ export default function BacktestAnalysis() {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-              {!isMobile && (
+              {!isMobile && monthlyData.length <= 24 && (
                 <div style={{ display: "flex", justifyContent: "space-around", marginTop: 4 }}>
                   {monthlyData.map((d, i) => (
                     <div key={i} style={{ fontSize: 10, fontFamily: "monospace", textAlign: "center", color: colorNet(d.val), fontWeight: i === monthlyData.length - 1 ? 700 : 400 }}>
