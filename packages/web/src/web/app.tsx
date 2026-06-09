@@ -582,7 +582,11 @@ export default function App() {
               <AdminUsers currentLogin={session.login} />
             </Route>
           )}
-          <Route path="/cot" component={COT} />
+          <Route path="/cot">
+            {hasAccess === false
+              ? <TrialExpiredOverlay isMobile={isMobile}><COT /></TrialExpiredOverlay>
+              : <COT />}
+          </Route>
           <Route path="/subscription" component={Subscription} />
         </Switch>
         </PageTransition>
