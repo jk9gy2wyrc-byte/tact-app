@@ -2730,15 +2730,25 @@ export default function Charts() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
                           <span style={{ color: 'var(--text2)' }}>Live Streak</span>
-                          <span style={{ fontWeight: 700, fontFamily: 'monospace' }}>{lvStreakFinal}</span>
+                          <span style={{ fontWeight: 700, fontFamily: 'monospace', color: LIVE_COLOR }}>{lvStreakFinal}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                          <span style={{ color: 'var(--text2)' }}>p5 – Med – p95</span>
-                          <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{strkP5} – {strkMed} – {strkP95}</span>
+                          <span style={{ color: 'var(--text2)' }}>p5</span>
+                          <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{strkP5}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>Медіана</span>
+                          <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{strkMed}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>p95</span>
+                          <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{strkP95}</span>
                         </div>
                       </div>
 
                       <ScfStatusBadge label={strkStatus} color={strkStatusColor} />
+
+                      <ScfFactorAccordion id="scf3_strk" label="Losing Streak — фактори які впливали" factors={toFactorPct(retFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
                     </ScfBlockCard>
 
                     {/* ── BLOCK 6: Profit Factor ── */}
@@ -2778,15 +2788,25 @@ export default function Charts() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
                           <span style={{ color: 'var(--text2)' }}>Live PF</span>
-                          <span style={{ fontWeight: 700, fontFamily: 'monospace' }}>{fmtPF(lvPF)}</span>
+                          <span style={{ fontWeight: 700, fontFamily: 'monospace', color: LIVE_COLOR }}>{fmtPF(lvPF)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                          <span style={{ color: 'var(--text2)' }}>p5 – Med – p95</span>
-                          <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{fmtPF(pfP5)} – {fmtPF(pfMed)} – {fmtPF(pfP95)}</span>
+                          <span style={{ color: 'var(--text2)' }}>p5</span>
+                          <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{fmtPF(pfP5)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>Медіана</span>
+                          <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{fmtPF(pfMed)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>p95</span>
+                          <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{fmtPF(pfP95)}</span>
                         </div>
                       </div>
 
                       <ScfStatusBadge label={pfStatus} color={pfStatusColor} />
+
+                      <ScfFactorAccordion id="scf3_pf" label="Profit Factor — фактори які впливали" factors={toFactorPct(retFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
                     </ScfBlockCard>
 
                     </div>{/* end grid */}
