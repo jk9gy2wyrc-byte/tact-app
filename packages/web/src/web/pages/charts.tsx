@@ -235,7 +235,7 @@ function MetricChart({
   refY?: number;
   unit?: string;
   height?: number;
-  explanation?: string;
+  explanation?: string | React.ReactNode;
   isMobile?: boolean;
 }) {
   const BT_PTS = 120;
@@ -1501,20 +1501,78 @@ export default function Charts() {
 
       {/* ROLLING CHARTS — 2 cols */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20, alignItems: 'start' }}>
-        <MetricChart
-          title="Win Rate (rolling)"
-          btSeries={(btRolling.wr as number[]).map((v: number) => Math.round(v * 1000) / 10)}
-          lvSeries={(lvRolling.wr as number[]).map((v: number) => Math.round(v * 1000) / 10)}
-          mcpSeries={wrMC ? {
-            med: wrMC.med.map(v => Math.round(v * 1000) / 10),
-            p5:  wrMC.p5.map(v  => Math.round(v * 1000) / 10),
-            p95: wrMC.p95.map(v => Math.round(v * 1000) / 10),
-          } : undefined}
-          refY={50}
-          unit="%"
-          isMobile={isMobile}
-          explanation="Відсоток виграшних угод (результат = TP) у ковзному вікні. Бектест вікно = 20 трейдів, Live = 10 трейдів. Допомагає відслідкувати, чи ваш Win Rate відповідає статистичному очікуванню стратегії. Значне падіння нижче помаранчевої межі (p5) — сигнал деградації."
-        />
+        {(() => {
+          const wrBtSeries  = (btRolling.wr as number[]).map((v: number) => Math.round(v * 1000) / 10);
+          const wrLvSeries  = (lvRolling.wr as number[]).map((v: number) => Math.round(v * 1000) / 10);
+          const wrMCseries  = wrMC ? {
+            med: wrMC.med.map((v: number) => Math.round(v * 1000) / 10),
+            p5:  wrMC.p5.map((v: number)  => Math.round(v * 1000) / 10),
+            p95: wrMC.p95.map((v: number) => Math.round(v * 1000) / 10),
+          } : undefined;
+
+          const lvLast  = wrLvSeries.at(-1) ?? null;
+          const btLast  = wrBtSeries.at(-1) ?? null;
+          const medLast = wrMCseries?.med.at(-1) ?? null;
+          const p5Last  = wrMCseries?.p5.at(-1)  ?? null;
+          const p95Last = wrMCseries?.p95.at(-1) ?? null;
+
+          const lines: string[] = [];
+          lines.push('Відсоток виграшних угод у ковзному вікні (BT=20 трейдів, Live=10).\n');
+
+          if (lvLast != null) {
+            // vs MC band
+            if (p5Last != null && p95Last != null) {
+              if (lvLast < p5Last) {
+                lines.push(`⚠️ WR (${lvLast.toFixed(1)}%) вийшов нижче p5 (${p5Last.toFixed(1)}%) — сигнал тривоги. Стратегія деградує або ринковий режим змінився.`);
+              } else if (lvLast > p95Last) {
+                lines.push(`WR (${lvLast.toFixed(1)}%) вище p95 (${p95Last.toFixed(1)}%) — незвично добре. Можливо короткострокова серія удачі, стежте за стабільністю.`);
+              } else if (medLast != null) {
+                const devMed = ((lvLast - medLast) / Math.abs(medLast)) * 100;
+                if (devMed < -15) {
+                  lines.push(`WR (${lvLast.toFixed(1)}%) помітно нижче MC медіани (${medLast.toFixed(1)}%), але ще в межах p5–p95. Тенденція до зниження — варто спостерігати.`);
+                } else if (Math.abs(devMed) <= 15) {
+                  lines.push(`WR (${lvLast.toFixed(1)}%) близький до MC медіани (${medLast.toFixed(1)}%) і в межах норми p5–p95. Стратегія виконується відповідно до очікувань.`);
+                } else {
+                  lines.push(`WR (${lvLast.toFixed(1)}%) вище MC медіани (${medLast.toFixed(1)}%) і в межах норми. Хороший результат.`);
+                }
+              }
+            }
+
+            // vs BT
+            if (btLast != null) {
+              const devBT = lvLast - btLast;
+              if (devBT < -10) {
+                lines.push(`Відставання від бектесту: −${Math.abs(devBT).toFixed(1)}pp. Бектест WR ${btLast.toFixed(1)}% — Live не досягає цього рівня.`);
+              } else if (devBT > 10) {
+                lines.push(`Live WR перевищує бектест на +${devBT.toFixed(1)}pp (BT ${btLast.toFixed(1)}%). Можливо сприятлива ринкова фаза.`);
+              } else {
+                lines.push(`Live WR (${lvLast.toFixed(1)}%) відповідає бектесту (${btLast.toFixed(1)}%) — відхилення незначне.`);
+              }
+            }
+
+            // Conclusion
+            if (p5Last != null && lvLast < p5Last) {
+              lines.push('\nВисновок: стратегія під тиском. Якщо WR не відновиться протягом наступних 10–15 угод — розгляньте паузу для аналізу.');
+            } else if (p5Last != null && medLast != null && lvLast < medLast && lvLast >= p5Last) {
+              lines.push('\nВисновок: WR знизився відносно бектесту і MC очікування, але ще не вийшов за межі допустимого коридору. Якщо крива пробʼє p5 — це сигнал тривоги.');
+            } else {
+              lines.push('\nВисновок: WR в нормальному діапазоні, стратегія працює відповідно до очікувань.');
+            }
+          }
+
+          return (
+            <MetricChart
+              title="Win Rate (rolling)"
+              btSeries={wrBtSeries}
+              lvSeries={wrLvSeries}
+              mcpSeries={wrMCseries}
+              refY={50}
+              unit="%"
+              isMobile={isMobile}
+              explanation={lines.join('\n')}
+            />
+          );
+        })()}
         <MetricChart
           title="Average RR (rolling)"
           btSeries={btRolling.avgRR}
