@@ -789,7 +789,7 @@ export default function BacktestAnalysis() {
           onClose={() => setShowBtCompare(false)}
         />
       )}
-      <div style={{ padding: isMobile ? "12px" : "24px 28px", display: "flex", flexDirection: "column", gap: isMobile ? 14 : 20, width: "100%", overflow: "hidden", maxWidth: 1200, boxSizing: "border-box", margin: "0 auto" }}>
+      <div style={{ padding: isMobile ? "12px" : "24px 28px", display: "flex", flexDirection: "column", gap: isMobile ? 14 : 28, width: "100%", overflow: "hidden", boxSizing: "border-box" }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
           <div style={{ fontSize: 18, fontWeight: 700 }}>BT Analysis</div>
@@ -875,7 +875,7 @@ export default function BacktestAnalysis() {
             {/* Equity Curve */}
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
               <SectionTitle>Equity Curve (Net R)</SectionTitle>
-              <ResponsiveContainer width="100%" height={isMobile ? 150 : 190}>
+              <ResponsiveContainer width="100%" height={isMobile ? 150 : 220}>
                 <LineChart data={equity} margin={{ top: 12, right: isMobile ? 52 : 75, bottom: 0, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
                 <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#8b9098" }} interval={Math.max(Math.floor(equity.length / (isMobile ? 5 : 8)), 0)} />
@@ -910,7 +910,7 @@ export default function BacktestAnalysis() {
               <div style={{ fontSize: 10, color: "#888", marginBottom: 6 }}>
                 AVG: <span style={{ color: colorNet(stats?.avgNet ?? 0) }}>{(stats?.avgNet ?? 0) >= 0 ? "+" : ""}{(stats?.avgNet ?? 0).toFixed(3)}R</span>
               </div>
-              <ResponsiveContainer width="100%" height={isMobile ? 130 : 170}>
+              <ResponsiveContainer width="100%" height={isMobile ? 130 : 180}>
                 <BarChart data={distrib} margin={{ top: 0, right: 4, bottom: isMobile ? 16 : 24, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" vertical={false} />
                   <XAxis dataKey="i" tick={{ fontSize: 9, fill: "#8b9098" }}
@@ -958,7 +958,7 @@ export default function BacktestAnalysis() {
             {monthlyData.length > 2 && (
               <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
               <SectionTitle>Monthly Return (Net R)</SectionTitle>
-              <ResponsiveContainer width="100%" height={isMobile ? 140 : 170}>
+              <ResponsiveContainer width="100%" height={isMobile ? 140 : 180}>
                 <BarChart data={monthlyData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: isMobile ? 8 : 11, fill: "#8b9098" }} interval={isMobile ? Math.floor(monthlyData.length / 6) : 0} angle={isMobile ? -40 : 0} textAnchor={isMobile ? "end" : "middle"} height={isMobile ? 40 : 20} />
