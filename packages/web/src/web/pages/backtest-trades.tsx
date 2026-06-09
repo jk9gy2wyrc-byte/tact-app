@@ -330,6 +330,25 @@ function EditModal({ trade, onClose, onSave, isPending }: {
   );
 }
 
+function DeleteBtn({ onConfirm, style: extraStyle }: { onConfirm: () => void; style?: React.CSSProperties }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position: 'relative', display: 'inline-block' }} onClick={e => e.stopPropagation()}>
+      <button style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6, background: '#2a2d33', border: '1px solid var(--border)', color: 'var(--text2)', cursor: 'pointer', ...extraStyle }}
+        onClick={e => { e.stopPropagation(); setOpen(p => !p); }}>×</button>
+      {open && (
+        <div style={{ position: 'absolute', top: '110%', right: 0, zIndex: 9999, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', minWidth: 160, whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>Видалити?</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button style={{ flex: 1, padding: '5px 0', borderRadius: 7, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer', fontSize: 12 }} onClick={() => setOpen(false)}>Ні</button>
+            <button style={{ flex: 1, padding: '5px 0', borderRadius: 7, border: '1px solid var(--red)', background: 'var(--red)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }} onClick={() => { onConfirm(); setOpen(false); }}>Так</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TradeCard({ t, onEdit, onDelete }: { t: any; onEdit: () => void; onDelete: () => void }) {
   return (
     <div onClick={onEdit} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer', transition: 'border-color 0.15s' }}
@@ -341,7 +360,7 @@ function TradeCard({ t, onEdit, onDelete }: { t: any; onEdit: () => void; onDele
           <span style={{ fontSize: 12, fontWeight: 600 }}>{t.instrument ?? '—'}</span>
           <span style={{ fontSize: 10, color: 'var(--text2)' }}>{fmtDate(t.month)}</span>
         </div>
-        <button className="btn-danger" style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6 }} onClick={e => { e.stopPropagation(); onDelete(); }}>×</button>
+        <DeleteBtn onConfirm={onDelete} style={{ border: '1px solid var(--red)', color: 'var(--red)' }} />
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 600, background: t.direction === 'long' ? '#1a3a2a' : '#3a1a1a', color: t.direction === 'long' ? '#4ade80' : '#f87171' }}>{capitalize(t.direction ?? '—')}</span>
@@ -366,7 +385,6 @@ export default function BacktestTrades() {
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ ...emptyForm });
   const [editTrade, setEditTrade] = useState<any | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<{ id: number } | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [error, setError] = useState('');
 
@@ -591,22 +609,7 @@ export default function BacktestTrades() {
           isPending={editMutation.isPending} />
       )}
 
-      {confirmDelete && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={() => setConfirmDelete(null)}>
-          <div style={{ background: 'var(--surface)', borderRadius: 14, padding: 28, maxWidth: 360, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Видалити позицію?</div>
-            <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 24 }}>Цю дію не можна скасувати.</div>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontSize: 13 }}
-                onClick={() => setConfirmDelete(null)}>Скасувати</button>
-              <button style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid var(--red)', background: 'var(--red)', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
-                onClick={() => { deleteMutation.mutate(confirmDelete.id); setConfirmDelete(null); }}>Видалити</button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {confirmClear && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -962,7 +965,7 @@ export default function BacktestTrades() {
                                     isMobile ? (
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 10px 10px' }}>
                                         {mTrades.map((t: any) => (
-                                          <TradeCard key={t.id} t={t} onEdit={() => setEditTrade(t)} onDelete={() => setConfirmDelete({ id: t.id })} />
+                                          <TradeCard key={t.id} t={t} onEdit={() => setEditTrade(t)} onDelete={() => deleteMutation.mutate(t.id)} />
                                         ))}
                                       </div>
                                     ) : (
@@ -983,7 +986,7 @@ export default function BacktestTrades() {
                                                 <td className={`mono ${(t.grossR ?? 0) >= 0 ? 'pos' : 'neg'}`}>{fmt(t.grossR)}</td>
                                                 <td className="mono neg">{fmt(t.cost)}</td>
                                                 <td className={`mono ${(t.netR ?? 0) > 0 ? 'pos' : (t.netR ?? 0) < 0 ? 'neg' : 'be'}`}>{fmt(t.netR)}</td>
-                                                <td><button style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6, background: '#2a2d33', border: '1px solid var(--border)', color: 'var(--text2)', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); setConfirmDelete({ id: t.id }); }}>×</button></td>
+                                                <td><DeleteBtn onConfirm={() => deleteMutation.mutate(t.id)} /></td>
                                               </tr>
                                             ))}
                                           </tbody>
@@ -1040,7 +1043,7 @@ export default function BacktestTrades() {
                               isMobile ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 10px 10px' }}>
                                   {mTrades.map((t: any) => (
-                                    <TradeCard key={t.id} t={t} onEdit={() => setEditTrade(t)} onDelete={() => setConfirmDelete({ id: t.id })} />
+                                    <TradeCard key={t.id} t={t} onEdit={() => setEditTrade(t)} onDelete={() => deleteMutation.mutate(t.id)} />
                                   ))}
                                 </div>
                               ) : (
@@ -1061,7 +1064,7 @@ export default function BacktestTrades() {
                                           <td className={`mono ${(t.grossR ?? 0) >= 0 ? 'pos' : 'neg'}`}>{fmt(t.grossR)}</td>
                                           <td className="mono neg">{fmt(t.cost)}</td>
                                           <td className={`mono ${(t.netR ?? 0) > 0 ? 'pos' : (t.netR ?? 0) < 0 ? 'neg' : 'be'}`}>{fmt(t.netR)}</td>
-                                          <td><button style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6, background: '#2a2d33', border: '1px solid var(--border)', color: 'var(--text2)', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); setConfirmDelete({ id: t.id }); }}>×</button></td>
+                                          <td><DeleteBtn onConfirm={() => deleteMutation.mutate(t.id)} /></td>
                                         </tr>
                                       ))}
                                     </tbody>

@@ -1573,33 +1573,188 @@ export default function Charts() {
             />
           );
         })()}
-        <MetricChart
-          title="Average RR (rolling)"
-          btSeries={btRolling.avgRR}
-          lvSeries={lvRolling.avgRR}
-          mcpSeries={rrMC}
-          refY={1}
-          isMobile={isMobile}
-          explanation="Середнє співвідношення ризик/прибуток за ковзним вікном. Показує, чи тримаєте ви якість входів у порівнянні з бектестом. Значне відхилення від сірої лінії вказує на зміну в якості виконання угод."
-        />
-        <MetricChart
-          title="Profit Factor (rolling)"
-          btSeries={btRolling.pf}
-          lvSeries={lvRolling.pf}
-          mcpSeries={pfMC}
-          refY={1}
-          isMobile={isMobile}
-          explanation="Profit Factor = Сума виграшів / Сума програшів у ковзному вікні. PF > 1 означає прибутковість. Значення нижче 1 — стратегія збиткова в цьому вікні. Порівнюйте з бектестом і діапазоном MC."
-        />
-        <MetricChart
-          title="Max Drawdown (rolling)"
-          btSeries={btRolling.maxDD}
-          lvSeries={lvRolling.maxDD}
-          mcpSeries={ddMC}
-          refY={0}
-          isMobile={isMobile}
-          explanation="Максимальна просадка (в одиницях R) від піку до дна у ковзному вікні. Менше = краще. Якщо Live просадка перевищує p95 — стратегія виходить за межі очікуваної волатильності ризиків."
-        />
+        {(() => {
+          const rrBt = btRolling.avgRR as number[];
+          const rrLv = lvRolling.avgRR as number[];
+          const lvLast  = rrLv.at(-1) ?? null;
+          const btLast  = rrBt.at(-1) ?? null;
+          const medLast = rrMC?.med?.at(-1) ?? null;
+          const p5Last  = rrMC?.p5?.at(-1)  ?? null;
+          const p95Last = rrMC?.p95?.at(-1) ?? null;
+
+          const lines: string[] = [];
+          lines.push('Середнє співвідношення ризик/прибуток за ковзним вікном (BT=20, Live=10).\n');
+
+          if (lvLast != null) {
+            if (p5Last != null && p95Last != null) {
+              if (lvLast < p5Last) {
+                lines.push(`⚠️ Avg RR (${lvLast.toFixed(2)}) нижче p5 (${p5Last.toFixed(2)}) — якість виконання угод критично знизилась. Перевірте дисципліну виходів.`);
+              } else if (lvLast > p95Last) {
+                lines.push(`Avg RR (${lvLast.toFixed(2)}) вище p95 (${p95Last.toFixed(2)}) — незвично високий. Можлива серія виняткових угод.`);
+              } else if (medLast != null) {
+                const devMed = ((lvLast - medLast) / Math.abs(medLast)) * 100;
+                if (devMed < -15) {
+                  lines.push(`Avg RR (${lvLast.toFixed(2)}) помітно нижче MC медіани (${medLast.toFixed(2)}), але ще в межах p5–p95. Якість входів знижується — стежте.`);
+                } else if (Math.abs(devMed) <= 15) {
+                  lines.push(`Avg RR (${lvLast.toFixed(2)}) близький до MC медіани (${medLast.toFixed(2)}) — якість виконання в нормі.`);
+                } else {
+                  lines.push(`Avg RR (${lvLast.toFixed(2)}) вище MC медіани (${medLast.toFixed(2)}) — відмінна якість угод у поточному вікні.`);
+                }
+              }
+            }
+            if (btLast != null) {
+              const devBT = ((lvLast - btLast) / Math.abs(btLast)) * 100;
+              if (devBT < -15) {
+                lines.push(`Відставання від бектесту: ${devBT.toFixed(1)}%. BT Avg RR ${btLast.toFixed(2)} — Live не досягає очікуваного рівня.`);
+              } else if (devBT > 15) {
+                lines.push(`Live Avg RR перевищує бектест на +${devBT.toFixed(1)}% (BT ${btLast.toFixed(2)}).`);
+              } else {
+                lines.push(`Live Avg RR (${lvLast.toFixed(2)}) відповідає бектесту (${btLast.toFixed(2)}) — відхилення незначне.`);
+              }
+            }
+            if (p5Last != null && lvLast < p5Last) {
+              lines.push('\nВисновок: якість виконання угод під серйозним тиском. Проаналізуйте останні угоди — можливо змінилась дисципліна виходу або якість сетапів.');
+            } else if (p5Last != null && medLast != null && lvLast < medLast && lvLast >= p5Last) {
+              lines.push('\nВисновок: Avg RR знизився відносно очікувань, але ще в допустимому коридорі. Продовжуйте спостереження.');
+            } else {
+              lines.push('\nВисновок: Avg RR в нормальному діапазоні, якість виконання угод відповідає бектесту.');
+            }
+          }
+
+          return (
+            <MetricChart
+              title="Average RR (rolling)"
+              btSeries={rrBt}
+              lvSeries={rrLv}
+              mcpSeries={rrMC}
+              refY={1}
+              isMobile={isMobile}
+              explanation={lines.join('\n')}
+            />
+          );
+        })()}
+        {(() => {
+          const pfBt = btRolling.pf as number[];
+          const pfLv = lvRolling.pf as number[];
+          const lvLast  = pfLv.at(-1) ?? null;
+          const btLast  = pfBt.at(-1) ?? null;
+          const medLast = pfMC?.med?.at(-1) ?? null;
+          const p5Last  = pfMC?.p5?.at(-1)  ?? null;
+          const p95Last = pfMC?.p95?.at(-1) ?? null;
+
+          const lines: string[] = [];
+          lines.push('Profit Factor = Сума виграшів / Сума програшів у ковзному вікні (BT=20, Live=10). PF > 1 — прибутковість.\n');
+
+          if (lvLast != null) {
+            if (p5Last != null && p95Last != null) {
+              if (lvLast < p5Last) {
+                lines.push(`⚠️ PF (${lvLast.toFixed(2)}) нижче p5 (${p5Last.toFixed(2)}) — стратегія збиткова і виходить за межі допустимого. Серйозний сигнал.`);
+              } else if (lvLast > p95Last) {
+                lines.push(`PF (${lvLast.toFixed(2)}) вище p95 (${p95Last.toFixed(2)}) — незвично висока прибутковість у вікні. Можлива серія.`);
+              } else if (medLast != null) {
+                const devMed = ((lvLast - medLast) / Math.abs(medLast)) * 100;
+                if (devMed < -20) {
+                  lines.push(`PF (${lvLast.toFixed(2)}) помітно нижче MC медіани (${medLast.toFixed(2)}), але ще в межах норми p5–p95. Тенденція до зниження.`);
+                } else if (Math.abs(devMed) <= 20) {
+                  lines.push(`PF (${lvLast.toFixed(2)}) близький до MC медіани (${medLast.toFixed(2)}) — прибутковість відповідає очікуванням.`);
+                } else {
+                  lines.push(`PF (${lvLast.toFixed(2)}) вище MC медіани (${medLast.toFixed(2)}) — прибутковість краща за очікувану.`);
+                }
+              }
+            }
+            if (btLast != null) {
+              const devBT = ((lvLast - btLast) / Math.abs(btLast)) * 100;
+              if (devBT < -20) {
+                lines.push(`PF відстає від бектесту на ${devBT.toFixed(1)}% (BT ${btLast.toFixed(2)}). Live менш прибутковий ніж в бектесті.`);
+              } else if (devBT > 20) {
+                lines.push(`Live PF перевищує бектест на +${devBT.toFixed(1)}% (BT ${btLast.toFixed(2)}).`);
+              } else {
+                lines.push(`Live PF (${lvLast.toFixed(2)}) відповідає бектесту (${btLast.toFixed(2)}) — відхилення незначне.`);
+              }
+            }
+            if (p5Last != null && lvLast < 1) {
+              lines.push('\nВисновок: стратегія збиткова в поточному вікні. Якщо PF не відновиться — розгляньте паузу для аналізу.');
+            } else if (p5Last != null && lvLast < p5Last) {
+              lines.push('\nВисновок: PF критично низький. Перегляньте управління виходами та якість сетапів.');
+            } else if (p5Last != null && medLast != null && lvLast < medLast && lvLast >= p5Last) {
+              lines.push('\nВисновок: PF нижче очікуваного, але ще в нормі. Продовжуйте спостереження, не змінюйте стратегію.');
+            } else {
+              lines.push('\nВисновок: Profit Factor в нормальному діапазоні, стратегія прибуткова відповідно до очікувань.');
+            }
+          }
+
+          return (
+            <MetricChart
+              title="Profit Factor (rolling)"
+              btSeries={pfBt}
+              lvSeries={pfLv}
+              mcpSeries={pfMC}
+              refY={1}
+              isMobile={isMobile}
+              explanation={lines.join('\n')}
+            />
+          );
+        })()}
+        {(() => {
+          const ddBt = btRolling.maxDD as number[];
+          const ddLv = lvRolling.maxDD as number[];
+          const lvLast  = ddLv.at(-1) ?? null;
+          const btLast  = ddBt.at(-1) ?? null;
+          const medLast = ddMC?.med?.at(-1) ?? null;
+          const p5Last  = ddMC?.p5?.at(-1)  ?? null;
+          const p95Last = ddMC?.p95?.at(-1) ?? null;
+
+          const lines: string[] = [];
+          lines.push('Максимальна просадка (в R) від піку до дна у ковзному вікні (BT=20, Live=10). Менше = краще.\n');
+
+          if (lvLast != null) {
+            if (p95Last != null) {
+              if (lvLast > p95Last) {
+                lines.push(`⚠️ Max DD (${lvLast.toFixed(2)}R) перевищує p95 (${p95Last.toFixed(2)}R) — просадка виходить за межі очікуваної. Підвищений ризик.`);
+              } else if (p5Last != null && lvLast < p5Last) {
+                lines.push(`Max DD (${lvLast.toFixed(2)}R) дуже низький (нижче p5 ${p5Last.toFixed(2)}R) — незвично мала просадка. Можлива серія вдалих угод.`);
+              } else if (medLast != null) {
+                const devMed = ((lvLast - medLast) / Math.abs(medLast)) * 100;
+                if (devMed > 20) {
+                  lines.push(`Max DD (${lvLast.toFixed(2)}R) помітно вищий за MC медіану (${medLast.toFixed(2)}R), але ще в межах p5–p95. Просадка зростає — стежте.`);
+                } else if (Math.abs(devMed) <= 20) {
+                  lines.push(`Max DD (${lvLast.toFixed(2)}R) близький до MC медіани (${medLast.toFixed(2)}R) — просадка в межах норми.`);
+                } else {
+                  lines.push(`Max DD (${lvLast.toFixed(2)}R) нижчий за MC медіану (${medLast.toFixed(2)}R) — контроль ризику краще очікуваного.`);
+                }
+              }
+            }
+            if (btLast != null) {
+              const devBT = ((lvLast - btLast) / Math.abs(btLast || 1)) * 100;
+              if (devBT > 20) {
+                lines.push(`Live DD на +${devBT.toFixed(1)}% вищий ніж в бектесті (BT ${btLast.toFixed(2)}R) — Live торгівля несе більшу просадку.`);
+              } else if (devBT < -20) {
+                lines.push(`Live DD на ${devBT.toFixed(1)}% нижчий ніж в бектесті (BT ${btLast.toFixed(2)}R) — Live контролює ризик краще.`);
+              } else {
+                lines.push(`Live DD (${lvLast.toFixed(2)}R) відповідає бектесту (${btLast.toFixed(2)}R) — відхилення незначне.`);
+              }
+            }
+            if (p95Last != null && lvLast > p95Last) {
+              lines.push('\nВисновок: просадка критична. Зменшіть розмір позицій або зробіть паузу до стабілізації.');
+            } else if (medLast != null && lvLast > medLast * 1.2) {
+              lines.push('\nВисновок: просадка підвищена відносно очікувань, але ще в межах допустимого. Контролюйте ризик-менеджмент.');
+            } else {
+              lines.push('\nВисновок: Max Drawdown в нормальному діапазоні, ризик-менеджмент відповідає бектесту.');
+            }
+          }
+
+          return (
+            <MetricChart
+              title="Max Drawdown (rolling)"
+              btSeries={ddBt}
+              lvSeries={ddLv}
+              mcpSeries={ddMC}
+              refY={0}
+              isMobile={isMobile}
+              explanation={lines.join('\n')}
+            />
+          );
+        })()}
       </div>
 
       <MetricChart

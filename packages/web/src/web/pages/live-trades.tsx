@@ -296,6 +296,25 @@ function EditModal({ trade, onClose, onSave, isPending }: {
   );
 }
 
+function DeleteBtn({ onConfirm, style: extraStyle }: { onConfirm: () => void; style?: React.CSSProperties }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position: 'relative', display: 'inline-block' }} onClick={e => e.stopPropagation()}>
+      <button style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6, background: '#2a2d33', border: '1px solid var(--border)', color: 'var(--text2)', cursor: 'pointer', ...extraStyle }}
+        onClick={e => { e.stopPropagation(); setOpen(p => !p); }}>×</button>
+      {open && (
+        <div style={{ position: 'absolute', top: '110%', right: 0, zIndex: 9999, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', minWidth: 160, whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>Видалити?</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button style={{ flex: 1, padding: '5px 0', borderRadius: 7, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer', fontSize: 12 }} onClick={() => setOpen(false)}>Ні</button>
+            <button style={{ flex: 1, padding: '5px 0', borderRadius: 7, border: '1px solid var(--red)', background: 'var(--red)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }} onClick={() => { onConfirm(); setOpen(false); }}>Так</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TradeCard({ t, onEdit, onDelete, onPreview }: { t: any; onEdit: () => void; onDelete: () => void; onPreview: (src: string) => void }) {
   const links = parseAttachments(t.attachments);
   return (
@@ -308,7 +327,7 @@ function TradeCard({ t, onEdit, onDelete, onPreview }: { t: any; onEdit: () => v
           <span style={{ fontSize: 12, fontWeight: 600 }}>{t.asset ?? '—'}</span>
           <span style={{ fontSize: 10, color: 'var(--text2)' }}>{fmtDate(t.month)}</span>
         </div>
-        <button style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6, background: '#2a2d33', border: '1px solid var(--border)', color: 'var(--text2)', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); onDelete(); }}>×</button>
+        <DeleteBtn onConfirm={onDelete} />
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 600, background: t.direction === 'long' ? '#1a3a2a' : '#3a1a1a', color: t.direction === 'long' ? '#4ade80' : '#f87171' }}>{capitalize(t.direction ?? '—')}</span>
@@ -354,6 +373,7 @@ export default function LiveTrades() {
   const [form, setForm] = useState({ ...emptyForm });
   const [editTrade, setEditTrade] = useState<any | null>(null);
   const [error, setError] = useState('');
+
   const [showUpload, setShowUpload] = useState(false);
   const [showUploadWarning, setShowUploadWarning] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -556,6 +576,7 @@ export default function LiveTrades() {
 
   return (
     <div style={{ padding: p }}>
+
       {editTrade && (
         <EditModal trade={editTrade} onClose={() => setEditTrade(null)}
           onSave={body => editMutation.mutate({ id: editTrade.id, body })}
@@ -810,7 +831,7 @@ export default function LiveTrades() {
                     {group.trades.map((t: any) => {
                       const tw = { ...t, __monthSeq: monthSeqMap.get(t.id) };
                       return (
-                        <TradeCard key={t.id} t={tw} onEdit={() => setEditTrade(tw)} onDelete={() => { if (confirm('Delete?')) deleteMutation.mutate(t.id); }} onPreview={setPreviewImg} />
+                        <TradeCard key={t.id} t={tw} onEdit={() => setEditTrade(tw)} onDelete={() => deleteMutation.mutate(t.id)} onPreview={setPreviewImg} />
                       );
                     })}
                   </div>
@@ -858,7 +879,7 @@ export default function LiveTrades() {
                                   </div>
                                 ) : <span style={{ color: 'var(--text2)' }}>—</span>}
                               </td>
-                              <td><button style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6, background: '#2a2d33', border: '1px solid var(--border)', color: 'var(--text2)', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); if (confirm('Delete?')) deleteMutation.mutate(t.id); }}>×</button></td>
+                              <td><DeleteBtn onConfirm={() => deleteMutation.mutate(t.id)} /></td>
                             </tr>
                           );
                         })}
