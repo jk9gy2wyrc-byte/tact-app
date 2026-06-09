@@ -2089,7 +2089,7 @@ export default function Charts() {
                 };
 
                 // ── shared SVG sparkline util ──────────────────────────────
-                const SW = 300, SH = 110;
+                const SW = 300, SH = 160;
                 const mkPts = (data: number[], mn: number, rng: number) => {
                   if (data.length < 2) return '';
                   const n = Math.min(120, data.length);
