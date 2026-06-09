@@ -1904,7 +1904,7 @@ export default function Charts() {
                     <XAxis dataKey="bin" stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickFormatter={v => v.toFixed(1)} />
                     <YAxis stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} />
                     <Tooltip formatter={(v: any, n: any) => [v, 'Симуляцій']} labelFormatter={v => `SQN ≈ ${Number(v).toFixed(2)}`} contentStyle={{ background: 'var(--surface2)', border: '1px solid var(--border)', fontSize: 11 }} />
-                    <Bar dataKey="count" fill="#7eb8f7" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="count" fill="#6b7280" radius={[2, 2, 0, 0]} />
                     <ReferenceLine x={r.summary.med.sqn} stroke={MC_MED_COLOR} strokeWidth={2} label={{ value: 'med', position: 'top', fontSize: 9, fill: MC_MED_COLOR }} />
                   </BarChart>
                 </ResponsiveContainer>
