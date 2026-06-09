@@ -391,13 +391,13 @@ export default function Subscription() {
         <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 20 }}>What's included in access</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
           {[
-            { title: 'Dashboard', desc: 'Загальний огляд лайв і бектест перформансу в одному місці' },
+            { title: 'Dashboard', desc: 'Загальний огляд лайв і бектест перформансу: еквіті, статистика, новини ринку та тижневі відхилення ціни' },
             { title: 'Live Database', desc: 'Додавай, редагуй і керуй своїми лайв угодами з усіма деталями' },
             { title: 'Backtest DB', desc: 'Зберігай і аналізуй історію своїх бектест угод' },
-            { title: 'Live Analysis', desc: 'Глибока статистика по лайв угодах — розподіл, еквіті, сесії, інструменти' },
-            { title: 'BT Analysis', desc: 'Повний розбір бектесту — місячна прибутковість, інструменти, консістенсі' },
-            { title: 'Analysis & MC', desc: 'Монте Карло симуляції для стрес-тесту торгової системи' },
-            { title: 'COT Data', desc: 'Звіти Commitment of Traders для макро конфлюенсу' },
+            { title: 'Live Analysis', desc: 'Еквіті крива, розподіл PnL, розподіл R на угоду, консістенсі скор, сесії, вінрейт, вінстрік / лузстрік, порівняння місяців' },
+            { title: 'BT Analysis', desc: 'Еквіті крива, розподіл PnL, розподіл R на угоду, консістенсі скор, сесії, вінрейт, вінстрік / лузстрік, порівняння місяців і років, аналіз по різних активах і датасетах' },
+            { title: 'Analysis & MC', desc: 'Порівняння еквіті Net R vs Gross R (бектест і лайв), вінрейт, avg RR, профіт фактор, макс дродаун, Std Dev, SQN, 9 стрес-метрик, Survival Rate і Monte Carlo симуляції' },
+            { title: 'COT Data', desc: 'Щотижнева звітність яку публікує CFTC (Commodity Futures Trading Commission) — позиції великих гравців для макро конфлюенсу' },
           ].map((item, i) => (
             <div key={i} style={{
               background: 'var(--bg)', border: '1px solid var(--border)',
