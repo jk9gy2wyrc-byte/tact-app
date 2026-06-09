@@ -1353,7 +1353,7 @@ export default function Charts() {
       </div>
 
       {/* ROLLING CHARTS — 2 cols */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20, alignItems: 'start' }}>
         <MetricChart
           title="Win Rate (rolling)"
           btSeries={(btRolling.wr as number[]).map((v: number) => Math.round(v * 1000) / 10)}

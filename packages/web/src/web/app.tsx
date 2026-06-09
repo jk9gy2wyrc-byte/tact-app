@@ -7,6 +7,7 @@ import LiveAnalysis from "./pages/live-analysis";
 import BacktestTrades from "./pages/backtest-trades";
 import BacktestAnalysis from "./pages/backtest-analysis";
 import Charts from "./pages/charts";
+import COT from "./pages/cot";
 import AdminUsers from "./pages/admin-users";
 import Subscription from "./pages/subscription";
 import { setSession, clearSession, getSession, type Session } from "./lib/session";
@@ -103,6 +104,7 @@ function buildNav(role: string) {
     { path: "/backtest", label: "Backtest DB" },
     { path: "/backtest-analysis", label: "BT Analysis" },
     { path: "/charts", label: "Analysis & MC" },
+    { path: "/cot", label: "COT" },
   ];
   if (role === 'admin') nav.push({ path: "/users", label: "Users" });
   nav.push({ path: "/subscription", label: "Subscription" });
@@ -580,6 +582,7 @@ export default function App() {
               <AdminUsers currentLogin={session.login} />
             </Route>
           )}
+          <Route path="/cot" component={COT} />
           <Route path="/subscription" component={Subscription} />
         </Switch>
         </PageTransition>
