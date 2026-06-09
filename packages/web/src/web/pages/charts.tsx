@@ -649,13 +649,24 @@ const ScfFactorAccordion = ({ id, label, factors, scfOpen, toggleScf, stressPara
             : factors.map(f => {
               const val = stressParams ? fmtStressVal(f.key, stressParams) : '';
               return (
-                <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{ flex: 1, fontSize: 10, color: 'var(--text2)' }}>{f.label}</div>
-                  {val && <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--text)', whiteSpace: 'nowrap' }}>{val}</div>}
-                  <div style={{ width: 60, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-                    <div style={{ width: `${f.pct}%`, height: '100%', background: '#fb923c', borderRadius: 2 }} />
+                <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                  {/* Назва */}
+                  <div style={{ flex: 1, fontSize: 10, color: 'var(--text2)', paddingRight: 6 }}>{f.label}</div>
+                  {/* роздільник */}
+                  <div style={{ width: 1, alignSelf: 'stretch', background: '#2a2d33', marginRight: 6 }} />
+                  {/* Значення */}
+                  <div style={{ width: 52, fontSize: 10, fontFamily: 'monospace', color: 'var(--text)', textAlign: 'right', paddingRight: 6 }}>
+                    {val || '—'}
                   </div>
-                  <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--text)', width: 34, textAlign: 'right' }}>{f.pct.toFixed(0)}%</div>
+                  {/* роздільник */}
+                  <div style={{ width: 1, alignSelf: 'stretch', background: '#2a2d33', marginRight: 6 }} />
+                  {/* Вплив: бар + % */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, width: 80 }}>
+                    <div style={{ flex: 1, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ width: `${f.pct}%`, height: '100%', background: '#fb923c', borderRadius: 2 }} />
+                    </div>
+                    <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--text)', width: 26, textAlign: 'right' }}>{f.pct.toFixed(0)}%</div>
+                  </div>
                 </div>
               );
             })
