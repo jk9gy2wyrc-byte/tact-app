@@ -688,13 +688,13 @@ export default function LiveAnalysis() {
                       return (
                         <div style={{ background: "#1c1f23", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12 }}>
                           <div style={{ color: "#888", marginBottom: 4 }}>Trade #{d.i}</div>
-                          <div style={{ color: d.val >= 0 ? "#4ade80" : "#f87171" }}>Net R: {d.val >= 0 ? "+" : ""}{d.val.toFixed(2)}</div>
+                          <div style={{ color: d.val >= 0 ? "#7eb8f7" : "#f0a070" }}>Net R: {d.val >= 0 ? "+" : ""}{d.val.toFixed(2)}</div>
                         </div>
                       );
                     }} />
                     <ReferenceLine y={0} stroke="#444" />
                     <Bar dataKey="val" name="Net R" radius={[1, 1, 0, 0]}>
-                      {tradeData.map((d, i) => <Cell key={i} fill={d.val >= 0 ? "#4ade80" : "#f87171"} fillOpacity={0.8} />)}
+                      {tradeData.map((d, i) => <Cell key={i} fill={d.val >= 0 ? "#7eb8f7" : "#f0a070"} fillOpacity={0.8} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
