@@ -776,9 +776,19 @@ export default function LiveAnalysis() {
           const lostPct = n ? (lost / n) * 100 : 0;
           const bePct = n ? (be / n) * 100 : 0;
 
+          const normSess = (s: string): string => {
+            const v = s.trim().toLowerCase();
+            if (v === 'asia' || v === 'asian') return 'Asia';
+            if (v === 'frankfurt') return 'Frankfurt';
+            if (v === 'london') return 'London';
+            if (v === 'overlap' || v === 'london/new york' || v === 'ny/london') return 'Overlap';
+            if (v === 'new york' || v === 'ny' || v === 'new_york') return 'New York';
+            return 'Other';
+          };
           const bySess: Record<string, { total: number; wins: number; netR: number }> = {};
           for (const t of sorted) {
-            const k = (t.session as string | null)?.trim() || 'Other';
+            const raw = ((t.session as string | null) ?? '').trim() || 'Other';
+            const k = normSess(raw);
             if (!bySess[k]) bySess[k] = { total: 0, wins: 0, netR: 0 };
             bySess[k].total++;
             if (t.result === 'tp') bySess[k].wins++;
@@ -787,7 +797,7 @@ export default function LiveAnalysis() {
           const sessRows = Object.entries(bySess)
             .map(([k, v]) => ({ key: k, wr: v.total ? (v.wins / v.total) * 100 : 0, n: v.total, netR: Math.round(v.netR * 100) / 100 }))
             .sort((a, b) => b.n - a.n);
-          const SESS_COLORS: Record<string, string> = { London: '#7eb8f7', 'New York': '#a78bfa', NY: '#a78bfa', Asia: '#f0c070', Asian: '#f0c070', Other: '#888' };
+          const SESS_COLORS: Record<string, string> = { Asia: '#f0c070', Frankfurt: '#a78bfa', London: '#7eb8f7', Overlap: '#4ade80', 'New York': '#f0a070', Other: '#888' };
           const getSessColor = (k: string) => SESS_COLORS[k] ?? '#7eb8f7';
 
           return (
