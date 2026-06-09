@@ -189,7 +189,7 @@ function NewsWidget({ selectedAssets }: { selectedAssets: string[] }) {
   // Use true UTC "now" for all time math — event timestamps are UTC
   const nowMs = Date.now();
   // Window: show events from 3h ago up to 2 days ahead (UTC)
-  const windowEnd = new Date(nowMs + 2 * 86400_000 + 86399_999);
+  const windowEnd = new Date(nowMs + 7 * 86400_000);
 
   const enriched = (news as any[])
     .map(item => ({ ...item, dt: parseFFIsoDate(item.isoDate) }))
