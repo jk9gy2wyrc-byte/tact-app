@@ -582,11 +582,16 @@ export default function LiveTrades() {
 
       {showUploadWarning && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '28px 28px 24px', maxWidth: 420, width: '90%', position: 'relative' }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '28px 28px 24px', maxWidth: 480, width: '90%', position: 'relative' }}>
             <button onClick={() => setShowUploadWarning(false)} style={{ position: 'absolute', top: 12, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 16, lineHeight: 1, padding: 4 }}>✕</button>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, color: 'var(--text)', paddingRight: 20 }}>
               Обов'язкові поля для позицій
             </div>
+            <img
+              src="https://storage.googleapis.com/runable-templates/cli-uploads%2FyWU6F2OopHdw0bQIxNc7YVgN2QUzEepa%2FZhgLnmnTM2V0ldapzw_WQ%2Fimage_FxgLef.png"
+              alt="Приклад таблиці"
+              style={{ width: '100%', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 14 }}
+            />
             <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, marginBottom: 10 }}>
               <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Дата</strong> — формат <code>MM.YYYY</code> або <code>DD.MM.YYYY</code><br />
               <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Напрямок</strong> (Buy / Sell)<br />
@@ -594,8 +599,35 @@ export default function LiveTrades() {
               <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Сесія</strong><br />
               <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Результат</strong> (Win / Loss / BE)
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 20 }}>
+            <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 14 }}>
               (Попередження: завжди перевіряйте правильність заповнених даних самотужки для уникнення помилок)
+            </div>
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 8 }}>
+                Натисни <strong style={{ color: 'var(--text)' }}>Скопіювати</strong> та встав у свій Excel файл (<code>Cmd+V</code> / <code>Ctrl+V</code>) — отримаєш готову таблицю:
+              </div>
+              <button
+                className="btn-ghost"
+                style={{ width: '100%', padding: '8px', fontSize: 13, fontWeight: 600 }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const header = 'ID\tDate\tDirection\tRR\tSession\tResult\tGrossR\tNetR\tAVG Costs';
+                  const emptyRows = Array.from({ length: 20 }, (_, i) => `${i + 1}\t\t\t\t\t\t\t\t`);
+                  const tsv = [header, ...emptyRows].join('\n');
+                  navigator.clipboard.writeText(tsv).catch(() => {
+                    const ta = document.createElement('textarea');
+                    ta.value = tsv; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                    document.body.appendChild(ta); ta.select();
+                    document.execCommand('copy'); document.body.removeChild(ta);
+                  });
+                  const btn = e.currentTarget;
+                  btn.textContent = '✅ Скопійовано!';
+                  setTimeout(() => { btn.textContent = '📋 Скопіювати шаблон таблиці'; }, 2000);
+                }}
+              >
+                📋 Скопіювати шаблон таблиці
+              </button>
             </div>
             <button className="btn-primary" style={{ width: '100%', padding: '10px', fontSize: 13, fontWeight: 600 }}
               onClick={() => { setShowUploadWarning(false); setShowUpload(true); setFileResult(null); }}>
