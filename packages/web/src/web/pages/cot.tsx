@@ -27,7 +27,6 @@ export default function COT() {
           textAlign: 'center',
           backdropFilter: 'blur(4px)',
         }}>
-          <div style={{ fontSize: 28, marginBottom: 12 }}>🚧</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>In development</div>
           <div style={{ fontSize: 13, color: 'var(--text2)' }}>COT Report analysis is coming soon</div>
         </div>
