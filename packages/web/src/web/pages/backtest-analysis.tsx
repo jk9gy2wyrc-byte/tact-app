@@ -359,6 +359,18 @@ function BtCompareView({
   const pfFmt = (v: number) => v === Infinity ? "∞" : v.toFixed(2);
 
   function Row({ label, vA, vB, delta, cA, cB, cD }: { label: string; vA: string | number; vB: string | number; delta: string; cA?: string; cB?: string; cD?: string }) {
+    if (isMobile) {
+      return (
+        <div style={{ padding: "8px 14px", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 5 }}>{label}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 6, alignItems: "center" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, fontFamily: "monospace", color: cA ?? "var(--text)" }}>{vA}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, fontFamily: "monospace", color: cB ?? "var(--text)" }}>{vB}</div>
+            <div style={{ fontSize: 10, fontFamily: "monospace", textAlign: "right", color: cD ?? deltaColorBt(delta) }}>{delta}</div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div style={{ display: "grid", gridTemplateColumns: "160px 1fr 1fr 80px", gap: 8, alignItems: "center", padding: "9px 20px", borderBottom: "1px solid var(--border)" }}>
         <div style={{ fontSize: 11, color: "var(--text2)" }}>{label}</div>
@@ -447,7 +459,7 @@ function BtCompareView({
       <div>
         <SectionTitle>Statistics</SectionTitle>
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "160px 1fr 1fr 80px", gap: 8, padding: "10px 20px", background: "var(--surface2)", borderBottom: "2px solid var(--border)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "auto 1fr 1fr auto" : "160px 1fr 1fr 80px", gap: isMobile ? 6 : 8, padding: isMobile ? "8px 14px" : "10px 20px", background: "var(--surface2)", borderBottom: "2px solid var(--border)" }}>
             <div style={{ fontSize: 10, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Metric</div>
             <div style={{ fontSize: 12, fontWeight: 700, color: "#7eb8f7" }}>{lA}</div>
             <div style={{ fontSize: 12, fontWeight: 700, color: "#f0a070" }}>{lB}</div>

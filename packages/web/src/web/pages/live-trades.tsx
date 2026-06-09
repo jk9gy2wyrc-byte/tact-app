@@ -93,6 +93,7 @@ function readFileAsDataURL(file: File): Promise<string> {
 function EditModal({ trade, onClose, onSave, isPending }: {
   trade: any; onClose: () => void; onSave: (body: any) => void; isPending: boolean;
 }) {
+  const isMobile = useMobile();
   const [tab, setTab] = useState<'trade' | 'extra'>('trade');
   const [form, setForm] = useState({
     date: trade.month ?? today(),
@@ -206,14 +207,14 @@ function EditModal({ trade, onClose, onSave, isPending }: {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {tab === 'trade' ? (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                 <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Date</div>{inp('date', 'date')}</div>
                 <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Pair</div>{inp('asset', 'text', { placeholder: 'EUR' })}</div>
               </div>
               <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Direction</div><ToggleGroup value={form.direction} options={DIRECTIONS} onChange={v => setField('direction', v)} /></div>
               <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Session</div><ToggleGroup value={form.session} options={SESSIONS} onChange={v => setField('session', v)} small /></div>
               <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Result</div><ToggleGroup value={form.result} options={RESULTS} onChange={v => setField('result', v)} /></div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                 <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>RR</div>{inp('rr', 'text', { placeholder: '3.5' })}</div>
                 <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Cost</div>{inp('cost', 'text', { placeholder: '-0.10' })}</div>
               </div>
@@ -752,7 +753,7 @@ export default function LiveTrades() {
           <div style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>Add New Trade</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, auto)', gap: 10, alignItems: 'end' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, auto)', gap: 10, alignItems: 'end' }}>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Date</div>
               <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} style={{ width: '100%', borderRadius: 8 }} />
