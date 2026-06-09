@@ -766,6 +766,58 @@ export default function LiveAnalysis() {
           })()}
         </div>
 
+        {/* ── CONSISTENCY SCORE ── */}
+        {sorted.length > 0 && (() => {
+          const lvAvgRR = (() => {
+            const tpTrades = sorted.filter(t => t.result === 'tp');
+            if (!tpTrades.length) return 0;
+            return Math.round((tpTrades.reduce((a, t) => a + (t.netR ?? 0), 0) / tpTrades.length) * 100) / 100;
+          })();
+          const netrArr = sorted.map(t => t.netR ?? 0);
+          const n = sorted.length;
+          const mean = netrArr.reduce((a, b) => a + b, 0) / n;
+          const variance = netrArr.reduce((a, r) => a + (r - mean) ** 2, 0) / n;
+          const std = Math.sqrt(variance);
+          const targetRR = lvAvgRR;
+          const inRange = targetRR > 0 ? sorted.filter(t => { const r = t.netR ?? 0; return r >= -targetRR && r <= targetRR; }).length : 0;
+          const inRangePct = targetRR > 0 ? (inRange / n) * 100 : null;
+          const stdScore = Math.max(0, 100 - std * 20);
+          const rangeScore = inRangePct ?? stdScore;
+          const score = inRangePct != null ? Math.round((stdScore + rangeScore) / 2) : Math.round(stdScore);
+          const scoreColor = score >= 70 ? '#7eb8f7' : score >= 40 ? '#f0c070' : '#f0a070';
+          const scoreLabel = score >= 70 ? 'Consistent' : score >= 40 ? 'Moderate' : 'Inconsistent';
+          return (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 20 }}>
+              <SectionTitle>Consistency Score</SectionTitle>
+              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 80 }}>
+                  <div style={{ fontSize: 36, fontWeight: 700, fontFamily: 'monospace', color: scoreColor, lineHeight: 1 }}>{score}</div>
+                  <div style={{ fontSize: 11, color: scoreColor }}>{scoreLabel}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text2)' }}>/ 100</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 180 }}>
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>Std Dev R</div>
+                      <div style={{ fontFamily: 'monospace', fontSize: 14, color: std <= 1 ? '#7eb8f7' : std <= 2 ? '#f0c070' : '#f0a070' }}>{std.toFixed(2)}</div>
+                    </div>
+                    {inRangePct != null && (
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>In Range</div>
+                        <div style={{ fontFamily: 'monospace', fontSize: 14, color: inRangePct >= 70 ? '#7eb8f7' : inRangePct >= 50 ? '#f0c070' : '#f0a070' }}>{inRangePct.toFixed(0)}%</div>
+                      </div>
+                    )}
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>Target RR</div>
+                      <div style={{ fontFamily: 'monospace', fontSize: 14, color: 'var(--text)' }}>{targetRR > 0 ? targetRR.toFixed(2) : '—'}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* ── PROFITABILITY + SESSION WIN RATES ── */}
         {(() => {
           const n = sorted.length;
