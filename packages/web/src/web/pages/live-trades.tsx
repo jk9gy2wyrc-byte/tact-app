@@ -570,7 +570,14 @@ export default function LiveTrades() {
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div style={{ fontSize: 18, fontWeight: 600 }}>Live Database</div>
-        <span style={{ fontSize: 12, color: 'var(--text2)' }}>{allTrades.length} trades</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button type="button" className={showUpload ? 'btn-primary' : 'btn-ghost'}
+            onClick={() => { setShowUploadWarning(true); setFileResult(null); }}
+            style={{ padding: '8px 18px', fontSize: 13 }}>
+            ↑ Upload File
+          </button>
+          <span style={{ fontSize: 12, color: 'var(--text2)' }}>{allTrades.length} trades</span>
+        </div>
       </div>
 
       {showUploadWarning && (
@@ -690,11 +697,6 @@ export default function LiveTrades() {
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>Add New Trade</div>
-          <button type="button" className={showUpload ? 'btn-primary' : 'btn-ghost'}
-            onClick={() => { setShowUploadWarning(true); setFileResult(null); }}
-            style={{ padding: '5px 12px', fontSize: 12 }}>
-            ↑ Upload File
-          </button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, auto)', gap: 10, alignItems: 'end' }}>
