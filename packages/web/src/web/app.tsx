@@ -106,8 +106,8 @@ function buildNav(role: string) {
     { path: "/charts", label: "Analysis & MC" },
     { path: "/cot", label: "COT" },
   ];
-  if (role === 'admin') nav.push({ path: "/users", label: "Users" });
   nav.push({ path: "/subscription", label: "Subscription" });
+  if (role === 'admin') nav.push({ path: "/users", label: "Users" });
   return nav;
 }
 
