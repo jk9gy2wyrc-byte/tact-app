@@ -644,6 +644,14 @@ const ScfFactorAccordion = ({ id, label, factors, scfOpen, toggleScf, stressPara
       </button>
       {open && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 4 }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 2 }}>
+            <div style={{ flex: 1, fontSize: 9, color: 'var(--text2)', opacity: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, paddingRight: 6 }}>Factor</div>
+            <div style={{ width: 1, alignSelf: 'stretch', background: '#2a2d33', marginRight: 6 }} />
+            <div style={{ width: 52, fontSize: 9, color: 'var(--text2)', opacity: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'right', paddingRight: 6 }}>Value</div>
+            <div style={{ width: 1, alignSelf: 'stretch', background: '#2a2d33', marginRight: 6 }} />
+            <div style={{ width: 80, fontSize: 9, color: 'var(--text2)', opacity: 0.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>Impact</div>
+          </div>
           {factors.length === 0
             ? <span style={{ fontSize: 10, color: 'var(--text2)' }}>Всі фактори = 0</span>
             : factors.map(f => {
