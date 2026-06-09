@@ -74,6 +74,73 @@ export default function Subscription() {
     }
   };
 
+  const getRolePerks = () => {
+    const check = (text: string) => ({ icon: '✓', color: '#4ade80', text });
+    const lock = (text: string) => ({ icon: '✗', color: '#6b7280', text });
+
+    switch (effectiveRole) {
+      case 'admin':
+        return [
+          check('Full access to all pages and features'),
+          check('Dashboard with live & backtest analytics'),
+          check('Live Database — add, edit, delete trades'),
+          check('Backtest DB — full CRUD'),
+          check('Live Analysis & BT Analysis'),
+          check('Analysis & MC (Monte Carlo)'),
+          check('COT data'),
+          check('Users management panel'),
+          check('Edit subscription settings & plans'),
+        ];
+      case 'paid':
+        return [
+          check('Full access to all analytics pages'),
+          check('Dashboard with live & backtest analytics'),
+          check('Live Database — add, edit, delete trades'),
+          check('Backtest DB — full CRUD'),
+          check('Live Analysis & BT Analysis'),
+          check('Analysis & MC (Monte Carlo)'),
+          check('COT data'),
+          lock('Users management (admin only)'),
+          lock('Edit subscription settings (admin only)'),
+        ];
+      case 'free-trial':
+        return accessData?.hasAccess ? [
+          check('Full access during trial period'),
+          check('Dashboard with live & backtest analytics'),
+          check('Live Database & Backtest DB'),
+          check('Live Analysis & BT Analysis'),
+          check('Analysis & MC, COT data'),
+          lock('Access ends after trial expires'),
+        ] : [
+          lock('Trial expired — subscribe to restore access'),
+          lock('Dashboard'),
+          lock('Live & Backtest Database'),
+          lock('Analysis pages'),
+          lock('COT data'),
+        ];
+      case 'free':
+        return [
+          check('Basic access'),
+          lock('Dashboard analytics'),
+          lock('Live & Backtest Database'),
+          lock('Live Analysis & BT Analysis'),
+          lock('Analysis & MC, COT data'),
+          lock('Subscribe to unlock full access'),
+        ];
+      default:
+        return [
+          lock('No active subscription'),
+          lock('Dashboard analytics'),
+          lock('Live & Backtest Database'),
+          lock('Live Analysis & BT Analysis'),
+          lock('Analysis & MC, COT data'),
+          lock('Subscribe to unlock full access'),
+        ];
+    }
+  };
+
+  const rolePerks = getRolePerks();
+
   const roleInfo = getRoleInfo();
 
   useEffect(() => {
@@ -244,7 +311,7 @@ export default function Subscription() {
         <div style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 12 }}>
           Ваш поточний статус:
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
           <span style={{
             fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 20,
             background: roleInfo.bg, color: roleInfo.color,
@@ -257,6 +324,14 @@ export default function Subscription() {
               Subscribe to get full access
             </span>
           )}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {rolePerks.map((perk, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: perk.color, width: 14, flexShrink: 0 }}>{perk.icon}</span>
+              <span style={{ fontSize: 13, color: perk.icon === '✓' ? 'var(--text)' : 'var(--text2)' }}>{perk.text}</span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -306,6 +381,33 @@ export default function Subscription() {
               {config.contactMessage}
             </div>
           )}
+        </div>
+      </div>
+
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 16, padding: 32, marginBottom: 24,
+      }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 20 }}>What's included in access</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+          {[
+            { icon: '📊', title: 'Dashboard', desc: 'Full live & backtest performance overview in one place' },
+            { icon: '🗄️', title: 'Live Database', desc: 'Log, edit and manage your live trades with all details' },
+            { icon: '📁', title: 'Backtest DB', desc: 'Store and analyze your backtest trade history' },
+            { icon: '🔍', title: 'Live Analysis', desc: 'Deep stats on live trades — distribution, equity, sessions' },
+            { icon: '📈', title: 'BT Analysis', desc: 'Full backtest breakdown — monthly returns, instruments, consistency' },
+            { icon: '🎲', title: 'Analysis & MC', desc: 'Monte Carlo simulations to stress-test your strategy' },
+            { icon: '🌐', title: 'COT Data', desc: 'Commitment of Traders reports for macro confluence' },
+          ].map((item, i) => (
+            <div key={i} style={{
+              background: 'var(--bg)', border: '1px solid var(--border)',
+              borderRadius: 12, padding: '14px 16px',
+            }}>
+              <div style={{ fontSize: 18, marginBottom: 6 }}>{item.icon}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>{item.title}</div>
+              <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.5 }}>{item.desc}</div>
+            </div>
+          ))}
         </div>
       </div>
 
