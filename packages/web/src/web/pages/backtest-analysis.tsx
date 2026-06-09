@@ -954,6 +954,81 @@ export default function BacktestAnalysis() {
               </div>
             </div>
 
+            {/* Distribution of Net R per Trade + Individual Trade Result */}
+            {(() => {
+              const nets = sorted.map((t: any) => t.netR ?? 0);
+              if (nets.length === 0) return null;
+              const BIN = 0.25;
+              const mnV = Math.floor(Math.min(...nets) / BIN) * BIN;
+              const mxV = Math.ceil(Math.max(...nets) / BIN) * BIN;
+              const buckets: { label: string; x: number; count: number }[] = [];
+              for (let b = mnV; b <= mxV + BIN / 2; b = Math.round((b + BIN) * 100) / 100) {
+                const lo = Math.round(b * 100) / 100;
+                const hi = Math.round((b + BIN) * 100) / 100;
+                buckets.push({ label: lo.toFixed(2), x: lo, count: nets.filter((v: number) => v >= lo && v < hi).length });
+              }
+              const tradeData = sorted.map((t: any, i: number) => ({ i: i + 1, val: Math.round((t.netR ?? 0) * 100) / 100 }));
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 14 : 20 }}>
+                  <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
+                    <SectionTitle>Distribution of Net R per Trade</SectionTitle>
+                    <ResponsiveContainer width="100%" height={isMobile ? 140 : 200}>
+                      <BarChart data={buckets} margin={{ top: 4, right: 8, bottom: 24, left: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" vertical={false} />
+                        <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#8b9098" }}
+                          interval={Math.max(Math.floor(buckets.length / 8) - 1, 0)}
+                          label={{ value: "Net R Result", position: "insideBottom", offset: -12, fontSize: 10, fill: "#8b9098" }} />
+                        <YAxis tick={{ fontSize: 9, fill: "#8b9098" }} width={42}
+                          label={{ value: "Count", angle: -90, position: "insideLeft", offset: 18, fontSize: 10, fill: "#8b9098" }} />
+                        <Tooltip content={({ active, payload }: any) => {
+                          if (!active || !payload?.length) return null;
+                          const d = payload[0].payload;
+                          return (
+                            <div style={{ background: "#1c1f23", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12 }}>
+                              <div style={{ color: "#888", marginBottom: 4 }}>{d.label}R – {(+d.label + BIN).toFixed(2)}R</div>
+                              <div style={{ color: "#7eb8f7" }}>Count: {d.count}</div>
+                            </div>
+                          );
+                        }} />
+                        <ReferenceLine x="0.00" stroke="#666" strokeDasharray="3 3" />
+                        <Bar dataKey="count" name="Count" radius={[2, 2, 0, 0]}>
+                          {buckets.map((d, i) => <Cell key={i} fill="#7eb8f7" fillOpacity={d.x < 0 ? 0.5 : 0.8} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
+                    <SectionTitle>Individual Trade Result (Net R)</SectionTitle>
+                    <ResponsiveContainer width="100%" height={isMobile ? 140 : 200}>
+                      <BarChart data={tradeData} margin={{ top: 4, right: 8, bottom: 24, left: 0 }} barCategoryGap={tradeData.length > 60 ? "5%" : "15%"}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" vertical={false} />
+                        <XAxis dataKey="i" tick={{ fontSize: 9, fill: "#8b9098" }}
+                          interval={Math.max(Math.floor(tradeData.length / 8) - 1, 0)}
+                          label={{ value: "Trade Number", position: "insideBottom", offset: -12, fontSize: 10, fill: "#8b9098" }} />
+                        <YAxis tick={{ fontSize: 9, fill: "#8b9098" }} width={42}
+                          label={{ value: "Net R", angle: -90, position: "insideLeft", offset: 18, fontSize: 10, fill: "#8b9098" }} />
+                        <Tooltip content={({ active, payload }: any) => {
+                          if (!active || !payload?.length) return null;
+                          const d = payload[0].payload;
+                          return (
+                            <div style={{ background: "#1c1f23", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12 }}>
+                              <div style={{ color: "#888", marginBottom: 4 }}>Trade #{d.i}</div>
+                              <div style={{ color: d.val >= 0 ? "#7eb8f7" : "#f0a070" }}>Net R: {d.val >= 0 ? "+" : ""}{d.val.toFixed(2)}</div>
+                            </div>
+                          );
+                        }} />
+                        <ReferenceLine y={0} stroke="#444" />
+                        <Bar dataKey="val" name="Net R" radius={[1, 1, 0, 0]}>
+                          {tradeData.map((d: any, i: number) => <Cell key={i} fill={d.val >= 0 ? "#7eb8f7" : "#f0a070"} fillOpacity={0.8} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Monthly Return */}
             {monthlyData.length > 2 && (
               <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
