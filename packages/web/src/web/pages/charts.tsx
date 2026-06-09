@@ -128,7 +128,7 @@ function Explanation({ text }: { text: string }) {
           marginTop: 8, padding: '12px 16px',
           background: 'var(--surface2)', borderRadius: 10,
           border: '1px solid var(--border)', fontSize: 12,
-          color: 'var(--text2)', lineHeight: 1.7,
+          color: 'var(--text2)', lineHeight: 1.7, whiteSpace: 'pre-line',
         }}>
           {text}
         </div>
@@ -1473,7 +1473,12 @@ export default function Charts() {
         refY={0}
         height={isMobile ? 160 : 200}
         isMobile={isMobile}
-        explanation="Стандартне відхилення розподілу Net R у ковзному вікні. Вимірює консистентність результатів. Низьке значення = стабільні результати. Різкий ріст StdDev означає підвищену нестабільність у live-торгівлі відносно бектесту."
+        explanation="Стандартне відхилення розподілу Net R у ковзному вікні. Вимірює консистентність результатів. Низьке значення = стабільні результати. Різкий ріст StdDev означає підвищену нестабільність у live-торгівлі відносно бектесту.
+
+Як читати:
+• Обидві криві рівні → Live веде себе так само консистентно як бектест
+• Синя вища за сіру → Live результати хаотичніші, більший розкид R
+• Синя нижча за сіру → Live стабільніший (рідко)"
       />
 
       {/* ─────────────────────── UNIFIED MC + STRESS ──────────────────────── */}
