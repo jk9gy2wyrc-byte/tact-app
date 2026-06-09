@@ -1491,6 +1491,7 @@ const app = new Hono()
       const sqns: number[]      = [];
       const wrs: number[]       = [];
       const streaks: number[]   = [];
+      const pfs: number[]       = [];
       let survivedCount = 0;
 
       // Store up to 50 full paths (sampled)
@@ -1566,6 +1567,9 @@ const app = new Hono()
         }
         wrs.push(wins / netArr.length);
         streaks.push(strkMax);
+        const grossWinSim = netArr.reduce((s, r) => r > 0 ? s + r : s, 0);
+        const grossLossSim = netArr.reduce((s, r) => r < 0 ? s + Math.abs(r) : s, 0);
+        pfs.push(grossLossSim > 0 ? Math.min(grossWinSim / grossLossSim, 99) : (grossWinSim > 0 ? 99 : 0));
         if (maxDD < params.survivalThreshold) survivedCount++;
 
         // Store path sample
@@ -1696,6 +1700,7 @@ const app = new Hono()
         sqn:      sBox(sqns),
         wr:       sBox(wrs),
         streak:   sBox(streaks),
+        pf:       sBox(pfs),
       };
 
       return c.json({

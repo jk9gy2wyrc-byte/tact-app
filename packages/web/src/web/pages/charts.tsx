@@ -900,7 +900,7 @@ export default function Charts() {
     ddFactorImpacts: { key: string; label: string; impact: number }[];
     sqnFactorImpacts: { key: string; label: string; impact: number }[];
     wrFactorImpacts: { key: string; label: string; impact: number }[];
-    boxStats: { return: any; drawdown: any; sqn: any; wr: any; streak: any };
+    boxStats: { return: any; drawdown: any; sqn: any; wr: any; streak: any; pf: any };
     horizon: number; nSim: number; tradeCost: number; avgCostBt: number; jitter: number;
     btTotalR: number | null; lvTotalR: number | null;
   };
@@ -1073,7 +1073,7 @@ export default function Charts() {
   const btStats = d.btStats;
   const lvStats = d.lvStats;
   const mcStats = d.mcStats;
-  const mcBoxStats: { return: any; drawdown: any; sqn: any; wr: any; streak: any } | null = d.mcBoxStats ?? null;
+  const mcBoxStats: { return: any; drawdown: any; sqn: any; wr: any; streak: any; pf: any } | null = d.mcBoxStats ?? null;
   // True MC bands per metric (from 1000 simulations)
   const mcWR: { med: number[]; p5: number[]; p95: number[] } = d.mcWR ?? { med: [], p5: [], p95: [] };
   const mcRR: { med: number[]; p5: number[]; p95: number[] } = d.mcRR ?? { med: [], p5: [], p95: [] };
@@ -2197,6 +2197,13 @@ export default function Charts() {
                 const lvWR      = lvStats?.wr       ?? 0;
                 const lvSQN     = lvStats?.sqn      ?? 0;
                 const lvMaxDD   = lvStats?.maxDD    ?? 0;
+                const lvPF      = lvStats?.pf       ?? 0;
+                // live losing streak (max consecutive losses)
+                const lvStreakFinal = (() => {
+                  let max = 0, cur = 0;
+                  for (const v of lvNets) { if (v < 0) { cur++; if (cur > max) max = cur; } else cur = 0; }
+                  return max;
+                })();
                 const lvEqArr: number[]  = (d as any).lvEquity ?? [];
                 const lvNets: number[]   = lvEqArr.map((v: number, i: number) => i === 0 ? v : v - lvEqArr[i - 1]);
                 const btEqFull: number[] = r.btNetEq;
@@ -2389,6 +2396,82 @@ export default function Charts() {
                 } else {
                   wrStatus = 'В нормі'; wrStatusColor = '#4ade80';
                 }
+
+                // ═══════════════════════════════════════════════════════════
+                // BLOCK 5 — Losing Streak
+                // ═══════════════════════════════════════════════════════════
+                const strkBox  = r.boxStats.streak;
+                const strkP5   = strkBox?.p5  ?? 0;
+                const strkMed  = strkBox?.med ?? 0;
+                const strkP95  = strkBox?.p95 ?? 0;
+
+                // rolling max losing streak helper
+                const rollingStreak = (nets: number[], w = 20) => nets.map((_, i) => {
+                  const sl = nets.slice(Math.max(0, i - w + 1), i + 1);
+                  let mx = 0, cx = 0;
+                  for (const v of sl) { if (v < 0) { cx++; if (cx > mx) mx = cx; } else cx = 0; }
+                  return mx;
+                });
+
+                const strkLiveSeries = rollingStreak(lvNets);
+                const strkBtSeries   = rollingStreak(btNets);
+
+                const strkAllVals = [
+                  ...(isLvOn('streak') ? strkLiveSeries : []),
+                  ...(isBtOn('streak') ? strkBtSeries   : []),
+                  strkP5, strkMed, strkP95,
+                ].filter(isFinite);
+                const strkMn  = 0;
+                const strkMx  = Math.max(...strkAllVals, strkP95 + 1, 1);
+                const strkRng = strkMx - strkMn || 1;
+
+                let strkStatus = '', strkStatusColor = '';
+                if (lvStreakFinal > strkP95) {
+                  strkStatus = 'Вище норми !!!'; strkStatusColor = '#f87171';
+                } else if (lvStreakFinal > strkMed) {
+                  strkStatus = 'Підвищений'; strkStatusColor = '#fb923c';
+                } else {
+                  strkStatus = 'В нормі'; strkStatusColor = '#4ade80';
+                }
+
+                // ═══════════════════════════════════════════════════════════
+                // BLOCK 6 — Profit Factor
+                // ═══════════════════════════════════════════════════════════
+                const pfBox  = r.boxStats.pf;
+                const pfP5   = pfBox?.p5  ?? 0;
+                const pfMed  = pfBox?.med ?? 0;
+                const pfP95  = pfBox?.p95 ?? 0;
+
+                // rolling PF helper
+                const rollingPF = (nets: number[], w = 20) => nets.map((_, i) => {
+                  const sl = nets.slice(Math.max(0, i - w + 1), i + 1);
+                  const gw = sl.reduce((s, v) => v > 0 ? s + v : s, 0);
+                  const gl = sl.reduce((s, v) => v < 0 ? s + Math.abs(v) : s, 0);
+                  return gl > 0 ? Math.min(gw / gl, 9.99) : (gw > 0 ? 9.99 : 0);
+                });
+
+                const pfLiveSeries = rollingPF(lvNets);
+                const pfBtSeries   = rollingPF(btNets);
+
+                const pfAllVals = [
+                  ...(isLvOn('pf') ? pfLiveSeries : []),
+                  ...(isBtOn('pf') ? pfBtSeries   : []),
+                  pfP5, pfMed, pfP95,
+                ].filter(isFinite);
+                const pfMn  = Math.max(0, Math.min(...pfAllVals) - 0.1);
+                const pfMx  = Math.min(9.99, Math.max(...pfAllVals) + 0.2);
+                const pfRng = pfMx - pfMn || 1;
+
+                let pfStatus = '', pfStatusColor = '';
+                if (lvPF < pfP5) {
+                  pfStatus = 'Нижче норми !!!'; pfStatusColor = '#f87171';
+                } else if (lvPF < pfMed) {
+                  pfStatus = 'Нижче медіани'; pfStatusColor = '#fb923c';
+                } else {
+                  pfStatus = 'В нормі'; pfStatusColor = '#4ade80';
+                }
+
+                const fmtPF = (v: number) => v >= 9.99 ? '∞' : v.toFixed(2);
 
                 const fmtR   = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}R`;
                 const fmtDD  = (v: number) => `${v.toFixed(2)}R`;
@@ -2608,6 +2691,102 @@ export default function Charts() {
                       <ScfStatusBadge label={wrStatus} color={wrStatusColor} />
 
                       <ScfFactorAccordion id="scf3_wr_med" label="Med. WR — фактори які впливали" factors={toFactorPct(wrFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
+                    </ScfBlockCard>
+
+                    {/* ── BLOCK 5: Losing Streak ── */}
+                    <ScfBlockCard>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text2)' }}>Losing Streak</span>
+                        <ScfSeriesToggle metaKey="streak" hasBt={strkBtSeries.length > 1} hasLv={strkLiveSeries.length > 1} isBtOn={isBtOn} isLvOn={isLvOn} toggleBt={toggleBt} toggleLv={toggleLv} />
+                      </div>
+
+                      <div style={{ background: 'var(--bg)', borderRadius: 6, overflow: 'hidden', height: SH }}>
+                        <svg width="100%" height={SH} viewBox={`0 0 ${SW} ${SH}`} preserveAspectRatio="none">
+                          {/* Zone: above strkP95 — red (bad = many losses) */}
+                          <rect x={0} y={0} width={SW} height={refY(strkP95, strkMn, strkRng)} fill="rgba(248,113,113,0.1)" />
+                          {/* Zone: strkMed..strkP95 — orange */}
+                          <rect x={0} y={refY(strkP95, strkMn, strkRng)} width={SW} height={Math.abs(refY(strkP95, strkMn, strkRng) - refY(strkMed, strkMn, strkRng))} fill="rgba(251,146,60,0.07)" />
+                          {/* Zone: below strkMed — green */}
+                          <rect x={0} y={refY(strkMed, strkMn, strkRng)} width={SW} height={SH - refY(strkMed, strkMn, strkRng)} fill="rgba(74,222,128,0.07)" />
+                          {/* p95 line */}
+                          <line x1={0} y1={refY(strkP95, strkMn, strkRng)} x2={SW} y2={refY(strkP95, strkMn, strkRng)} stroke="rgba(248,113,113,0.7)" strokeWidth={1} />
+                          {/* med line */}
+                          <line x1={0} y1={refY(strkMed, strkMn, strkRng)} x2={SW} y2={refY(strkMed, strkMn, strkRng)} stroke="rgba(251,146,60,0.6)" strokeWidth={1} />
+                          {/* p5 line */}
+                          <line x1={0} y1={refY(strkP5, strkMn, strkRng)} x2={SW} y2={refY(strkP5, strkMn, strkRng)} stroke="rgba(74,222,128,0.4)" strokeWidth={0.8} />
+                          {/* BT Streak */}
+                          {isBtOn('streak') && strkBtSeries.length > 1 && <polyline points={mkPts(strkBtSeries, strkMn, strkRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" />}
+                          {/* Live Streak */}
+                          {isLvOn('streak') && strkLiveSeries.length > 1 && <polyline points={mkPts(strkLiveSeries, strkMn, strkRng)} fill="none" stroke={LIVE_COLOR} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />}
+                        </svg>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 10, fontSize: 9, color: 'var(--text2)', flexWrap: 'wrap' }}>
+                        <span><span style={{ color: '#f87171' }}>━</span> p95 ({strkP95})</span>
+                        <span><span style={{ color: '#fb923c' }}>━</span> Med ({strkMed})</span>
+                        <span><span style={{ color: '#4ade80' }}>━</span> p5 ({strkP5})</span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>Live Streak</span>
+                          <span style={{ fontWeight: 700, fontFamily: 'monospace' }}>{lvStreakFinal}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>p5 – Med – p95</span>
+                          <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{strkP5} – {strkMed} – {strkP95}</span>
+                        </div>
+                      </div>
+
+                      <ScfStatusBadge label={strkStatus} color={strkStatusColor} />
+                    </ScfBlockCard>
+
+                    {/* ── BLOCK 6: Profit Factor ── */}
+                    <ScfBlockCard>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text2)' }}>Profit Factor</span>
+                        <ScfSeriesToggle metaKey="pf" hasBt={pfBtSeries.length > 1} hasLv={pfLiveSeries.length > 1} isBtOn={isBtOn} isLvOn={isLvOn} toggleBt={toggleBt} toggleLv={toggleLv} />
+                      </div>
+
+                      <div style={{ background: 'var(--bg)', borderRadius: 6, overflow: 'hidden', height: SH }}>
+                        <svg width="100%" height={SH} viewBox={`0 0 ${SW} ${SH}`} preserveAspectRatio="none">
+                          {/* Zone: above pfMed — green */}
+                          <rect x={0} y={0} width={SW} height={refY(pfMed, pfMn, pfRng)} fill="rgba(74,222,128,0.08)" />
+                          {/* Zone: pfP5..pfMed — orange */}
+                          <rect x={0} y={refY(pfMed, pfMn, pfRng)} width={SW} height={Math.abs(refY(pfMed, pfMn, pfRng) - refY(pfP5, pfMn, pfRng))} fill="rgba(251,146,60,0.07)" />
+                          {/* Zone: below pfP5 — red */}
+                          <rect x={0} y={refY(pfP5, pfMn, pfRng)} width={SW} height={SH - refY(pfP5, pfMn, pfRng)} fill="rgba(248,113,113,0.08)" />
+                          {/* p95 line */}
+                          <line x1={0} y1={refY(pfP95, pfMn, pfRng)} x2={SW} y2={refY(pfP95, pfMn, pfRng)} stroke="rgba(74,222,128,0.4)" strokeWidth={0.8} />
+                          {/* med line */}
+                          <line x1={0} y1={refY(pfMed, pfMn, pfRng)} x2={SW} y2={refY(pfMed, pfMn, pfRng)} stroke="rgba(251,146,60,0.6)" strokeWidth={1} />
+                          {/* p5 line */}
+                          <line x1={0} y1={refY(pfP5, pfMn, pfRng)} x2={SW} y2={refY(pfP5, pfMn, pfRng)} stroke="rgba(248,113,113,0.6)" strokeWidth={1} />
+                          {/* BT PF */}
+                          {isBtOn('pf') && pfBtSeries.length > 1 && <polyline points={mkPts(pfBtSeries, pfMn, pfRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" />}
+                          {/* Live PF */}
+                          {isLvOn('pf') && pfLiveSeries.length > 1 && <polyline points={mkPts(pfLiveSeries, pfMn, pfRng)} fill="none" stroke={LIVE_COLOR} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />}
+                        </svg>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 10, fontSize: 9, color: 'var(--text2)', flexWrap: 'wrap' }}>
+                        <span><span style={{ color: '#4ade80' }}>━</span> p95 ({fmtPF(pfP95)})</span>
+                        <span><span style={{ color: '#fb923c' }}>━</span> Med ({fmtPF(pfMed)})</span>
+                        <span><span style={{ color: '#f87171' }}>━</span> p5 ({fmtPF(pfP5)})</span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>Live PF</span>
+                          <span style={{ fontWeight: 700, fontFamily: 'monospace' }}>{fmtPF(lvPF)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>p5 – Med – p95</span>
+                          <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{fmtPF(pfP5)} – {fmtPF(pfMed)} – {fmtPF(pfP95)}</span>
+                        </div>
+                      </div>
+
+                      <ScfStatusBadge label={pfStatus} color={pfStatusColor} />
                     </ScfBlockCard>
 
                     </div>{/* end grid */}
