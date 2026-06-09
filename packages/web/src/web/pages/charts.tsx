@@ -599,22 +599,38 @@ const ScfSeriesToggle = ({ metaKey, hasBt, hasLv, isBtOn, isLvOn, toggleBt, togg
 }) => (
   <div style={{ display: 'flex', gap: 6 }}>
     {hasLv && (
-      <button onClick={() => toggleLv(metaKey)} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, padding: '2px 6px', borderRadius: 4, border: `1px solid ${isLvOn(metaKey) ? LIVE_COLOR_SCF : 'var(--border)'}`, background: isLvOn(metaKey) ? `${LIVE_COLOR_SCF}22` : 'transparent', color: isLvOn(metaKey) ? LIVE_COLOR_SCF : 'var(--text2)', cursor: 'pointer' }}>
-        <span style={{ width: 10, height: 2, background: LIVE_COLOR_SCF, display: 'inline-block', borderRadius: 1, opacity: isLvOn(metaKey) ? 1 : 0.3 }} />Live
+      <button onClick={() => toggleLv(metaKey)} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, padding: '2px 6px', borderRadius: 4, border: `1px solid ${isLvOn(metaKey) ? LIVE_COLOR : 'var(--border)'}`, background: isLvOn(metaKey) ? `${LIVE_COLOR}22` : 'transparent', color: isLvOn(metaKey) ? LIVE_COLOR : 'var(--text2)', cursor: 'pointer' }}>
+        <span style={{ width: 10, height: 2, background: LIVE_COLOR, display: 'inline-block', borderRadius: 1, opacity: isLvOn(metaKey) ? 1 : 0.3 }} />Live
       </button>
     )}
     {hasBt && (
       <button onClick={() => toggleBt(metaKey)} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, padding: '2px 6px', borderRadius: 4, border: `1px solid ${isBtOn(metaKey) ? '#6b7280' : 'var(--border)'}`, background: isBtOn(metaKey) ? '#6b728022' : 'transparent', color: isBtOn(metaKey) ? '#9ca3af' : 'var(--text2)', cursor: 'pointer' }}>
-        <svg width="10" height="4" viewBox="0 0 10 4" style={{ opacity: isBtOn(metaKey) ? 1 : 0.3 }}><line x1="0" y1="2" x2="10" y2="2" stroke="#6b7280" strokeWidth="1.5" strokeDasharray="3,2"/></svg>BT
+        <svg width="10" height="4" viewBox="0 0 10 4" style={{ opacity: isBtOn(metaKey) ? 1 : 0.3 }}><line x1="0" y1="2" x2="10" y2="2" stroke="#6b7280" strokeWidth="1.5"/></svg>BT
       </button>
     )}
   </div>
 );
 
-const ScfFactorAccordion = ({ id, label, factors, scfOpen, toggleScf }: {
+// Maps factor key → formatted stress param value
+function fmtStressVal(key: string, sp: Record<string, number>): string {
+  switch (key) {
+    case 'lossAmp':       return `×${sp.lossAmp?.toFixed(2) ?? '—'}`;
+    case 'winReduction':  return `×${sp.winReduction?.toFixed(2) ?? '—'}`;
+    case 'wrDegradation': return `${((sp.wrDegradation ?? 0) * 100).toFixed(0)}%`;
+    case 'slippage':      return `−${sp.slippage?.toFixed(2) ?? '—'}R`;
+    case 'humanError':    return `${((sp.humanError ?? 0) * 100).toFixed(1)}%`;
+    case 'fatigue':       return `−${((sp.fatigue ?? 0) * 100).toFixed(0)}%`;
+    case 'badSlip':       return `${((sp.badSlipProb ?? 0) * 100).toFixed(0)}% ×${sp.badSlipMult?.toFixed(1) ?? '—'}`;
+    case 'missedWin':     return `${((sp.missedWin ?? 0) * 100).toFixed(0)}%`;
+    default:              return '';
+  }
+}
+
+const ScfFactorAccordion = ({ id, label, factors, scfOpen, toggleScf, stressParams }: {
   id: string; label: string;
   factors: { key: string; label: string; impact: number; pct: number }[];
   scfOpen: Set<string>; toggleScf: (k: string) => void;
+  stressParams?: Record<string, number>;
 }) => {
   const open = scfOpen.has(id);
   return (
@@ -630,15 +646,19 @@ const ScfFactorAccordion = ({ id, label, factors, scfOpen, toggleScf }: {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 4 }}>
           {factors.length === 0
             ? <span style={{ fontSize: 10, color: 'var(--text2)' }}>Всі фактори = 0</span>
-            : factors.map(f => (
-              <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div style={{ flex: 1, fontSize: 10, color: 'var(--text2)' }}>{f.label}</div>
-                <div style={{ width: 60, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-                  <div style={{ width: `${f.pct}%`, height: '100%', background: '#fb923c', borderRadius: 2 }} />
+            : factors.map(f => {
+              const val = stressParams ? fmtStressVal(f.key, stressParams) : '';
+              return (
+                <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ flex: 1, fontSize: 10, color: 'var(--text2)' }}>{f.label}</div>
+                  {val && <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--text)', whiteSpace: 'nowrap' }}>{val}</div>}
+                  <div style={{ width: 60, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ width: `${f.pct}%`, height: '100%', background: '#fb923c', borderRadius: 2 }} />
+                  </div>
+                  <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--text)', width: 34, textAlign: 'right' }}>{f.pct.toFixed(0)}%</div>
                 </div>
-                <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--text)', width: 34, textAlign: 'right' }}>{f.pct.toFixed(0)}%</div>
-              </div>
-            ))
+              );
+            })
           }
         </div>
       )}
@@ -2093,13 +2113,9 @@ export default function Charts() {
                 // equity series
                 const eqLive = lvEqArr;
                 const eqBT   = btEqFull;
-                const eqAllVals = [
-                  ...(isLvOn('eq') ? eqLive : []),
-                  ...(isBtOn('eq') ? eqBT   : []),
-                  medProfit, medLoss, 0,
-                ].filter(isFinite);
-                const eqMn  = Math.min(...eqAllVals);
-                const eqMx  = Math.max(...eqAllVals);
+                // Fixed scale: medLoss at bottom 1/3, medProfit at top 1/3
+                const eqMn  = medLoss  - (medProfit - medLoss) * 0.5;
+                const eqMx  = medProfit + (medProfit - medLoss) * 0.5;
                 const eqRng = eqMx - eqMn || 1;
 
                 // live final equity for status
@@ -2228,7 +2244,7 @@ export default function Charts() {
                     {/* ── BLOCK 1: Equity / Return ── */}
                     <ScfBlockCard>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text2)' }}>Statistical Box (R)</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text2)' }}>Equity</span>
                         <ScfSeriesToggle metaKey="eq" hasBt={eqBT.length > 1} hasLv={eqLive.length > 1} isBtOn={isBtOn} isLvOn={isLvOn} toggleBt={toggleBt} toggleLv={toggleLv} />
                       </div>
 
@@ -2242,13 +2258,13 @@ export default function Charts() {
                           {/* Zone: below medLoss — red */}
                           <rect x={0} y={refY(medLoss, eqMn, eqRng)} width={SW} height={SH - refY(medLoss, eqMn, eqRng)} fill="rgba(248,113,113,0.08)" />
                           {/* medProfit line */}
-                          <line x1={0} y1={refY(medProfit, eqMn, eqRng)} x2={SW} y2={refY(medProfit, eqMn, eqRng)} stroke="rgba(74,222,128,0.6)" strokeWidth={1} strokeDasharray="4,2" />
+                          <line x1={0} y1={refY(medProfit, eqMn, eqRng)} x2={SW} y2={refY(medProfit, eqMn, eqRng)} stroke="rgba(74,222,128,0.6)" strokeWidth={1} />
                           {/* medLoss line */}
-                          <line x1={0} y1={refY(medLoss, eqMn, eqRng)} x2={SW} y2={refY(medLoss, eqMn, eqRng)} stroke="rgba(248,113,113,0.6)" strokeWidth={1} strokeDasharray="4,2" />
+                          <line x1={0} y1={refY(medLoss, eqMn, eqRng)} x2={SW} y2={refY(medLoss, eqMn, eqRng)} stroke="rgba(248,113,113,0.6)" strokeWidth={1} />
                           {/* zero line */}
                           {eqMn <= 0 && eqMx >= 0 && <line x1={0} y1={refY(0, eqMn, eqRng)} x2={SW} y2={refY(0, eqMn, eqRng)} stroke="rgba(255,255,255,0.15)" strokeWidth={0.8} />}
                           {/* BT equity */}
-                          {isBtOn('eq') && eqBT.length > 1 && <polyline points={mkPts(eqBT, eqMn, eqRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeDasharray="4,2" strokeLinejoin="round" strokeLinecap="round" />}
+                          {isBtOn('eq') && eqBT.length > 1 && <polyline points={mkPts(eqBT, eqMn, eqRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" />}
                           {/* Live equity */}
                           {isLvOn('eq') && eqLive.length > 1 && <polyline points={mkPts(eqLive, eqMn, eqRng)} fill="none" stroke={LIVE_COLOR} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />}
                         </svg>
@@ -2278,8 +2294,8 @@ export default function Charts() {
 
                       <ScfStatusBadge label={eqStatus} color={eqStatusColor} />
 
-                      <ScfFactorAccordion id="scf3_eq_profit" label="Exp. Med. Profit — фактори" factors={toFactorPct(retFactors.filter((f: any) => f.impact < 0))} scfOpen={scfOpen} toggleScf={toggleScf} />
-                      <ScfFactorAccordion id="scf3_eq_loss" label="Exp. Med. Loss — фактори" factors={toFactorPct(retFactors.filter((f: any) => f.impact < 0))} scfOpen={scfOpen} toggleScf={toggleScf} />
+                      <ScfFactorAccordion id="scf3_eq_profit" label="Exp. Med. Profit — фактори" factors={toFactorPct(retFactors.filter((f: any) => f.impact < 0))} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
+                      <ScfFactorAccordion id="scf3_eq_loss" label="Exp. Med. Loss — фактори" factors={toFactorPct(retFactors.filter((f: any) => f.impact < 0))} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
                     </ScfBlockCard>
 
                     {/* ── BLOCK 2: Max DD ── */}
@@ -2304,7 +2320,7 @@ export default function Charts() {
                           {/* ddLimit (user threshold) */}
                           {ddLimit > 0 && <line x1={0} y1={refY(ddLimit, ddMn, ddRng)} x2={SW} y2={refY(ddLimit, ddMn, ddRng)} stroke="rgba(250,204,21,0.7)" strokeWidth={1.2} />}
                           {/* BT DD */}
-                          {isBtOn('dd') && ddBtSeries.length > 1 && <polyline points={mkPts(ddBtSeries, ddMn, ddRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeDasharray="4,2" strokeLinejoin="round" strokeLinecap="round" />}
+                          {isBtOn('dd') && ddBtSeries.length > 1 && <polyline points={mkPts(ddBtSeries, ddMn, ddRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" />}
                           {/* Live DD */}
                           {isLvOn('dd') && ddLiveSeries.length > 1 && <polyline points={mkPts(ddLiveSeries, ddMn, ddRng)} fill="none" stroke={LIVE_COLOR} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />}
                         </svg>
@@ -2333,7 +2349,7 @@ export default function Charts() {
 
                       <ScfStatusBadge label={ddStatus} color={ddStatusColor} />
 
-                      <ScfFactorAccordion id="scf3_dd_med" label="Med. DD — фактори" factors={toFactorPct(ddFactors)} scfOpen={scfOpen} toggleScf={toggleScf} />
+                      <ScfFactorAccordion id="scf3_dd_med" label="Med. DD — фактори" factors={toFactorPct(ddFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
                     </ScfBlockCard>
 
                     {/* ── BLOCK 3: SQN ── */}
@@ -2358,7 +2374,7 @@ export default function Charts() {
                           {/* p5 line */}
                           <line x1={0} y1={refY(sqnP5, sqnMn, sqnRng)} x2={SW} y2={refY(sqnP5, sqnMn, sqnRng)} stroke="rgba(248,113,113,0.6)" strokeWidth={1} strokeDasharray="4,2" />
                           {/* BT SQN */}
-                          {isBtOn('sqn') && sqnBtSeries.length > 1 && <polyline points={mkPts(sqnBtSeries, sqnMn, sqnRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeDasharray="4,2" strokeLinejoin="round" strokeLinecap="round" />}
+                          {isBtOn('sqn') && sqnBtSeries.length > 1 && <polyline points={mkPts(sqnBtSeries, sqnMn, sqnRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" />}
                           {/* Live SQN */}
                           {isLvOn('sqn') && sqnLiveSeries.length > 1 && <polyline points={mkPts(sqnLiveSeries, sqnMn, sqnRng)} fill="none" stroke={LIVE_COLOR} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />}
                         </svg>
@@ -2383,7 +2399,7 @@ export default function Charts() {
 
                       <ScfStatusBadge label={sqnStatus} color={sqnStatusColor} />
 
-                      <ScfFactorAccordion id="scf3_sqn_med" label="Med. SQN — фактори" factors={toFactorPct(sqnFactors)} scfOpen={scfOpen} toggleScf={toggleScf} />
+                      <ScfFactorAccordion id="scf3_sqn_med" label="Med. SQN — фактори" factors={toFactorPct(sqnFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
                     </ScfBlockCard>
 
                     {/* ── BLOCK 4: Win Rate ── */}
@@ -2406,7 +2422,7 @@ export default function Charts() {
                           {/* wrP5 line */}
                           <line x1={0} y1={refY(wrP5, wrMn, wrRng)} x2={SW} y2={refY(wrP5, wrMn, wrRng)} stroke="rgba(248,113,113,0.6)" strokeWidth={1} strokeDasharray="4,2" />
                           {/* BT WR */}
-                          {isBtOn('wr') && wrBtSeries.length > 1 && <polyline points={mkPts(wrBtSeries, wrMn, wrRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeDasharray="4,2" strokeLinejoin="round" strokeLinecap="round" />}
+                          {isBtOn('wr') && wrBtSeries.length > 1 && <polyline points={mkPts(wrBtSeries, wrMn, wrRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" />}
                           {/* Live WR */}
                           {isLvOn('wr') && wrLiveSeries.length > 1 && <polyline points={mkPts(wrLiveSeries, wrMn, wrRng)} fill="none" stroke={LIVE_COLOR} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />}
                         </svg>
@@ -2430,7 +2446,7 @@ export default function Charts() {
 
                       <ScfStatusBadge label={wrStatus} color={wrStatusColor} />
 
-                      <ScfFactorAccordion id="scf3_wr_med" label="Med. WR — фактори" factors={toFactorPct(wrFactors)} scfOpen={scfOpen} toggleScf={toggleScf} />
+                      <ScfFactorAccordion id="scf3_wr_med" label="Med. WR — фактори" factors={toFactorPct(wrFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
                     </ScfBlockCard>
 
                     </div>{/* end grid */}
