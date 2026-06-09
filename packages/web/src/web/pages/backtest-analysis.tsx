@@ -789,7 +789,7 @@ export default function BacktestAnalysis() {
           onClose={() => setShowBtCompare(false)}
         />
       )}
-      <div style={{ padding: isMobile ? "12px" : "24px 28px", display: "flex", flexDirection: "column", gap: isMobile ? 14 : 20, width: "100%", overflow: "hidden" }}>
+      <div style={{ padding: isMobile ? "12px" : "24px 28px", display: "flex", flexDirection: "column", gap: isMobile ? 14 : 20, width: "100%", overflow: "hidden", maxWidth: 1200, boxSizing: "border-box", margin: "0 auto" }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
           <div style={{ fontSize: 18, fontWeight: 700 }}>BT Analysis</div>
