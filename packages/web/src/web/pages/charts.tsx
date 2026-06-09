@@ -2333,9 +2333,9 @@ export default function Charts() {
                           {/* Zone: below ddMedian — green */}
                           <rect x={0} y={refY(ddMedian, ddMn, ddRng)} width={SW} height={SH - refY(ddMedian, ddMn, ddRng)} fill="rgba(74,222,128,0.07)" />
                           {/* ddWorst line */}
-                          <line x1={0} y1={refY(ddWorst, ddMn, ddRng)} x2={SW} y2={refY(ddWorst, ddMn, ddRng)} stroke="rgba(248,113,113,0.7)" strokeWidth={1} strokeDasharray="4,2" />
+                          <line x1={0} y1={refY(ddWorst, ddMn, ddRng)} x2={SW} y2={refY(ddWorst, ddMn, ddRng)} stroke="rgba(248,113,113,0.7)" strokeWidth={1} />
                           {/* ddMedian line */}
-                          <line x1={0} y1={refY(ddMedian, ddMn, ddRng)} x2={SW} y2={refY(ddMedian, ddMn, ddRng)} stroke="rgba(251,146,60,0.6)" strokeWidth={1} strokeDasharray="4,2" />
+                          <line x1={0} y1={refY(ddMedian, ddMn, ddRng)} x2={SW} y2={refY(ddMedian, ddMn, ddRng)} stroke="rgba(251,146,60,0.6)" strokeWidth={1} />
                           {/* ddLimit (user threshold) */}
                           {ddLimit > 0 && <line x1={0} y1={refY(ddLimit, ddMn, ddRng)} x2={SW} y2={refY(ddLimit, ddMn, ddRng)} stroke="rgba(250,204,21,0.7)" strokeWidth={1.2} />}
                           {/* BT DD */}
@@ -2387,11 +2387,11 @@ export default function Charts() {
                           {/* Zone: below sqnP5 — red */}
                           <rect x={0} y={refY(sqnP5, sqnMn, sqnRng)} width={SW} height={SH - refY(sqnP5, sqnMn, sqnRng)} fill="rgba(248,113,113,0.08)" />
                           {/* p95 line */}
-                          <line x1={0} y1={refY(sqnP95, sqnMn, sqnRng)} x2={SW} y2={refY(sqnP95, sqnMn, sqnRng)} stroke="rgba(74,222,128,0.4)" strokeWidth={0.8} strokeDasharray="3,2" />
+                          <line x1={0} y1={refY(sqnP95, sqnMn, sqnRng)} x2={SW} y2={refY(sqnP95, sqnMn, sqnRng)} stroke="rgba(74,222,128,0.4)" strokeWidth={0.8} />
                           {/* med line */}
-                          <line x1={0} y1={refY(sqnMed, sqnMn, sqnRng)} x2={SW} y2={refY(sqnMed, sqnMn, sqnRng)} stroke="rgba(251,146,60,0.6)" strokeWidth={1} strokeDasharray="4,2" />
+                          <line x1={0} y1={refY(sqnMed, sqnMn, sqnRng)} x2={SW} y2={refY(sqnMed, sqnMn, sqnRng)} stroke="rgba(251,146,60,0.6)" strokeWidth={1} />
                           {/* p5 line */}
-                          <line x1={0} y1={refY(sqnP5, sqnMn, sqnRng)} x2={SW} y2={refY(sqnP5, sqnMn, sqnRng)} stroke="rgba(248,113,113,0.6)" strokeWidth={1} strokeDasharray="4,2" />
+                          <line x1={0} y1={refY(sqnP5, sqnMn, sqnRng)} x2={SW} y2={refY(sqnP5, sqnMn, sqnRng)} stroke="rgba(248,113,113,0.6)" strokeWidth={1} />
                           {/* BT SQN */}
                           {isBtOn('sqn') && sqnBtSeries.length > 1 && <polyline points={mkPts(sqnBtSeries, sqnMn, sqnRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" />}
                           {/* Live SQN */}
@@ -2437,9 +2437,9 @@ export default function Charts() {
                           {/* Zone: below wrP5 — red */}
                           <rect x={0} y={refY(wrP5, wrMn, wrRng)} width={SW} height={SH - refY(wrP5, wrMn, wrRng)} fill="rgba(248,113,113,0.08)" />
                           {/* wrMed line */}
-                          <line x1={0} y1={refY(wrMed, wrMn, wrRng)} x2={SW} y2={refY(wrMed, wrMn, wrRng)} stroke="rgba(251,146,60,0.6)" strokeWidth={1} strokeDasharray="4,2" />
+                          <line x1={0} y1={refY(wrMed, wrMn, wrRng)} x2={SW} y2={refY(wrMed, wrMn, wrRng)} stroke="rgba(251,146,60,0.6)" strokeWidth={1} />
                           {/* wrP5 line */}
-                          <line x1={0} y1={refY(wrP5, wrMn, wrRng)} x2={SW} y2={refY(wrP5, wrMn, wrRng)} stroke="rgba(248,113,113,0.6)" strokeWidth={1} strokeDasharray="4,2" />
+                          <line x1={0} y1={refY(wrP5, wrMn, wrRng)} x2={SW} y2={refY(wrP5, wrMn, wrRng)} stroke="rgba(248,113,113,0.6)" strokeWidth={1} />
                           {/* BT WR */}
                           {isBtOn('wr') && wrBtSeries.length > 1 && <polyline points={mkPts(wrBtSeries, wrMn, wrRng)} fill="none" stroke="#6b7280" strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" />}
                           {/* Live WR */}
