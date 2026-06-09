@@ -556,7 +556,7 @@ export default function LiveAnalysis() {
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
           <SectionTitle>Equity Curve (Net R)</SectionTitle>
           <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={equity} margin={{ top: 20, right: 60, bottom: 0, left: 0 }}>
+            <LineChart data={equity} margin={{ top: 20, right: 68, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#8b9098" }} interval={Math.floor(equity.length / 8)} />
               <YAxis tick={{ fontSize: 10, fill: "#8b9098" }} width={36} />
@@ -571,8 +571,9 @@ export default function LiveAnalysis() {
                   const lastPct = equity[equity.length - 1]?.pct ?? 0;
                   const pctSign = lastPct >= 0 ? "+" : "";
                   return (
-                    <text x={x + 6} y={y + 4} fill={color} fontSize={11} fontWeight={700} fontFamily="monospace">
-                      {pctSign}{lastPct.toFixed(1)}% ({value.toFixed(2)}R)
+                    <text x={x + 6} y={y} fill={color} fontSize={11} fontWeight={700} fontFamily="monospace">
+                      <tspan x={x + 6} dy="0">{pctSign}{lastPct.toFixed(1)}%</tspan>
+                      <tspan x={x + 6} dy="14">{sign}{value.toFixed(2)}R</tspan>
                     </text>
                   );
                 }} />

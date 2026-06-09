@@ -876,7 +876,7 @@ export default function BacktestAnalysis() {
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? 12 : 20 }}>
               <SectionTitle>Equity Curve (Net R)</SectionTitle>
               <ResponsiveContainer width="100%" height={isMobile ? 150 : 190}>
-                <LineChart data={equity} margin={{ top: 12, right: isMobile ? 50 : 70, bottom: 0, left: 0 }}>
+                <LineChart data={equity} margin={{ top: 12, right: isMobile ? 52 : 75, bottom: 0, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
                 <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#8b9098" }} interval={Math.max(Math.floor(equity.length / (isMobile ? 5 : 8)), 0)} />
                 <YAxis tick={{ fontSize: 9, fill: "#8b9098" }} width={30} />
