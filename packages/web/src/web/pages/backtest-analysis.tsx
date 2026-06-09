@@ -1062,6 +1062,183 @@ export default function BacktestAnalysis() {
               </div>
             )}
 
+            {/* ── CONSISTENCY SCORE ── */}
+            {sorted.length > 0 && (() => {
+              const btAvgRR = (() => {
+                const tpTrades = sorted.filter((t: any) => t.result === 'tp');
+                if (!tpTrades.length) return 0;
+                return Math.round((tpTrades.reduce((a: number, t: any) => a + (t.netR ?? 0), 0) / tpTrades.length) * 100) / 100;
+              })();
+              const netrArr = sorted.map((t: any) => t.netR ?? 0);
+              const n = sorted.length;
+              const mean = netrArr.reduce((a: number, b: number) => a + b, 0) / n;
+              const variance = netrArr.reduce((a: number, r: number) => a + (r - mean) ** 2, 0) / n;
+              const std = Math.sqrt(variance);
+              const targetRR = btAvgRR;
+              const inRange = targetRR > 0 ? sorted.filter((t: any) => { const r = t.netR ?? 0; return r >= -targetRR && r <= targetRR; }).length : 0;
+              const inRangePct = targetRR > 0 ? (inRange / n) * 100 : null;
+              const stdScore = Math.max(0, 100 - std * 20);
+              const rangeScore = inRangePct ?? stdScore;
+              const score = inRangePct != null ? Math.round((stdScore + rangeScore) / 2) : Math.round(stdScore);
+              const scoreColor = score >= 70 ? '#7eb8f7' : score >= 40 ? '#f0c070' : '#f0a070';
+              const scoreLabel = score >= 70 ? 'Consistent' : score >= 40 ? 'Moderate' : 'Inconsistent';
+              return (
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: isMobile ? 12 : 20 }}>
+                  <SectionTitle>Consistency Score</SectionTitle>
+                  <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 80 }}>
+                      <div style={{ fontSize: 36, fontWeight: 700, fontFamily: 'monospace', color: scoreColor, lineHeight: 1 }}>{score}</div>
+                      <div style={{ fontSize: 11, color: scoreColor }}>{scoreLabel}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text2)' }}>/ 100</div>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 180 }}>
+                      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>Std Dev R</div>
+                          <div style={{ fontFamily: 'monospace', fontSize: 14, color: std <= 1 ? '#7eb8f7' : std <= 2 ? '#f0c070' : '#f0a070' }}>{std.toFixed(2)}</div>
+                        </div>
+                        {inRangePct != null && (
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>In Range</div>
+                            <div style={{ fontFamily: 'monospace', fontSize: 14, color: inRangePct >= 70 ? '#7eb8f7' : inRangePct >= 50 ? '#f0c070' : '#f0a070' }}>{inRangePct.toFixed(0)}%</div>
+                          </div>
+                        )}
+                        <div>
+                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>Target RR</div>
+                          <div style={{ fontFamily: 'monospace', fontSize: 14, color: 'var(--text)' }}>{targetRR > 0 ? targetRR.toFixed(2) : '—'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── PROFITABILITY + SESSION WIN RATES ── */}
+            {sorted.length > 0 && (() => {
+              const n = sorted.length;
+              const won = sorted.filter((t: any) => t.result === 'tp').length;
+              const lost = sorted.filter((t: any) => t.result === 'sl').length;
+              const be = sorted.filter((t: any) => t.result === 'be').length;
+              const wonPct = n ? (won / n) * 100 : 0;
+              const lostPct = n ? (lost / n) * 100 : 0;
+              const bePct = n ? (be / n) * 100 : 0;
+
+              const bySess: Record<string, { total: number; wins: number; netR: number }> = {};
+              for (const t of sorted) {
+                const k = ((t.session as string | null) ?? '').trim() || 'Other';
+                if (!bySess[k]) bySess[k] = { total: 0, wins: 0, netR: 0 };
+                bySess[k].total++;
+                if (t.result === 'tp') bySess[k].wins++;
+                bySess[k].netR += t.netR ?? 0;
+              }
+              const sessRows = Object.entries(bySess)
+                .map(([k, v]) => ({ key: k, wr: v.total ? (v.wins / v.total) * 100 : 0, n: v.total, netR: Math.round(v.netR * 100) / 100 }))
+                .sort((a, b) => b.n - a.n);
+              const SESS_COLORS: Record<string, string> = { London: '#7eb8f7', 'New York': '#a78bfa', NY: '#a78bfa', Asia: '#f0c070', Asian: '#f0c070', Other: '#888' };
+              const getSessColor = (k: string) => SESS_COLORS[k] ?? '#7eb8f7';
+
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 8 : 12 }}>
+                  {/* Profitability */}
+                  <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: isMobile ? 12 : 20 }}>
+                    <SectionTitle>Profitability</SectionTitle>
+                    {[
+                      { label: 'Won', pct: wonPct, count: won, color: '#7eb8f7' },
+                      { label: 'Lost', pct: lostPct, count: lost, color: '#f0a070' },
+                      { label: 'Break Even', pct: bePct, count: be, color: '#6b7280' },
+                    ].map(row => (
+                      <div key={row.label} style={{ marginBottom: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                          <span style={{ color: 'var(--text2)' }}>{row.label}</span>
+                          <span style={{ fontFamily: 'monospace', color: 'var(--text)' }}>{row.pct.toFixed(1)}% <span style={{ color: 'var(--text2)', fontSize: 11 }}>({row.count})</span></span>
+                        </div>
+                        <div style={{ height: 6, background: 'var(--surface2)', borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{ width: `${row.pct}%`, height: '100%', background: row.color, borderRadius: 3 }} />
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>{n} total trades</div>
+                  </div>
+                  {/* Session Win Rates */}
+                  <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: isMobile ? 12 : 20 }}>
+                    <SectionTitle>Session Win Rates</SectionTitle>
+                    {sessRows.map(row => (
+                      <div key={row.key} style={{ marginBottom: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                          <span style={{ color: 'var(--text2)', textTransform: 'lowercase' }}>{row.key}</span>
+                          <span style={{ fontFamily: 'monospace', color: 'var(--text)' }}>
+                            <span style={{ color: getSessColor(row.key) }}>{row.wr.toFixed(1)}% WR</span>
+                            {' · '}{row.n} trades{' · '}
+                            <span style={{ color: row.netR >= 0 ? '#7eb8f7' : '#f0a070' }}>{row.netR >= 0 ? '+' : ''}{row.netR}R</span>
+                          </span>
+                        </div>
+                        <div style={{ height: 4, background: 'var(--surface2)', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ width: `${row.wr}%`, height: '100%', background: getSessColor(row.key), borderRadius: 2 }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── MOST TRADED INSTRUMENTS ── */}
+            {sorted.length > 0 && (() => {
+              const instrMap: Record<string, { count: number; netR: number }> = {};
+              for (const t of sorted) {
+                const k = ((t.asset ?? t.instrument ?? 'Other') as string).toUpperCase();
+                if (!instrMap[k]) instrMap[k] = { count: 0, netR: 0 };
+                instrMap[k].count++;
+                instrMap[k].netR += t.netR ?? 0;
+              }
+              const instrRows = Object.entries(instrMap)
+                .map(([k, v]) => ({ key: k, count: v.count, netR: Math.round(v.netR * 100) / 100, pct: (v.count / sorted.length) * 100 }))
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 6);
+              const DONUT_COLORS = ['#7eb8f7', '#a78bfa', '#f0c070', '#f0a070', '#4ade80', '#6b7280'];
+              const total = sorted.length;
+              const cx = 50, cy = 50, r = 38, stroke = 14;
+              let cumAngle = -90;
+              const slices = instrRows.map((row, i) => {
+                const angle = (row.count / total) * 360;
+                const start = cumAngle;
+                cumAngle += angle;
+                const toRad = (deg: number) => (deg * Math.PI) / 180;
+                const x1 = cx + r * Math.cos(toRad(start));
+                const y1 = cy + r * Math.sin(toRad(start));
+                const x2 = cx + r * Math.cos(toRad(start + angle));
+                const y2 = cy + r * Math.sin(toRad(start + angle));
+                const large = angle > 180 ? 1 : 0;
+                return { d: `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`, color: DONUT_COLORS[i % DONUT_COLORS.length], row };
+              });
+              return (
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: isMobile ? 12 : 20 }}>
+                  <SectionTitle>Most Traded Instruments</SectionTitle>
+                  <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <svg viewBox="0 0 100 100" width={isMobile ? 80 : 100} height={isMobile ? 80 : 100} style={{ flexShrink: 0 }}>
+                      {slices.map((s, i) => (
+                        <path key={i} d={s.d} fill="none" stroke={s.color} strokeWidth={stroke} strokeLinecap="butt" />
+                      ))}
+                      <text x={cx} y={cy + 4} textAnchor="middle" fontSize={10} fill="#e5e7eb" fontFamily="monospace">{total}</text>
+                      <text x={cx} y={cy + 14} textAnchor="middle" fontSize={7} fill="#6b7280">trades</text>
+                    </svg>
+                    <div style={{ flex: 1, minWidth: 160 }}>
+                      {instrRows.map((row, i) => (
+                        <div key={row.key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: DONUT_COLORS[i % DONUT_COLORS.length], flexShrink: 0 }} />
+                          <span style={{ fontSize: 12, color: 'var(--text)', minWidth: 40 }}>{row.key}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text2)', fontFamily: 'monospace' }}>{row.pct.toFixed(1)}%</span>
+                          <span style={{ fontSize: 11, color: 'var(--text2)', fontFamily: 'monospace' }}>({row.count})</span>
+                          <span style={{ fontSize: 11, fontFamily: 'monospace', color: row.netR >= 0 ? '#7eb8f7' : '#f0a070', marginLeft: 'auto' }}>{row.netR >= 0 ? '+' : ''}{row.netR}R</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Stats */}
             {stats && (
               <div>

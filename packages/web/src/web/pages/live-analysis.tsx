@@ -444,100 +444,6 @@ function CompareView({ allTrades, monthA, monthB, onClose, isMobile }: {
   );
 }
 
-// ── Consistency Score (live-analysis inline) ──────────────────────────────────
-function ConsistencyScoreBlock({ trades, lvAvgRR }: { trades: any[]; lvAvgRR: number }) {
-  type TargetMode = 'manual' | 'live';
-  const [mode, setMode] = useState<TargetMode>(() => {
-    try { return (localStorage.getItem('cs_mode_la') as TargetMode) ?? 'live'; } catch { return 'live'; }
-  });
-  const [manualRR, setManualRR] = useState(() => {
-    try { return localStorage.getItem('cs_manual_rr_la') ?? '2'; } catch { return '2'; }
-  });
-  const [showInfo, setShowInfo] = useState(false);
-
-  const saveMode = (m: TargetMode) => { setMode(m); try { localStorage.setItem('cs_mode_la', m); } catch {} };
-  const saveRR = (v: string) => { setManualRR(v); try { localStorage.setItem('cs_manual_rr_la', v); } catch {} };
-
-  const targetRR = mode === 'manual' ? parseFloat(manualRR) || 0 : lvAvgRR;
-  const n = trades.length;
-  if (!n) return <div style={{ color: 'var(--text2)', fontSize: 13 }}>No live trades yet.</div>;
-
-  const netrArr = trades.map(t => t.netR ?? 0);
-  const mean = netrArr.reduce((a, b) => a + b, 0) / n;
-  const variance = netrArr.reduce((a, r) => a + (r - mean) ** 2, 0) / n;
-  const std = Math.sqrt(variance);
-  const inRange = targetRR > 0 ? trades.filter(t => { const r = t.netR ?? 0; return r >= -targetRR && r <= targetRR; }).length : 0;
-  const inRangePct = targetRR > 0 ? (inRange / n) * 100 : null;
-  const stdScore = Math.max(0, 100 - std * 20);
-  const rangeScore = inRangePct ?? stdScore;
-  const score = inRangePct != null ? Math.round((stdScore + rangeScore) / 2) : Math.round(stdScore);
-  const scoreColor = score >= 70 ? '#7eb8f7' : score >= 40 ? '#f0c070' : '#f0a070';
-  const scoreLabel = score >= 70 ? 'Consistent' : score >= 40 ? 'Moderate' : 'Inconsistent';
-  const btnStyle = (active: boolean): React.CSSProperties => ({
-    padding: '3px 10px', fontSize: 11, borderRadius: 6, cursor: 'pointer',
-    background: active ? '#7eb8f7' : 'var(--surface2)',
-    border: `1px solid ${active ? '#7eb8f7' : 'var(--border)'}`,
-    color: active ? '#0d0e11' : 'var(--text2)',
-  });
-
-  return (
-    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 80 }}>
-        <div style={{ fontSize: 36, fontWeight: 700, fontFamily: 'monospace', color: scoreColor, lineHeight: 1 }}>{score}</div>
-        <div style={{ fontSize: 11, color: scoreColor }}>{scoreLabel}</div>
-        <div style={{ fontSize: 10, color: 'var(--text2)' }}>/ 100</div>
-      </div>
-      <div style={{ flex: 1, minWidth: 180 }}>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 12 }}>
-          <div>
-            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>Std Dev R</div>
-            <div style={{ fontFamily: 'monospace', fontSize: 14, color: std <= 1 ? '#7eb8f7' : std <= 2 ? '#f0c070' : '#f0a070' }}>{std.toFixed(2)}</div>
-          </div>
-          {inRangePct != null && (
-            <div>
-              <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>In Range</div>
-              <div style={{ fontFamily: 'monospace', fontSize: 14, color: inRangePct >= 70 ? '#7eb8f7' : inRangePct >= 50 ? '#f0c070' : '#f0a070' }}>{inRangePct.toFixed(0)}%</div>
-            </div>
-          )}
-          <div>
-            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>Target RR</div>
-            <div style={{ fontFamily: 'monospace', fontSize: 14, color: 'var(--text)' }}>{targetRR > 0 ? targetRR.toFixed(2) : '—'}</div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button style={btnStyle(mode === 'live')} onClick={() => saveMode('live')}>Avg Live RR</button>
-          <button style={btnStyle(mode === 'manual')} onClick={() => saveMode('manual')}>Manual</button>
-          {mode === 'manual' && (
-            <input
-              type="number" min="0.1" step="0.1" value={manualRR}
-              onChange={e => saveRR(e.target.value)}
-              style={{ width: 64, padding: '3px 8px', fontSize: 12, borderRadius: 6, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'monospace' } as any}
-              placeholder="2.0"
-            />
-          )}
-          <button
-            onClick={() => setShowInfo(v => !v)}
-            style={{ marginLeft: 4, width: 18, height: 18, borderRadius: '50%', border: '1px solid var(--border)', background: showInfo ? '#7eb8f7' : 'var(--surface)', color: showInfo ? '#0d0e11' : 'var(--text2)', fontSize: 11, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}
-          >?</button>
-        </div>
-        {showInfo && (
-          <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12, color: 'var(--text2)', lineHeight: 1.6 }}>
-            <div style={{ color: 'var(--text)', fontWeight: 600, marginBottom: 6, fontSize: 12 }}>How the Consistency Score is calculated</div>
-            <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)' }}>Std Dev score</span> — based on standard deviation of net R. Lower deviation = more predictable. Formula: <span style={{ fontFamily: 'monospace' }}>max(0, 100 − stdDev × 20)</span></div>
-            <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)' }}>In Range score</span> — % of trades where net R falls within <span style={{ fontFamily: 'monospace' }}>[−targetRR, +targetRR]</span>.</div>
-            <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)' }}>Final score</span> — average of both: <span style={{ fontFamily: 'monospace' }}>(stdScore + rangeScore) / 2</span></div>
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 6 }}>
-              <span style={{ color: '#7eb8f7' }}>≥ 70</span> Consistent &nbsp;·&nbsp;
-              <span style={{ color: '#f0c070' }}>40–69</span> Moderate &nbsp;·&nbsp;
-              <span style={{ color: '#f0a070' }}>&lt; 40</span> Inconsistent
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function LiveAnalysis() {
   const isMobile = useMobile();
@@ -859,21 +765,6 @@ export default function LiveAnalysis() {
             );
           })()}
         </div>
-
-        {/* ── CONSISTENCY SCORE ── */}
-        {(() => {
-          const lvAvgRR = (() => {
-            const tpTrades = sorted.filter(t => t.result === 'tp');
-            if (!tpTrades.length) return 0;
-            return Math.round((tpTrades.reduce((a, t) => a + (t.netR ?? 0), 0) / tpTrades.length) * 100) / 100;
-          })();
-          return (
-            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
-              <SectionTitle>Consistency Score</SectionTitle>
-              <ConsistencyScoreBlock trades={sorted} lvAvgRR={lvAvgRR} />
-            </div>
-          );
-        })()}
 
         {/* ── PROFITABILITY + SESSION WIN RATES ── */}
         {(() => {
