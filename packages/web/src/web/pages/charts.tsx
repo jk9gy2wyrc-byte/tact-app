@@ -1367,11 +1367,90 @@ export default function Charts() {
               );
             })()}
 
-            <Explanation text={
-              equityViewMode === 'cumulative'
-                ? "Кумулятивний: всі угоди обох кривих. Відхилення рахується від фінальних значень кожної серії."
-                : `Нормалізований: криві обрізаються — якщо одна серія довша на більше ніж ${NORM_EXTRA} угод, вона обрізається до коротшої+${NORM_EXTRA}. Відхилення рахується по меншій кількості угод.`
-            } />
+            {(() => {
+              const isCumul = equityViewMode === 'cumulative';
+              const cmpN = isCumul
+                ? undefined
+                : Math.min(btEq.length, lvEq.length, btGrossEq.length, lvGrossEq.length);
+              const getLast = (arr: number[], n?: number) => {
+                if (arr.length === 0) return null;
+                const idx = n != null ? Math.min(n - 1, arr.length - 1) : arr.length - 1;
+                return arr[idx] ?? null;
+              };
+              const lvNet   = getLast(lvEq,      cmpN);
+              const btNet   = getLast(btEq,      cmpN);
+              const lvGross = getLast(lvGrossEq, cmpN);
+              const btGross = getLast(btGrossEq, cmpN);
+
+              const calcDev = (a: number | null, b: number | null) => {
+                if (a == null || b == null) return null;
+                const dR = a - b;
+                const dP = b !== 0 ? dR / Math.abs(b) * 100 : null;
+                return { dR, dP };
+              };
+
+              const liveVsBtGross = calcDev(lvGross, btGross);
+              const liveVsBtNet   = calcDev(lvNet,   btNet);
+              const liveNetVsGross = calcDev(lvNet,  lvGross);
+              const btNetVsGross   = calcDev(btNet,  btGross);
+
+              const lines: string[] = [];
+
+              // Mode line
+              lines.push(isCumul
+                ? `Режим: кумулятивний — порівнюються фінальні значення всіх угод.`
+                : `Режим: нормалізований — порівняння по ${cmpN} угодах (коротша серія).`
+              );
+              lines.push('');
+
+              // Live vs BT structural deviation
+              if (liveVsBtNet) {
+                const pct = liveVsBtNet.dP;
+                const r   = liveVsBtNet.dR;
+                const sign = r >= 0 ? '+' : '';
+                if (pct != null && Math.abs(pct) < 10) {
+                  lines.push(`Live Net vs BT Net: ${sign}${r.toFixed(2)}R (${sign}${pct.toFixed(1)}%) — Live близький до бектесту, відхилення в нормі.`);
+                } else if (pct != null && pct < -50) {
+                  lines.push(`Live Net vs BT Net: ${sign}${r.toFixed(2)}R (${sign}${pct.toFixed(1)}%) — Live суттєво нижче бектесту. Можливі причини: зміна ринкового режиму, overfitting бектесту або деградація стратегії.`);
+                } else if (pct != null && pct < 0) {
+                  lines.push(`Live Net vs BT Net: ${sign}${r.toFixed(2)}R (${sign}${pct.toFixed(1)}%) — Live відстає від бектесту. Варто перевірити чи не змінились умови ринку.`);
+                } else if (pct != null && pct > 0) {
+                  lines.push(`Live Net vs BT Net: ${sign}${r.toFixed(2)}R (${sign}${pct.toFixed(1)}%) — Live випереджає бектест. Можливо ринок зараз сприятливий для стратегії.`);
+                }
+              }
+
+              // Gross check — чи проблема у слипажі чи в структурі
+              if (liveVsBtGross && liveVsBtNet) {
+                const gPct = liveVsBtGross.dP;
+                const nPct = liveVsBtNet.dP;
+                if (gPct != null && nPct != null && Math.abs(nPct - gPct) < 5) {
+                  lines.push(`Live Gross vs BT Gross: ${liveVsBtGross.dP != null ? (liveVsBtGross.dP >= 0 ? '+' : '') + liveVsBtGross.dP.toFixed(1) + '%' : '—'} — відхилення майже таке ж як Net. Комісії не є головною причиною проблеми.`);
+                } else if (gPct != null && nPct != null && Math.abs(nPct) > Math.abs(gPct) + 5) {
+                  lines.push(`Gross відхилення менше ніж Net — комісії/слипаж підсилюють відставання Live від бектесту.`);
+                }
+              }
+
+              // Комісії Live
+              if (liveNetVsGross && liveNetVsGross.dP != null) {
+                const pct = Math.abs(liveNetVsGross.dP);
+                lines.push(`Комісії Live: −${pct.toFixed(1)}% від Gross прибутку.`);
+              }
+
+              // Комісії BT vs Live порівняння
+              if (btNetVsGross && liveNetVsGross && btNetVsGross.dP != null && liveNetVsGross.dP != null) {
+                const btCost   = Math.abs(btNetVsGross.dP);
+                const liveCost = Math.abs(liveNetVsGross.dP);
+                if (liveCost > btCost + 3) {
+                  lines.push(`В бектесті комісії складали −${btCost.toFixed(1)}%, в Live — −${liveCost.toFixed(1)}%. Live платить більше ніж закладено в бектест.`);
+                } else {
+                  lines.push(`Рівень комісій у Live (${liveCost.toFixed(1)}%) близький до бектесту (${btCost.toFixed(1)}%).`);
+                }
+              }
+
+              const dynText = lines.join('\n');
+
+              return <Explanation text={dynText} />;
+            })()}
           </>
         )}
       </div>
