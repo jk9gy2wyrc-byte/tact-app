@@ -391,19 +391,18 @@ export default function Subscription() {
         <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 20 }}>What's included in access</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
           {[
-            { icon: '📊', title: 'Dashboard', desc: 'Full live & backtest performance overview in one place' },
-            { icon: '🗄️', title: 'Live Database', desc: 'Log, edit and manage your live trades with all details' },
-            { icon: '📁', title: 'Backtest DB', desc: 'Store and analyze your backtest trade history' },
-            { icon: '🔍', title: 'Live Analysis', desc: 'Deep stats on live trades — distribution, equity, sessions' },
-            { icon: '📈', title: 'BT Analysis', desc: 'Full backtest breakdown — monthly returns, instruments, consistency' },
-            { icon: '🎲', title: 'Analysis & MC', desc: 'Monte Carlo simulations to stress-test your strategy' },
-            { icon: '🌐', title: 'COT Data', desc: 'Commitment of Traders reports for macro confluence' },
+            { title: 'Dashboard', desc: 'Загальний огляд лайв і бектест перформансу в одному місці' },
+            { title: 'Live Database', desc: 'Додавай, редагуй і керуй своїми лайв угодами з усіма деталями' },
+            { title: 'Backtest DB', desc: 'Зберігай і аналізуй історію своїх бектест угод' },
+            { title: 'Live Analysis', desc: 'Глибока статистика по лайв угодах — розподіл, еквіті, сесії, інструменти' },
+            { title: 'BT Analysis', desc: 'Повний розбір бектесту — місячна прибутковість, інструменти, консістенсі' },
+            { title: 'Analysis & MC', desc: 'Монте Карло симуляції для стрес-тесту торгової системи' },
+            { title: 'COT Data', desc: 'Звіти Commitment of Traders для макро конфлюенсу' },
           ].map((item, i) => (
             <div key={i} style={{
               background: 'var(--bg)', border: '1px solid var(--border)',
               borderRadius: 12, padding: '14px 16px',
             }}>
-              <div style={{ fontSize: 18, marginBottom: 6 }}>{item.icon}</div>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>{item.title}</div>
               <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.5 }}>{item.desc}</div>
             </div>
