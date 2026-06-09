@@ -2186,6 +2186,8 @@ export default function Charts() {
                   <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Statistical Control Framework</div>
 
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
+
                     {/* ── BLOCK 1: Equity / Return ── */}
                     <ScfBlockCard>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2394,6 +2396,7 @@ export default function Charts() {
                       <ScfFactorAccordion id="scf3_wr_med" label="Med. WR — фактори" factors={toFactorPct(wrFactors)} scfOpen={scfOpen} toggleScf={toggleScf} />
                     </ScfBlockCard>
 
+                    </div>{/* end grid */}
                   </div>
                 );
               })()}
