@@ -360,17 +360,14 @@ function StressSlider({
   sliderId?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [highlighted, setHighlighted] = useState(false);
+  const [hlKey, setHlKey] = useState(0);
   const divRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!sliderId) return;
     const handler = () => {
-      // scroll into view
       divRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // flash highlight
-      setHighlighted(true);
-      setTimeout(() => setHighlighted(false), 1500);
+      setHlKey(k => k + 1);
     };
     window.addEventListener(`stress-highlight-${sliderId}`, handler);
     return () => window.removeEventListener(`stress-highlight-${sliderId}`, handler);
@@ -382,18 +379,19 @@ function StressSlider({
     <div
       ref={divRef}
       id={sliderId ? `stress-slider-${sliderId}` : undefined}
-      style={{
-        marginBottom: 16,
-        borderRadius: 8,
-        transition: 'box-shadow 0.3s ease, background 0.3s ease',
-        ...(highlighted ? {
-          boxShadow: '0 0 0 2px #fb923c, 0 0 12px 2px #fb923c44',
-          background: 'rgba(251,146,60,0.07)',
-          padding: '6px 8px',
-          margin: '0 -8px 16px -8px',
-        } : {}),
-      }}
+      style={{ marginBottom: 16, borderRadius: 8, position: 'relative' }}
     >
+      {hlKey > 0 && (
+        <div
+          key={hlKey}
+          style={{
+            position: 'absolute', inset: '-6px -8px', borderRadius: 10, pointerEvents: 'none', zIndex: 0,
+            boxShadow: '0 0 0 2px rgba(255,255,255,0.9), 0 0 10px 2px rgba(255,255,255,0.15)',
+            background: 'rgba(255,255,255,0.04)',
+            animation: 'stressFlash 700ms ease-out forwards',
+          }}
+        />
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{label}</div>
