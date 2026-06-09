@@ -651,8 +651,8 @@ export default function LiveAnalysis() {
                     <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#8b9098" }}
                       interval={Math.max(Math.floor(buckets.length / 8) - 1, 0)}
                       label={{ value: "Net R Result", position: "insideBottom", offset: -12, fontSize: 10, fill: "#8b9098" }} />
-                    <YAxis tick={{ fontSize: 9, fill: "#8b9098" }} width={28}
-                      label={{ value: "Count", angle: -90, position: "insideLeft", offset: 10, fontSize: 10, fill: "#8b9098" }} />
+                    <YAxis tick={{ fontSize: 9, fill: "#8b9098" }} width={42}
+                      label={{ value: "Count", angle: -90, position: "insideLeft", offset: 18, fontSize: 10, fill: "#8b9098" }} />
                     <Tooltip content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
                       const d = payload[0]!.payload;
@@ -680,8 +680,8 @@ export default function LiveAnalysis() {
                     <XAxis dataKey="i" tick={{ fontSize: 9, fill: "#8b9098" }}
                       interval={Math.max(Math.floor(tradeData.length / 8) - 1, 0)}
                       label={{ value: "Trade Number", position: "insideBottom", offset: -12, fontSize: 10, fill: "#8b9098" }} />
-                    <YAxis tick={{ fontSize: 9, fill: "#8b9098" }} width={28}
-                      label={{ value: "Net R", angle: -90, position: "insideLeft", offset: 10, fontSize: 10, fill: "#8b9098" }} />
+                    <YAxis tick={{ fontSize: 9, fill: "#8b9098" }} width={42}
+                      label={{ value: "Net R", angle: -90, position: "insideLeft", offset: 18, fontSize: 10, fill: "#8b9098" }} />
                     <Tooltip content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
                       const d = payload[0]!.payload;
