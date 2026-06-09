@@ -2198,14 +2198,14 @@ export default function Charts() {
                 const lvSQN     = lvStats?.sqn      ?? 0;
                 const lvMaxDD   = lvStats?.maxDD    ?? 0;
                 const lvPF      = lvStats?.pf       ?? 0;
+                const lvEqArr: number[]  = (d as any).lvEquity ?? [];
+                const lvNets: number[]   = lvEqArr.map((v: number, i: number) => i === 0 ? v : v - lvEqArr[i - 1]);
                 // live losing streak (max consecutive losses)
                 const lvStreakFinal = (() => {
                   let max = 0, cur = 0;
                   for (const v of lvNets) { if (v < 0) { cur++; if (cur > max) max = cur; } else cur = 0; }
                   return max;
                 })();
-                const lvEqArr: number[]  = (d as any).lvEquity ?? [];
-                const lvNets: number[]   = lvEqArr.map((v: number, i: number) => i === 0 ? v : v - lvEqArr[i - 1]);
                 const btEqFull: number[] = r.btNetEq;
                 const btNets: number[]   = btEqFull.map((v: number, i: number) => i === 0 ? v : v - btEqFull[i - 1]);
 
