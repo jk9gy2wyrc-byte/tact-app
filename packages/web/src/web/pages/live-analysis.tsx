@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useMobile } from "../hooks/useMobile";
 import { uidParam } from "../lib/session";
@@ -444,6 +444,100 @@ function CompareView({ allTrades, monthA, monthB, onClose, isMobile }: {
   );
 }
 
+// ── Consistency Score (live-analysis inline) ──────────────────────────────────
+function ConsistencyScoreBlock({ trades, lvAvgRR }: { trades: any[]; lvAvgRR: number }) {
+  type TargetMode = 'manual' | 'live';
+  const [mode, setMode] = useState<TargetMode>(() => {
+    try { return (localStorage.getItem('cs_mode_la') as TargetMode) ?? 'live'; } catch { return 'live'; }
+  });
+  const [manualRR, setManualRR] = useState(() => {
+    try { return localStorage.getItem('cs_manual_rr_la') ?? '2'; } catch { return '2'; }
+  });
+  const [showInfo, setShowInfo] = useState(false);
+
+  const saveMode = (m: TargetMode) => { setMode(m); try { localStorage.setItem('cs_mode_la', m); } catch {} };
+  const saveRR = (v: string) => { setManualRR(v); try { localStorage.setItem('cs_manual_rr_la', v); } catch {} };
+
+  const targetRR = mode === 'manual' ? parseFloat(manualRR) || 0 : lvAvgRR;
+  const n = trades.length;
+  if (!n) return <div style={{ color: 'var(--text2)', fontSize: 13 }}>No live trades yet.</div>;
+
+  const netrArr = trades.map(t => t.netR ?? 0);
+  const mean = netrArr.reduce((a, b) => a + b, 0) / n;
+  const variance = netrArr.reduce((a, r) => a + (r - mean) ** 2, 0) / n;
+  const std = Math.sqrt(variance);
+  const inRange = targetRR > 0 ? trades.filter(t => { const r = t.netR ?? 0; return r >= -targetRR && r <= targetRR; }).length : 0;
+  const inRangePct = targetRR > 0 ? (inRange / n) * 100 : null;
+  const stdScore = Math.max(0, 100 - std * 20);
+  const rangeScore = inRangePct ?? stdScore;
+  const score = inRangePct != null ? Math.round((stdScore + rangeScore) / 2) : Math.round(stdScore);
+  const scoreColor = score >= 70 ? '#7eb8f7' : score >= 40 ? '#f0c070' : '#f0a070';
+  const scoreLabel = score >= 70 ? 'Consistent' : score >= 40 ? 'Moderate' : 'Inconsistent';
+  const btnStyle = (active: boolean): React.CSSProperties => ({
+    padding: '3px 10px', fontSize: 11, borderRadius: 6, cursor: 'pointer',
+    background: active ? '#7eb8f7' : 'var(--surface2)',
+    border: `1px solid ${active ? '#7eb8f7' : 'var(--border)'}`,
+    color: active ? '#0d0e11' : 'var(--text2)',
+  });
+
+  return (
+    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 80 }}>
+        <div style={{ fontSize: 36, fontWeight: 700, fontFamily: 'monospace', color: scoreColor, lineHeight: 1 }}>{score}</div>
+        <div style={{ fontSize: 11, color: scoreColor }}>{scoreLabel}</div>
+        <div style={{ fontSize: 10, color: 'var(--text2)' }}>/ 100</div>
+      </div>
+      <div style={{ flex: 1, minWidth: 180 }}>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>Std Dev R</div>
+            <div style={{ fontFamily: 'monospace', fontSize: 14, color: std <= 1 ? '#7eb8f7' : std <= 2 ? '#f0c070' : '#f0a070' }}>{std.toFixed(2)}</div>
+          </div>
+          {inRangePct != null && (
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>In Range</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 14, color: inRangePct >= 70 ? '#7eb8f7' : inRangePct >= 50 ? '#f0c070' : '#f0a070' }}>{inRangePct.toFixed(0)}%</div>
+            </div>
+          )}
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 2 }}>Target RR</div>
+            <div style={{ fontFamily: 'monospace', fontSize: 14, color: 'var(--text)' }}>{targetRR > 0 ? targetRR.toFixed(2) : '—'}</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button style={btnStyle(mode === 'live')} onClick={() => saveMode('live')}>Avg Live RR</button>
+          <button style={btnStyle(mode === 'manual')} onClick={() => saveMode('manual')}>Manual</button>
+          {mode === 'manual' && (
+            <input
+              type="number" min="0.1" step="0.1" value={manualRR}
+              onChange={e => saveRR(e.target.value)}
+              style={{ width: 64, padding: '3px 8px', fontSize: 12, borderRadius: 6, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'monospace' } as any}
+              placeholder="2.0"
+            />
+          )}
+          <button
+            onClick={() => setShowInfo(v => !v)}
+            style={{ marginLeft: 4, width: 18, height: 18, borderRadius: '50%', border: '1px solid var(--border)', background: showInfo ? '#7eb8f7' : 'var(--surface)', color: showInfo ? '#0d0e11' : 'var(--text2)', fontSize: 11, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}
+          >?</button>
+        </div>
+        {showInfo && (
+          <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12, color: 'var(--text2)', lineHeight: 1.6 }}>
+            <div style={{ color: 'var(--text)', fontWeight: 600, marginBottom: 6, fontSize: 12 }}>How the Consistency Score is calculated</div>
+            <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)' }}>Std Dev score</span> — based on standard deviation of net R. Lower deviation = more predictable. Formula: <span style={{ fontFamily: 'monospace' }}>max(0, 100 − stdDev × 20)</span></div>
+            <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)' }}>In Range score</span> — % of trades where net R falls within <span style={{ fontFamily: 'monospace' }}>[−targetRR, +targetRR]</span>.</div>
+            <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)' }}>Final score</span> — average of both: <span style={{ fontFamily: 'monospace' }}>(stdScore + rangeScore) / 2</span></div>
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 6 }}>
+              <span style={{ color: '#7eb8f7' }}>≥ 70</span> Consistent &nbsp;·&nbsp;
+              <span style={{ color: '#f0c070' }}>40–69</span> Moderate &nbsp;·&nbsp;
+              <span style={{ color: '#f0a070' }}>&lt; 40</span> Inconsistent
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function LiveAnalysis() {
   const isMobile = useMobile();
@@ -765,6 +859,166 @@ export default function LiveAnalysis() {
             );
           })()}
         </div>
+
+        {/* ── CONSISTENCY SCORE ── */}
+        {(() => {
+          const lvAvgRR = (() => {
+            const tpTrades = sorted.filter(t => t.result === 'tp');
+            if (!tpTrades.length) return 0;
+            return Math.round((tpTrades.reduce((a, t) => a + (t.netR ?? 0), 0) / tpTrades.length) * 100) / 100;
+          })();
+          return (
+            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
+              <SectionTitle>Consistency Score</SectionTitle>
+              <ConsistencyScoreBlock trades={sorted} lvAvgRR={lvAvgRR} />
+            </div>
+          );
+        })()}
+
+        {/* ── PROFITABILITY + SESSION WIN RATES ── */}
+        {(() => {
+          const n = sorted.length;
+          const won = sorted.filter(t => t.result === 'tp').length;
+          const lost = sorted.filter(t => t.result === 'sl').length;
+          const be = sorted.filter(t => t.result === 'be').length;
+          const wonPct = n ? (won / n) * 100 : 0;
+          const lostPct = n ? (lost / n) * 100 : 0;
+          const bePct = n ? (be / n) * 100 : 0;
+
+          const bySess: Record<string, { total: number; wins: number; netR: number }> = {};
+          for (const t of sorted) {
+            const k = (t.session as string | null)?.trim() || 'Other';
+            if (!bySess[k]) bySess[k] = { total: 0, wins: 0, netR: 0 };
+            bySess[k].total++;
+            if (t.result === 'tp') bySess[k].wins++;
+            bySess[k].netR += t.netR ?? 0;
+          }
+          const sessRows = Object.entries(bySess)
+            .map(([k, v]) => ({ key: k, wr: v.total ? (v.wins / v.total) * 100 : 0, n: v.total, netR: Math.round(v.netR * 100) / 100 }))
+            .sort((a, b) => b.n - a.n);
+          const SESS_COLORS: Record<string, string> = { London: '#7eb8f7', 'New York': '#a78bfa', NY: '#a78bfa', Asia: '#f0c070', Asian: '#f0c070', Other: '#888' };
+          const getSessColor = (k: string) => SESS_COLORS[k] ?? '#7eb8f7';
+
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>
+              <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
+                <SectionTitle>Profitability</SectionTitle>
+                {!n ? (
+                  <div style={{ color: 'var(--text2)', fontSize: 13 }}>No trades yet.</div>
+                ) : (
+                  <div style={{ maxWidth: 420 }}>
+                    {[
+                      { label: 'Won', pct: wonPct, color: '#7eb8f7', count: won },
+                      { label: 'Lost', pct: lostPct, color: '#f0a070', count: lost },
+                      ...(be > 0 ? [{ label: 'Break Even', pct: bePct, color: '#888', count: be }] : []),
+                    ].map(row => (
+                      <div key={row.label} style={{ marginBottom: 14 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                          <span style={{ fontSize: 12, color: 'var(--text2)' }}>{row.label}</span>
+                          <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text)' }}>
+                            {row.pct.toFixed(1)}% <span style={{ color: 'var(--text2)', fontSize: 11 }}>({row.count})</span>
+                          </span>
+                        </div>
+                        <div style={{ height: 8, borderRadius: 4, background: 'var(--surface2)', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${row.pct}%`, borderRadius: 4, background: row.color, transition: 'width 0.4s ease' }} />
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>{n} total trades</div>
+                  </div>
+                )}
+              </div>
+              <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
+                <SectionTitle>Session Win Rates</SectionTitle>
+                {!sorted.length ? (
+                  <div style={{ color: 'var(--text2)', fontSize: 13 }}>No trades yet.</div>
+                ) : (
+                  <div style={{ maxWidth: 420 }}>
+                    {sessRows.map(r => (
+                      <div key={r.key} style={{ marginBottom: 14 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                          <span style={{ fontSize: 12, color: 'var(--text2)' }}>{r.key}</span>
+                          <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text)' }}>
+                            {r.wr.toFixed(1)}% WR
+                            <span style={{ color: 'var(--text2)', fontSize: 11 }}> · {r.n} trades · </span>
+                            <span style={{ color: r.netR >= 0 ? '#7eb8f7' : '#f0a070', fontSize: 11 }}>
+                              {r.netR >= 0 ? '+' : ''}{r.netR.toFixed(2)}R
+                            </span>
+                          </span>
+                        </div>
+                        <div style={{ height: 8, borderRadius: 4, background: 'var(--surface2)', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${r.wr}%`, borderRadius: 4, background: getSessColor(r.key), transition: 'width 0.4s ease' }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── MOST TRADED INSTRUMENTS ── */}
+        {(() => {
+          const byInst: Record<string, { n: number; wins: number; netR: number }> = {};
+          for (const t of sorted) {
+            const k = ((t.asset as string | null) ?? '—').toUpperCase();
+            if (!byInst[k]) byInst[k] = { n: 0, wins: 0, netR: 0 };
+            byInst[k].n++;
+            if (t.result === 'tp') byInst[k].wins++;
+            byInst[k].netR += t.netR ?? 0;
+          }
+          const instrTotal = sorted.length;
+          const instrRows = Object.entries(byInst)
+            .map(([k, v]) => ({ key: k, pct: instrTotal ? (v.n / instrTotal) * 100 : 0, n: v.n, wr: v.n ? (v.wins / v.n) * 100 : 0, netR: Math.round(v.netR * 100) / 100 }))
+            .sort((a, b) => b.n - a.n).slice(0, 6);
+          const PALETTE = ['#7eb8f7', '#a78bfa', '#f0c070', '#7dd3b0', '#f0a070', '#94a3b8'];
+          const size = 120, r = 44, cx = size / 2, cy = size / 2;
+          const circumference = 2 * Math.PI * r;
+          let offset = 0;
+          const slices = instrRows.map((row, i) => {
+            const dash = (row.pct / 100) * circumference;
+            const gap = circumference - dash;
+            const slice = { dash, gap, offset, color: PALETTE[i] ?? '#555', key: row.key };
+            offset += dash;
+            return slice;
+          });
+          return (
+            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
+              <SectionTitle>Most Traded Instruments</SectionTitle>
+              {!instrTotal ? (
+                <div style={{ color: 'var(--text2)', fontSize: 13 }}>No trades yet.</div>
+              ) : (
+                <div style={{ display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <svg width={size} height={size} style={{ flexShrink: 0 }}>
+                    <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--surface2)" strokeWidth={18} />
+                    {slices.map(sl => (
+                      <circle key={sl.key} cx={cx} cy={cy} r={r} fill="none"
+                        stroke={sl.color} strokeWidth={18}
+                        strokeDasharray={`${sl.dash} ${sl.gap}`}
+                        strokeDashoffset={-sl.offset + circumference / 4}
+                        style={{ transition: 'stroke-dasharray 0.4s ease' }}
+                      />
+                    ))}
+                    <text x={cx} y={cy + 4} textAnchor="middle" style={{ fontSize: 13, fill: 'var(--text2)', fontFamily: 'monospace' }}>{instrTotal}</text>
+                    <text x={cx} y={cy + 16} textAnchor="middle" style={{ fontSize: 9, fill: 'var(--text2)' }}>trades</text>
+                  </svg>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                    {instrRows.map((row, i) => (
+                      <div key={row.key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: PALETTE[i] ?? '#555', flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, fontWeight: 600, minWidth: 48 }}>{row.key}</span>
+                        <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text2)' }}>{row.pct.toFixed(1)}%</span>
+                        <span style={{ fontSize: 11, color: 'var(--text2)' }}>({row.n})</span>
+                        <span style={{ fontSize: 11, color: row.netR >= 0 ? '#7eb8f7' : '#f0a070' }}>{row.netR >= 0 ? '+' : ''}{row.netR.toFixed(2)}R</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── STATS GRID ── */}
         <div>
