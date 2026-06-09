@@ -2488,8 +2488,8 @@ export default function Charts() {
                       </div>
 
                       <div style={{ display: 'flex', gap: 10, fontSize: 9, color: 'var(--text2)', flexWrap: 'wrap' }}>
-                        <span><span style={{ color: '#f87171' }}>- -</span> Worst p95 ({fmtDD(ddWorst)})</span>
-                        <span><span style={{ color: '#fb923c' }}>- -</span> Median ({fmtDD(ddMedian)})</span>
+                        <span><span style={{ color: '#f87171' }}>━</span> Worst p95 ({fmtDD(ddWorst)})</span>
+                        <span><span style={{ color: '#fb923c' }}>━</span> Median ({fmtDD(ddMedian)})</span>
                         <span><span style={{ color: '#facc15' }}>━</span> Limit ({fmtDD(ddLimit)}R)</span>
                       </div>
 
@@ -2542,9 +2542,9 @@ export default function Charts() {
                       </div>
 
                       <div style={{ display: 'flex', gap: 10, fontSize: 9, color: 'var(--text2)', flexWrap: 'wrap' }}>
-                        <span><span style={{ color: '#4ade80' }}>- -</span> p95 ({sqnP95.toFixed(2)})</span>
-                        <span><span style={{ color: '#fb923c' }}>- -</span> Med ({sqnMed.toFixed(2)})</span>
-                        <span><span style={{ color: '#f87171' }}>- -</span> p5 ({sqnP5.toFixed(2)})</span>
+                        <span><span style={{ color: '#4ade80' }}>━</span> p95 ({sqnP95.toFixed(2)})</span>
+                        <span><span style={{ color: '#fb923c' }}>━</span> Med ({sqnMed.toFixed(2)})</span>
+                        <span><span style={{ color: '#f87171' }}>━</span> p5 ({sqnP5.toFixed(2)})</span>
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -2590,8 +2590,8 @@ export default function Charts() {
                       </div>
 
                       <div style={{ display: 'flex', gap: 10, fontSize: 9, color: 'var(--text2)', flexWrap: 'wrap' }}>
-                        <span><span style={{ color: '#fb923c' }}>- -</span> Med ({fmtPct(wrMed)})</span>
-                        <span><span style={{ color: '#f87171' }}>- -</span> p5 ({fmtPct(wrP5)})</span>
+                        <span><span style={{ color: '#fb923c' }}>━</span> Med ({fmtPct(wrMed)})</span>
+                        <span><span style={{ color: '#f87171' }}>━</span> p5 ({fmtPct(wrP5)})</span>
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
