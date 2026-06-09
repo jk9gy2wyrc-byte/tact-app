@@ -2524,15 +2524,15 @@ export default function Charts() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
                           <span style={{ color: 'var(--text2)' }}>Live final R</span>
-                          <span style={{ fontWeight: 700, fontFamily: 'monospace', color: lvFinalEq >= 0 ? '#4ade80' : '#f87171' }}>{fmtR(lvFinalEq)}</span>
+                          <span style={{ fontWeight: 700, fontFamily: 'monospace', color: LIVE_COLOR }}>{fmtR(lvFinalEq)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
                           <span style={{ color: 'var(--text2)' }}>Dev. від med. profit</span>
-                          <span style={{ fontFamily: 'monospace', color: eqDevLive >= 0 ? '#4ade80' : '#f87171' }}>{fmtR(eqDevLive)}</span>
+                          <span style={{ fontFamily: 'monospace', color: '#e5e7eb' }}>{fmtR(eqDevLive)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
                           <span style={{ color: 'var(--text2)' }}>BT dev. від med. profit</span>
-                          <span style={{ fontFamily: 'monospace', color: eqDevBt >= 0 ? '#4ade80' : '#f87171' }}>{fmtR(eqDevBt)}</span>
+                          <span style={{ fontFamily: 'monospace', color: '#e5e7eb' }}>{fmtR(eqDevBt)}</span>
                         </div>
                       </div>
 
@@ -2579,15 +2579,15 @@ export default function Charts() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
                           <span style={{ color: 'var(--text2)' }}>Live Max DD</span>
-                          <span style={{ fontWeight: 700, fontFamily: 'monospace', color: lvFinalDD > ddLimit ? '#f87171' : '#4ade80' }}>{fmtDD(lvFinalDD)}</span>
+                          <span style={{ fontWeight: 700, fontFamily: 'monospace', color: LIVE_COLOR }}>{fmtDD(lvFinalDD)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
                           <span style={{ color: 'var(--text2)' }}>Median DD</span>
-                          <span style={{ fontFamily: 'monospace' }}>{fmtDD(ddMedian)}</span>
+                          <span style={{ fontFamily: 'monospace', color: '#e5e7eb' }}>{fmtDD(ddMedian)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
                           <span style={{ color: 'var(--text2)' }}>Worst DD (p95)</span>
-                          <span style={{ fontFamily: 'monospace', color: '#f87171' }}>{fmtDD(ddWorst)}</span>
+                          <span style={{ fontFamily: 'monospace', color: '#e5e7eb' }}>{fmtDD(ddWorst)}</span>
                         </div>
                       </div>
 
@@ -2633,11 +2633,19 @@ export default function Charts() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
                           <span style={{ color: 'var(--text2)' }}>Live SQN</span>
-                          <span style={{ fontWeight: 700, fontFamily: 'monospace' }}>{lvFinalSQN.toFixed(2)}</span>
+                          <span style={{ fontWeight: 700, fontFamily: 'monospace', color: LIVE_COLOR }}>{lvFinalSQN.toFixed(2)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                          <span style={{ color: 'var(--text2)' }}>p5 – Med – p95</span>
-                          <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{sqnP5.toFixed(2)} – {sqnMed.toFixed(2)} – {sqnP95.toFixed(2)}</span>
+                          <span style={{ color: 'var(--text2)' }}>p5</span>
+                          <span style={{ fontFamily: 'monospace', color: '#e5e7eb' }}>{sqnP5.toFixed(2)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>Медіана</span>
+                          <span style={{ fontFamily: 'monospace', color: '#e5e7eb' }}>{sqnMed.toFixed(2)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>p95</span>
+                          <span style={{ fontFamily: 'monospace', color: '#e5e7eb' }}>{sqnP95.toFixed(2)}</span>
                         </div>
                       </div>
 
@@ -2680,11 +2688,15 @@ export default function Charts() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
                           <span style={{ color: 'var(--text2)' }}>Live WR</span>
-                          <span style={{ fontWeight: 700, fontFamily: 'monospace' }}>{fmtPct(lvFinalWR)}</span>
+                          <span style={{ fontWeight: 700, fontFamily: 'monospace', color: LIVE_COLOR }}>{fmtPct(lvFinalWR)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                          <span style={{ color: 'var(--text2)' }}>p5 – Med</span>
-                          <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{fmtPct(wrP5)} – {fmtPct(wrMed)}</span>
+                          <span style={{ color: 'var(--text2)' }}>p5</span>
+                          <span style={{ fontFamily: 'monospace', color: '#e5e7eb' }}>{fmtPct(wrP5)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                          <span style={{ color: 'var(--text2)' }}>Медіана</span>
+                          <span style={{ fontFamily: 'monospace', color: '#e5e7eb' }}>{fmtPct(wrMed)}</span>
                         </div>
                       </div>
 
