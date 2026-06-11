@@ -30,6 +30,7 @@ const TRANSLATIONS = {
     save: 'Зберегти',
     saved: 'Збережено',
     nothingChanged: 'Нічого не змінено',
+    invalidEmail: 'Введіть коректний email',
     loginMin: 'Логін мінімум 3 символи',
     passMin: 'Пароль мінімум 4 символи',
     passMismatch: 'Паролі не співпадають',
@@ -85,6 +86,7 @@ const TRANSLATIONS = {
     save: 'Save',
     saved: 'Saved',
     nothingChanged: 'Nothing changed',
+    invalidEmail: 'Enter a valid email',
     loginMin: 'Login must be at least 3 characters',
     passMin: 'Password must be at least 4 characters',
     passMismatch: 'Passwords do not match',
@@ -293,6 +295,7 @@ function UserCabinet({ session, onClose, onSave, onLangChange, onThemeChange }: 
 
   // credentials state
   const [login, setLogin] = useState(session.login);
+  const [originalLogin, setOriginalLogin] = useState(session.login);
   const [nickname, setNickname] = useState(session.nickname ?? '');
   const [originalNickname, setOriginalNickname] = useState(session.nickname ?? '');
   const [showPassFields, setShowPassFields] = useState(false);
@@ -319,21 +322,22 @@ function UserCabinet({ session, onClose, onSave, onLangChange, onThemeChange }: 
 
   const submitCredentials = async () => {
     setCredErr(''); setCredOk('');
-    if (!login.trim()) return setCredErr(t.enterLogin);
-    if (login.length < 3) return setCredErr(t.loginMin);
-    if (pass && pass.length < 4) return setCredErr(t.passMin);
-    if (pass && pass !== pass2) return setCredErr(t.passMismatch);
+    const loginTrimmed = login.trim();
+    if (!loginTrimmed) return setCredErr(t.enterLogin);
+    // email validation
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRe.test(loginTrimmed)) return setCredErr(t.invalidEmail);
     const nickTrimmed = nickname.trim();
-    if (showPassFields && pass && pass !== pass2) return setCredErr(t.passMismatch);
-    if (showPassFields && pass && pass.length < 4) return setCredErr(t.passMin);
     const passChanged = showPassFields && !!pass;
-    if (!passChanged && login === session.login && nickTrimmed === originalNickname) return setCredErr(t.nothingChanged);
+    if (passChanged && pass.length < 4) return setCredErr(t.passMin);
+    if (passChanged && pass !== pass2) return setCredErr(t.passMismatch);
+    if (!passChanged && loginTrimmed === originalLogin && nickTrimmed === originalNickname) return setCredErr(t.nothingChanged);
     setCredLoading(true);
     try {
       const res = await fetch('/api/auth/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: session.id, login: login.trim(), password: (showPassFields && pass) ? pass : undefined }),
+        body: JSON.stringify({ id: session.id, login: loginTrimmed, password: passChanged ? pass : undefined }),
       });
       const data = await res.json();
       if (!res.ok) { setCredErr(data.error ?? 'Помилка'); return; }
@@ -344,6 +348,8 @@ function UserCabinet({ session, onClose, onSave, onLangChange, onThemeChange }: 
         body: JSON.stringify({ value: nickTrimmed }),
       }).catch(() => {});
 
+      setOriginalLogin(data.login);
+      setOriginalNickname(nickTrimmed);
       onSave({ login: data.login, role: data.role, id: data.id, nickname: nickTrimmed || null });
       setPass(''); setPass2('');
       setCredOk(t.saved);

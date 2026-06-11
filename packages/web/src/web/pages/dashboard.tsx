@@ -998,7 +998,7 @@ export default function Dashboard() {
           return (
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>{greeting}{nick ? `, ${nick}` : ''}</div>
-        <span style={{ fontSize: 11, color: 'var(--text2)' }}>updates every 10s</span>
+
         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text2)' }}>
           {now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
         </span>
