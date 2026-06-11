@@ -294,6 +294,7 @@ function UserCabinet({ session, onClose, onSave, onLangChange, onThemeChange }: 
   // credentials state
   const [login, setLogin] = useState(session.login);
   const [nickname, setNickname] = useState(session.nickname ?? '');
+  const [originalNickname, setOriginalNickname] = useState(session.nickname ?? '');
   const [showPassFields, setShowPassFields] = useState(false);
   const [pass, setPass] = useState('');
   const [pass2, setPass2] = useState('');
@@ -305,7 +306,7 @@ function UserCabinet({ session, onClose, onSave, onLangChange, onThemeChange }: 
   useEffect(() => {
     fetch(`/api/prefs/nickname?userId=${session.id}`)
       .then(r => r.json())
-      .then(d => { if (d.value) setNickname(d.value); })
+      .then(d => { if (d.value) { setNickname(d.value); setOriginalNickname(d.value); } })
       .catch(() => {});
   }, [session.id]);
 
@@ -326,7 +327,7 @@ function UserCabinet({ session, onClose, onSave, onLangChange, onThemeChange }: 
     if (showPassFields && pass && pass !== pass2) return setCredErr(t.passMismatch);
     if (showPassFields && pass && pass.length < 4) return setCredErr(t.passMin);
     const passChanged = showPassFields && !!pass;
-    if (!passChanged && login === session.login && nickTrimmed === (session.nickname ?? '')) return setCredErr(t.nothingChanged);
+    if (!passChanged && login === session.login && nickTrimmed === originalNickname) return setCredErr(t.nothingChanged);
     setCredLoading(true);
     try {
       const res = await fetch('/api/auth/update', {
