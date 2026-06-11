@@ -12,6 +12,141 @@ import AdminUsers from "./pages/admin-users";
 import Subscription from "./pages/subscription";
 import { setSession, clearSession, getSession, type Session } from "./lib/session";
 
+// ─── i18n ─────────────────────────────────────────────────────────────────────
+type Lang = 'uk' | 'en';
+
+const TRANSLATIONS = {
+  uk: {
+    cabinet: 'Кабінет',
+    loginData: 'Дані входу',
+    platformSettings: 'Налаштування платформи',
+    loginLabel: 'Логін',
+    nicknameLabel: 'Нікнейм',
+    nicknameHint: '(відображається в панелі)',
+    changePassword: 'Змінити пароль',
+    cancelPassword: 'Скасувати зміну пароля',
+    newPassword: 'Новий пароль',
+    repeatPassword: 'Повторити пароль',
+    save: 'Зберегти',
+    saved: 'Збережено',
+    nothingChanged: 'Нічого не змінено',
+    loginMin: 'Логін мінімум 3 символи',
+    passMin: 'Пароль мінімум 4 символи',
+    passMismatch: 'Паролі не співпадають',
+    enterLogin: 'Введи логін',
+    networkError: 'Помилка мережі',
+    language: 'Мова',
+    theme: 'Тема',
+    langUk: 'Українська',
+    langEn: 'English',
+    themeDark: 'Темна',
+    themeLight: 'Світла',
+    loginPlaceholder: 'Логін',
+    nickPlaceholder: "Твій нік (необов'язково)",
+    passMinHint: 'Мінімум 4 символи',
+    passAgainPlaceholder: 'Пароль ще раз',
+    loginScreenTitle: 'TSCT',
+    loginPasswordPlaceholder: 'Пароль',
+    enter: 'Увійти',
+    noAccount: 'Немає акаунту?',
+    register: 'Зареєструватись',
+    registration: 'Реєстрація',
+    confirmation: 'Підтвердження',
+    codeSentTo: 'Код надіслано на',
+    sendCode: 'Надіслати код',
+    sending: 'Надсилаємо...',
+    codeHint: 'Надішлемо 4-значний код підтвердження',
+    registering: 'Реєструємо...',
+    next: 'Далі →',
+    resendIn: (s: number) => `Надіслати повторно через ${s}с`,
+    resend: 'Надіслати код повторно',
+    nicknameStep: 'Придумай нікнейм',
+    nicknameStepHint: 'Він буде відображатись замість логіну. Можна пропустити і задати пізніше.',
+    done: 'Готово',
+    skip: 'Пропустити',
+    enterEmail: 'Введіть email',
+    enterCode: 'Введіть 4-значний код',
+    minSymbols: 'Мінімум 4 символи',
+    connectionError: "Помилка з'єднання",
+    logOut: 'log out',
+    manageplan: 'Manage your plan to get full access',
+  },
+  en: {
+    cabinet: 'Account',
+    loginData: 'Login details',
+    platformSettings: 'Platform settings',
+    loginLabel: 'Login',
+    nicknameLabel: 'Nickname',
+    nicknameHint: '(shown in panel)',
+    changePassword: 'Change password',
+    cancelPassword: 'Cancel password change',
+    newPassword: 'New password',
+    repeatPassword: 'Repeat password',
+    save: 'Save',
+    saved: 'Saved',
+    nothingChanged: 'Nothing changed',
+    loginMin: 'Login must be at least 3 characters',
+    passMin: 'Password must be at least 4 characters',
+    passMismatch: 'Passwords do not match',
+    enterLogin: 'Enter login',
+    networkError: 'Network error',
+    language: 'Language',
+    theme: 'Theme',
+    langUk: 'Українська',
+    langEn: 'English',
+    themeDark: 'Dark',
+    themeLight: 'Light',
+    loginPlaceholder: 'Login',
+    nickPlaceholder: 'Your nickname (optional)',
+    passMinHint: 'At least 4 characters',
+    passAgainPlaceholder: 'Password again',
+    loginScreenTitle: 'TSCT',
+    loginPasswordPlaceholder: 'Password',
+    enter: 'Sign in',
+    noAccount: 'No account?',
+    register: 'Register',
+    registration: 'Registration',
+    confirmation: 'Confirmation',
+    codeSentTo: 'Code sent to',
+    sendCode: 'Send code',
+    sending: 'Sending...',
+    codeHint: 'We will send a 4-digit confirmation code',
+    registering: 'Registering...',
+    next: 'Next →',
+    resendIn: (s: number) => `Resend in ${s}s`,
+    resend: 'Resend code',
+    nicknameStep: 'Choose a nickname',
+    nicknameStepHint: 'It will be shown instead of login. You can skip and set it later.',
+    done: 'Done',
+    skip: 'Skip',
+    enterEmail: 'Enter email',
+    enterCode: 'Enter 4-digit code',
+    minSymbols: 'At least 4 characters',
+    connectionError: 'Connection error',
+    logOut: 'log out',
+    manageplan: 'Manage your plan to get full access',
+  },
+} as const;
+
+function getStoredLang(): Lang {
+  return (localStorage.getItem('platform_lang') as Lang) ?? 'uk';
+}
+function setStoredLang(l: Lang) {
+  localStorage.setItem('platform_lang', l);
+}
+function getStoredTheme(): 'dark' | 'light' {
+  return (localStorage.getItem('platform_theme') as 'dark' | 'light') ?? 'dark';
+}
+function setStoredTheme(t: 'dark' | 'light') {
+  localStorage.setItem('platform_theme', t);
+  document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : '');
+}
+// apply theme on load
+(function initTheme() {
+  const t = (localStorage.getItem('platform_theme') as 'dark' | 'light') ?? 'dark';
+  if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+})();
+
 
 // ─── TRIAL EXPIRED OVERLAY ───────────────────────────────────────────────────
 function TrialExpiredOverlay({ children, isMobile }: { children: React.ReactNode; isMobile?: boolean }) {
@@ -117,7 +252,7 @@ function NavItem({ path, label }: { path: string; label: string }) {
     <Link href={path}>
       <div style={{
         display: 'flex', alignItems: 'center', padding: '9px 16px',
-        background: active ? '#1c2030' : 'transparent',
+        background: active ? 'var(--surface2)' : 'transparent',
         borderLeft: active ? '2px solid #4b5263' : '2px solid transparent',
         cursor: 'pointer', transition: 'background 0.15s',
         color: active ? 'var(--text)' : 'var(--text2)',
@@ -140,10 +275,21 @@ function useIsMobile() {
 }
 
 // ─── USER CABINET ─────────────────────────────────────────────────────────────
-type CabinetTab = 'credentials' | 'profile';
+type CabinetTab = 'credentials' | 'settings';
 
-function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: () => void; onSave: (s: Session) => void }) {
+function UserCabinet({ session, onClose, onSave, onLangChange, onThemeChange }: {
+  session: Session;
+  onClose: () => void;
+  onSave: (s: Session) => void;
+  onLangChange: (l: Lang) => void;
+  onThemeChange: (t: 'dark' | 'light') => void;
+}) {
   const [activeTab, setActiveTab] = useState<CabinetTab>('credentials');
+
+  // lang/theme state (local, synced with localStorage)
+  const [lang, setLang] = useState<Lang>(getStoredLang);
+  const [theme, setTheme] = useState<'dark' | 'light'>(getStoredTheme);
+  const t = TRANSLATIONS[lang];
 
   // credentials state
   const [login, setLogin] = useState(session.login);
@@ -163,11 +309,6 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
       .catch(() => {});
   }, [session.id]);
 
-  // profile state (placeholder fields)
-  const [displayName, setDisplayName] = useState('');
-  const [bio, setBio] = useState('');
-  const [profileOk, setProfileOk] = useState('');
-
   const inputStyle: React.CSSProperties = {
     width: '100%', fontSize: 13,
     borderRadius: 8, padding: '10px 12px', boxSizing: 'border-box',
@@ -177,18 +318,17 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
 
   const submitCredentials = async () => {
     setCredErr(''); setCredOk('');
-    if (!login.trim()) return setCredErr('Введи логін');
-    if (login.length < 3) return setCredErr('Логін мінімум 3 символи');
-    if (pass && pass.length < 4) return setCredErr('Пароль мінімум 4 символи');
-    if (pass && pass !== pass2) return setCredErr('Паролі не співпадають');
+    if (!login.trim()) return setCredErr(t.enterLogin);
+    if (login.length < 3) return setCredErr(t.loginMin);
+    if (pass && pass.length < 4) return setCredErr(t.passMin);
+    if (pass && pass !== pass2) return setCredErr(t.passMismatch);
     const nickTrimmed = nickname.trim();
-    if (showPassFields && pass && pass !== pass2) return setCredErr('Паролі не співпадають');
-    if (showPassFields && pass && pass.length < 4) return setCredErr('Пароль мінімум 4 символи');
+    if (showPassFields && pass && pass !== pass2) return setCredErr(t.passMismatch);
+    if (showPassFields && pass && pass.length < 4) return setCredErr(t.passMin);
     const passChanged = showPassFields && !!pass;
-    if (!passChanged && login === session.login && nickTrimmed === (session.nickname ?? '')) return setCredErr('Нічого не змінено');
+    if (!passChanged && login === session.login && nickTrimmed === (session.nickname ?? '')) return setCredErr(t.nothingChanged);
     setCredLoading(true);
     try {
-      // save login/password
       const res = await fetch('/api/auth/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -197,7 +337,6 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
       const data = await res.json();
       if (!res.ok) { setCredErr(data.error ?? 'Помилка'); return; }
 
-      // save nickname via prefs
       await fetch(`/api/prefs/nickname?userId=${session.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -206,17 +345,28 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
 
       onSave({ login: data.login, role: data.role, id: data.id, nickname: nickTrimmed || null });
       setPass(''); setPass2('');
-      setCredOk('Збережено');
+      setCredOk(t.saved);
     } catch {
-      setCredErr('Помилка мережі');
+      setCredErr(t.networkError);
     } finally {
       setCredLoading(false);
     }
   };
 
+  const handleLangChange = (l: Lang) => {
+    setStoredLang(l);
+    setLang(l);
+    onLangChange(l);
+  };
+  const handleThemeChange = (th: 'dark' | 'light') => {
+    setStoredTheme(th);
+    setTheme(th);
+    onThemeChange(th);
+  };
+
   const tabs: { key: CabinetTab; label: string }[] = [
-    { key: 'credentials', label: 'Дані входу' },
-    { key: 'profile', label: 'Редагувати профіль' },
+    { key: 'credentials', label: t.loginData },
+    { key: 'settings', label: t.platformSettings },
   ];
 
   return (
@@ -239,7 +389,7 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
         }}>
           {/* Header */}
           <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Кабінет</div>
+            <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{t.cabinet}</div>
             <div style={{
               fontSize: 13, fontWeight: 600,
               color: session.role === 'admin' ? '#facc15' : 'var(--text)',
@@ -303,18 +453,18 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
             {activeTab === 'credentials' && (
               <div style={{ maxWidth: 380, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Логін</div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>{t.loginLabel}</div>
                   <input
-                    placeholder="Логін"
+                    placeholder={t.loginPlaceholder}
                     value={login}
                     onChange={e => { setLogin(e.target.value); setCredErr(''); setCredOk(''); }}
                     style={inputStyle}
                   />
                 </div>
                 <div>
-                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Нікнейм <span style={{ opacity: 0.5 }}>(відображається в панелі)</span></div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>{t.nicknameLabel} <span style={{ opacity: 0.5 }}>{t.nicknameHint}</span></div>
                   <input
-                    placeholder="Твій нік (необов'язково)"
+                    placeholder={t.nickPlaceholder}
                     value={nickname}
                     onChange={e => { setNickname(e.target.value); setCredErr(''); setCredOk(''); }}
                     style={inputStyle}
@@ -326,15 +476,15 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
                     onClick={() => setShowPassFields(true)}
                     style={{ borderRadius: 8, padding: '9px 14px', fontSize: 13, alignSelf: 'flex-start' }}
                   >
-                    Змінити пароль
+                    {t.changePassword}
                   </button>
                 ) : (
                   <>
                     <div>
-                      <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Новий пароль</div>
+                      <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>{t.newPassword}</div>
                       <input
                         type="password"
-                        placeholder="Мінімум 4 символи"
+                        placeholder={t.passMinHint}
                         value={pass}
                         autoFocus
                         onChange={e => { setPass(e.target.value); setCredErr(''); setCredOk(''); }}
@@ -342,10 +492,10 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
                       />
                     </div>
                     <div>
-                      <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Повторити пароль</div>
+                      <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>{t.repeatPassword}</div>
                       <input
                         type="password"
-                        placeholder="Пароль ще раз"
+                        placeholder={t.passAgainPlaceholder}
                         value={pass2}
                         onChange={e => { setPass2(e.target.value); setCredErr(''); setCredOk(''); }}
                         style={inputStyle}
@@ -356,7 +506,7 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
                       onClick={() => { setShowPassFields(false); setPass(''); setPass2(''); setCredErr(''); }}
                       style={{ borderRadius: 8, padding: '7px 14px', fontSize: 12, alignSelf: 'flex-start', opacity: 0.6 }}
                     >
-                      Скасувати зміну пароля
+                      {t.cancelPassword}
                     </button>
                   </>
                 )}
@@ -368,43 +518,60 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
                   disabled={credLoading}
                   style={{ borderRadius: 8, padding: '10px 0', fontSize: 13, marginTop: 4 }}
                 >
-                  {credLoading ? '...' : 'Зберегти'}
+                  {credLoading ? '...' : t.save}
                 </button>
               </div>
             )}
 
-            {/* ── Profile tab ── */}
-            {activeTab === 'profile' && (
-              <div style={{ maxWidth: 380, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* ── Platform settings tab ── */}
+            {activeTab === 'settings' && (
+              <div style={{ maxWidth: 380, display: 'flex', flexDirection: 'column', gap: 24 }}>
+                {/* Language */}
                 <div>
-                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Ім'я для відображення</div>
-                  <input
-                    placeholder="Як тебе показувати"
-                    value={displayName}
-                    onChange={e => { setDisplayName(e.target.value); setProfileOk(''); }}
-                    style={inputStyle}
-                  />
+                  <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 12 }}>{t.language}</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {(['uk', 'en'] as Lang[]).map(l => (
+                      <button
+                        key={l}
+                        onClick={() => handleLangChange(l)}
+                        style={{
+                          flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 13,
+                          background: lang === l ? '#4b5263' : 'var(--surface2)',
+                          color: lang === l ? '#fff' : 'var(--text2)',
+                          border: lang === l ? 'none' : '1px solid var(--border)',
+                          fontWeight: lang === l ? 600 : 400,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {l === 'uk' ? t.langUk : t.langEn}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+
+                {/* Theme */}
                 <div>
-                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Про себе</div>
-                  <textarea
-                    placeholder="Коротко про себе..."
-                    value={bio}
-                    onChange={e => { setBio(e.target.value); setProfileOk(''); }}
-                    rows={4}
-                    style={{ ...inputStyle, resize: 'vertical' as const }}
-                  />
-                </div>
-                {profileOk && <div style={{ color: 'var(--green)', fontSize: 12 }}>{profileOk}</div>}
-                <button
-                  className="btn-primary"
-                  onClick={() => setProfileOk('Збережено')}
-                  style={{ borderRadius: 8, padding: '10px 0', fontSize: 13, marginTop: 4 }}
-                >
-                  Зберегти
-                </button>
-                <div style={{ fontSize: 11, color: 'var(--text2)', opacity: 0.6 }}>
-                  Більше налаштувань профілю з'являться пізніше
+                  <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 12 }}>{t.theme}</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {(['dark', 'light'] as const).map(th => (
+                      <button
+                        key={th}
+                        onClick={() => handleThemeChange(th)}
+                        style={{
+                          flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 13,
+                          background: theme === th ? '#4b5263' : 'var(--surface2)',
+                          color: theme === th ? '#fff' : 'var(--text2)',
+                          border: theme === th ? 'none' : '1px solid var(--border)',
+                          fontWeight: theme === th ? 600 : 400,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {th === 'dark' ? t.themeDark : t.themeLight}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -421,6 +588,8 @@ type AuthMode = 'login' | 'register';
 type RegStep = 'email' | 'code' | 'nickname'; // step 1: email → step 2: code+passwords → step 3: nickname
 
 function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role: string; createdAt: string | null }) => void }) {
+  const [lang] = useState<Lang>(getStoredLang);
+  const t = TRANSLATIONS[lang];
   const [mode, setMode] = useState<AuthMode>('login');
   const [loginVal, setLoginVal] = useState('');
   const [passwordVal, setPasswordVal] = useState('');
@@ -466,12 +635,12 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
       const data = await r.json();
       if (data.error) setLoginErr(data.error);
       else onAuth({ id: data.id, login: data.login, role: data.role, createdAt: data.createdAt });
-    } catch { setLoginErr('Помилка з\'єднання'); }
+    } catch { setLoginErr(t.connectionError); }
     setLoading(false);
   };
 
   const handleSendCode = async () => {
-    if (!email) { setErr('Введіть email'); return; }
+    if (!email) { setErr(t.enterEmail); return; }
     setLoading(true); setErr('');
     try {
       const r = await fetch('/api/auth/send-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
@@ -482,14 +651,14 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
         setRegStep('code');
         setResendCooldown(60);
       }
-    } catch { setErr('Помилка з\'єднання'); }
+    } catch { setErr(t.connectionError); }
     setLoading(false);
   };
 
   const handleRegister = async () => {
-    if (!code || code.length !== 4) { setErr('Введіть 4-значний код'); return; }
-    if (!password1 || password1.length < 4) { setErr('Мінімум 4 символи'); return; }
-    if (password1 !== password2) { setErr('Паролі не співпадають'); return; }
+    if (!code || code.length !== 4) { setErr(t.enterCode); return; }
+    if (!password1 || password1.length < 4) { setErr(t.minSymbols); return; }
+    if (password1 !== password2) { setErr(t.passMismatch); return; }
     setLoading(true); setErr('');
     try {
       const r = await fetch('/api/auth/register-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code, password: password1, ...(fp ? { fp } : {}) }) });
@@ -501,7 +670,7 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
         setRegUserId(data.id);
         setRegStep('nickname');
       }
-    } catch { setErr('Помилка з\'єднання'); }
+    } catch { setErr(t.connectionError); }
     setLoading(false);
   };
 
@@ -531,20 +700,20 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
 
         {/* ── LOGIN ── */}
         {mode === 'login' && (<>
-          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 24, textAlign: 'center' }}>TSCT</div>
+          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 24, textAlign: 'center' }}>{t.loginScreenTitle}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <input type="text" placeholder="Login or email" value={loginVal} onChange={e => setLoginVal(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleLogin()} style={inputStyle} />
-            <input type="password" placeholder="Пароль" value={passwordVal} onChange={e => setPasswordVal(e.target.value)}
+            <input type="password" placeholder={t.loginPasswordPlaceholder} value={passwordVal} onChange={e => setPasswordVal(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleLogin()} style={inputStyle} />
             {loginErr && <div style={{ fontSize: 12, color: 'var(--red)' }}>{loginErr}</div>}
             <button className="btn-primary" onClick={handleLogin} disabled={loading} style={{ borderRadius: 10, padding: '12px 0', fontSize: 14 }}>
-              {loading ? '...' : 'Увійти'}
+              {loading ? '...' : t.enter}
             </button>
             <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text2)' }}>
-              Немає акаунту?{' '}
+              {t.noAccount}{' '}
               <span style={{ color: 'var(--primary)', cursor: 'pointer' }} onClick={() => { setMode('register'); resetRegister(); }}>
-                Зареєструватись
+                {t.register}
               </span>
             </div>
           </div>
@@ -554,17 +723,17 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
         {mode === 'register' && regStep === 'email' && (<>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
             <span style={{ cursor: 'pointer', color: 'var(--text2)', fontSize: 18 }} onClick={() => setMode('login')}>←</span>
-            <div style={{ fontSize: 16, fontWeight: 600 }}>Реєстрація</div>
+            <div style={{ fontSize: 16, fontWeight: 600 }}>{t.registration}</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <input type="email" placeholder="your@email.com" value={email} onChange={e => setEmail(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSendCode()} style={inputStyle} autoFocus />
             {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
             <button className="btn-primary" onClick={handleSendCode} disabled={loading || !email} style={{ borderRadius: 10, padding: '12px 0', fontSize: 14 }}>
-              {loading ? 'Надсилаємо...' : 'Надіслати код'}
+              {loading ? t.sending : t.sendCode}
             </button>
             <div style={{ fontSize: 11, color: 'var(--text2)', textAlign: 'center' }}>
-              Надішлемо 4-значний код підтвердження
+              {t.codeHint}
             </div>
           </div>
         </>)}
@@ -573,11 +742,11 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
         {mode === 'register' && regStep === 'code' && (<>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
             <span style={{ cursor: 'pointer', color: 'var(--text2)', fontSize: 18 }} onClick={() => { setRegStep('email'); setErr(''); setCode(''); }}>←</span>
-            <div style={{ fontSize: 16, fontWeight: 600 }}>Підтвердження</div>
+            <div style={{ fontSize: 16, fontWeight: 600 }}>{t.confirmation}</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ fontSize: 12, color: 'var(--text2)', textAlign: 'center', padding: '4px 0' }}>
-              Код надіслано на <span style={{ color: 'var(--text)', fontWeight: 600 }}>{email}</span>
+              {t.codeSentTo} <span style={{ color: 'var(--text)', fontWeight: 600 }}>{email}</span>
             </div>
             <input
               type="text" inputMode="numeric" placeholder="0000" maxLength={4}
@@ -586,18 +755,18 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
               style={{ ...inputStyle, textAlign: 'center', fontSize: 24, letterSpacing: 10, fontWeight: 700 }}
               autoFocus
             />
-            <input type="password" placeholder="Пароль" value={password1} onChange={e => setPassword1(e.target.value)} style={inputStyle} />
-            <input type="password" placeholder="Повторіть пароль" value={password2}
+            <input type="password" placeholder={t.loginPasswordPlaceholder} value={password1} onChange={e => setPassword1(e.target.value)} style={inputStyle} />
+            <input type="password" placeholder={t.repeatPassword} value={password2}
               onChange={e => setPassword2(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleRegister()} style={inputStyle} />
             {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
             <button className="btn-primary" onClick={handleRegister} disabled={loading || code.length !== 4 || !password1 || !password2} style={{ borderRadius: 10, padding: '12px 0', fontSize: 14 }}>
-              {loading ? 'Реєструємо...' : 'Далі →'}
+              {loading ? t.registering : t.next}
             </button>
             <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text2)' }}>
               {resendCooldown > 0
-                ? `Надіслати повторно через ${resendCooldown}с`
-                : <span style={{ color: 'var(--primary)', cursor: 'pointer' }} onClick={handleSendCode}>Надіслати код повторно</span>
+                ? t.resendIn(resendCooldown)
+                : <span style={{ color: 'var(--primary)', cursor: 'pointer' }} onClick={handleSendCode}>{t.resend}</span>
               }
             </div>
           </div>
@@ -605,13 +774,13 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
 
         {/* ── REGISTER STEP 3: nickname ── */}
         {mode === 'register' && regStep === 'nickname' && (<>
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Придумай нікнейм</div>
+          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>{t.nicknameStep}</div>
           <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 20 }}>
-            Він буде відображатись замість логіну. Можна пропустити і задати пізніше.
+            {t.nicknameStepHint}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <input
-              placeholder="Твій нік (необов'язково)"
+              placeholder={t.nickPlaceholder}
               value={regNickname}
               onChange={e => setRegNickname(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleFinishRegister()}
@@ -620,7 +789,7 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
               maxLength={32}
             />
             <button className="btn-primary" onClick={handleFinishRegister} style={{ borderRadius: 10, padding: '12px 0', fontSize: 14 }}>
-              {regNickname.trim() ? 'Готово' : 'Пропустити'}
+              {regNickname.trim() ? t.done : t.skip}
             </button>
           </div>
         </>)}
@@ -668,9 +837,12 @@ export default function App() {
   const [session, setSessionState] = useState<Session | null>(() => getSession());
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [appLang, setAppLang] = useState<Lang>(getStoredLang);
+  const [, setAppTheme] = useState<'dark' | 'light'>(getStoredTheme);
   const isMobile = useIsMobile();
   const hasAccess = useAccessCheck(session);
   const [location] = useLocation();
+  const tApp = TRANSLATIONS[appLang];
 
   useEffect(() => { fetch('/api/auth/seed').catch(() => {}); }, []);
   useEffect(() => { if (!isMobile) setDrawerOpen(false); }, [isMobile]);
@@ -734,7 +906,7 @@ export default function App() {
               onClick={handleLogout}
               style={{ fontSize: 10, color: 'var(--text2)', background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', textAlign: 'left' }}
             >
-              log out
+              {tApp.logOut}
             </button>
           </div>
         </div>
@@ -845,6 +1017,8 @@ export default function App() {
             setSession(s);
             setSessionState(s);
           }}
+          onLangChange={l => setAppLang(l)}
+          onThemeChange={th => setAppTheme(th)}
         />
       )}
     </div>

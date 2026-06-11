@@ -14,6 +14,19 @@
   --blue: #8b9098;
 }
 
+[data-theme="light"] {
+  --bg: #f0f2f5;
+  --surface: #ffffff;
+  --surface2: #e8eaed;
+  --border: #d1d5db;
+  --text: #111318;
+  --text2: #5a6372;
+  --green: #0d9488;
+  --red: #dc2626;
+  --yellow: #d97706;
+  --blue: #5a6372;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
@@ -72,8 +85,8 @@ th {
   border-bottom: 1px solid var(--border);
 }
 td { padding: 5px 8px; font-size: 12px; border-bottom: 1px solid var(--border); }
-tr:nth-child(even) td { background: #1a1d21; }
-tr:hover td { background: #20242a; }
+tr:nth-child(even) td { background: var(--surface2); }
+tr:hover td { background: var(--border); }
 
 @media (max-width: 600px) {
   th { padding: 5px 5px; font-size: 10px; letter-spacing: 0; }
