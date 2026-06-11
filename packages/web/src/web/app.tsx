@@ -148,6 +148,7 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
   // credentials state
   const [login, setLogin] = useState(session.login);
   const [nickname, setNickname] = useState(session.nickname ?? '');
+  const [showPassFields, setShowPassFields] = useState(false);
   const [pass, setPass] = useState('');
   const [pass2, setPass2] = useState('');
   const [credErr, setCredErr] = useState('');
@@ -181,14 +182,17 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
     if (pass && pass.length < 4) return setCredErr('Пароль мінімум 4 символи');
     if (pass && pass !== pass2) return setCredErr('Паролі не співпадають');
     const nickTrimmed = nickname.trim();
-    if (!pass && login === session.login && nickTrimmed === (session.nickname ?? '')) return setCredErr('Нічого не змінено');
+    if (showPassFields && pass && pass !== pass2) return setCredErr('Паролі не співпадають');
+    if (showPassFields && pass && pass.length < 4) return setCredErr('Пароль мінімум 4 символи');
+    const passChanged = showPassFields && !!pass;
+    if (!passChanged && login === session.login && nickTrimmed === (session.nickname ?? '')) return setCredErr('Нічого не змінено');
     setCredLoading(true);
     try {
       // save login/password
       const res = await fetch('/api/auth/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: session.id, login: login.trim(), password: pass || undefined }),
+        body: JSON.stringify({ id: session.id, login: login.trim(), password: (showPassFields && pass) ? pass : undefined }),
       });
       const data = await res.json();
       if (!res.ok) { setCredErr(data.error ?? 'Помилка'); return; }
@@ -316,26 +320,46 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
                     style={inputStyle}
                   />
                 </div>
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Новий пароль</div>
-                  <input
-                    type="password"
-                    placeholder="Залиш пустим, щоб не змінювати"
-                    value={pass}
-                    onChange={e => { setPass(e.target.value); setCredErr(''); setCredOk(''); }}
-                    style={inputStyle}
-                  />
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Повторити пароль</div>
-                  <input
-                    type="password"
-                    placeholder="Пароль ще раз"
-                    value={pass2}
-                    onChange={e => { setPass2(e.target.value); setCredErr(''); setCredOk(''); }}
-                    style={inputStyle}
-                  />
-                </div>
+                {!showPassFields ? (
+                  <button
+                    className="btn-ghost"
+                    onClick={() => setShowPassFields(true)}
+                    style={{ borderRadius: 8, padding: '9px 14px', fontSize: 13, alignSelf: 'flex-start' }}
+                  >
+                    Змінити пароль
+                  </button>
+                ) : (
+                  <>
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Новий пароль</div>
+                      <input
+                        type="password"
+                        placeholder="Мінімум 4 символи"
+                        value={pass}
+                        autoFocus
+                        onChange={e => { setPass(e.target.value); setCredErr(''); setCredOk(''); }}
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Повторити пароль</div>
+                      <input
+                        type="password"
+                        placeholder="Пароль ще раз"
+                        value={pass2}
+                        onChange={e => { setPass2(e.target.value); setCredErr(''); setCredOk(''); }}
+                        style={inputStyle}
+                      />
+                    </div>
+                    <button
+                      className="btn-ghost"
+                      onClick={() => { setShowPassFields(false); setPass(''); setPass2(''); setCredErr(''); }}
+                      style={{ borderRadius: 8, padding: '7px 14px', fontSize: 12, alignSelf: 'flex-start', opacity: 0.6 }}
+                    >
+                      Скасувати зміну пароля
+                    </button>
+                  </>
+                )}
                 {credErr && <div style={{ color: 'var(--red)', fontSize: 12 }}>{credErr}</div>}
                 {credOk && <div style={{ color: 'var(--green)', fontSize: 12 }}>{credOk}</div>}
                 <button
@@ -394,7 +418,7 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
 
 // ─── AUTH SCREEN ──────────────────────────────────────────────────────────────
 type AuthMode = 'login' | 'register';
-type RegStep = 'email' | 'code'; // step 1: enter email → send code; step 2: enter code + passwords
+type RegStep = 'email' | 'code' | 'nickname'; // step 1: email → step 2: code+passwords → step 3: nickname
 
 function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role: string; createdAt: string | null }) => void }) {
   const [mode, setMode] = useState<AuthMode>('login');
@@ -413,6 +437,9 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
   const [codeSent, setCodeSent] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [fp, setFp] = useState<string | null>(null);
+  const [regNickname, setRegNickname] = useState('');
+  const [regUserId, setRegUserId] = useState<number | null>(null);
+  const [pendingSession, setPendingSession] = useState<{ id: number; login: string; role: string; createdAt: string | null } | null>(null);
 
   useEffect(() => {
     FingerprintJS.load().then(agent => agent.get()).then(result => setFp(result.visitorId)).catch(() => {});
@@ -467,16 +494,35 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
     try {
       const r = await fetch('/api/auth/register-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code, password: password1, ...(fp ? { fp } : {}) }) });
       const data = await r.json();
-      if (data.error) setErr(data.error);
-      else onAuth({ id: data.id, login: data.login, role: data.role, createdAt: data.createdAt });
+      if (data.error) { setErr(data.error); }
+      else {
+        // go to nickname step
+        setPendingSession({ id: data.id, login: data.login, role: data.role, createdAt: data.createdAt });
+        setRegUserId(data.id);
+        setRegStep('nickname');
+      }
     } catch { setErr('Помилка з\'єднання'); }
     setLoading(false);
+  };
+
+  const handleFinishRegister = async () => {
+    if (!pendingSession) return;
+    const nick = regNickname.trim();
+    if (nick) {
+      await fetch(`/api/prefs/nickname?userId=${pendingSession.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: nick }),
+      }).catch(() => {});
+    }
+    onAuth(pendingSession);
   };
 
   const resetRegister = () => {
     setRegStep('email'); setEmail(''); setCode('');
     setPassword1(''); setPassword2(''); setErr('');
     setCodeSent(false); setResendCooldown(0);
+    setRegNickname(''); setPendingSession(null); setRegUserId(null);
   };
 
   return (
@@ -546,7 +592,7 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
               onKeyDown={e => e.key === 'Enter' && handleRegister()} style={inputStyle} />
             {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
             <button className="btn-primary" onClick={handleRegister} disabled={loading || code.length !== 4 || !password1 || !password2} style={{ borderRadius: 10, padding: '12px 0', fontSize: 14 }}>
-              {loading ? 'Реєструємо...' : 'Зареєструватись'}
+              {loading ? 'Реєструємо...' : 'Далі →'}
             </button>
             <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text2)' }}>
               {resendCooldown > 0
@@ -554,6 +600,28 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
                 : <span style={{ color: 'var(--primary)', cursor: 'pointer' }} onClick={handleSendCode}>Надіслати код повторно</span>
               }
             </div>
+          </div>
+        </>)}
+
+        {/* ── REGISTER STEP 3: nickname ── */}
+        {mode === 'register' && regStep === 'nickname' && (<>
+          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Придумай нікнейм</div>
+          <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 20 }}>
+            Він буде відображатись замість логіну. Можна пропустити і задати пізніше.
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <input
+              placeholder="Твій нік (необов'язково)"
+              value={regNickname}
+              onChange={e => setRegNickname(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleFinishRegister()}
+              style={inputStyle}
+              autoFocus
+              maxLength={32}
+            />
+            <button className="btn-primary" onClick={handleFinishRegister} style={{ borderRadius: 10, padding: '12px 0', fontSize: 14 }}>
+              {regNickname.trim() ? 'Готово' : 'Пропустити'}
+            </button>
           </div>
         </>)}
 

@@ -183,8 +183,29 @@ const app = new Hono()
   .post('/auth/login',
     zValidator('json', z.object({ login: z.string(), password: z.string() })),
     async (c) => {
+      await ensureUserPrefsTable();
       const { login, password } = c.req.valid('json');
-      const user = await db.select().from(users).where(eq(users.login, login)).get();
+      const input = login.trim();
+
+      // Try: exact login match
+      let user = await db.select().from(users).where(eq(users.login, input)).get();
+
+      // Try: email match
+      if (!user) {
+        user = await db.select().from(users).where(eq(users.email, input)).get() ?? null;
+      }
+
+      // Try: nickname match (user_prefs key='nickname')
+      if (!user) {
+        const nicknameRow = await db.select({ userId: userPrefs.userId })
+          .from(userPrefs)
+          .where(sql`${userPrefs.key} = 'nickname' AND LOWER(${userPrefs.value}) = LOWER(${input})`)
+          .get();
+        if (nicknameRow) {
+          user = await db.select().from(users).where(eq(users.id, nicknameRow.userId)).get() ?? null;
+        }
+      }
+
       if (!user || user.password !== password) {
         return c.json({ error: 'Невірний логін або пароль' }, 401);
       }

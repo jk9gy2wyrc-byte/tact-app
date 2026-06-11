@@ -991,13 +991,20 @@ export default function Dashboard() {
   return (
     <AccessWrapper blocked={isBlocked} reason={accessData?.reason}>
       <div style={{ padding: p, maxWidth: 1200, width: '100%', overflow: 'hidden' }}>
+        {(() => {
+          const localHour = new Date(now.getTime() + getStoredTzOffset() * 3600_000).getUTCHours();
+          const greeting = localHour >= 5 && localHour < 12 ? 'Good morning' : localHour >= 12 && localHour < 18 ? 'Good afternoon' : 'Good evening';
+          const nick = getSession()?.nickname;
+          return (
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>Dashboard</div>
+        <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>{greeting}{nick ? `, ${nick}` : ''}</div>
         <span style={{ fontSize: 11, color: 'var(--text2)' }}>updates every 10s</span>
         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text2)' }}>
           {now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
         </span>
       </div>
+          );
+        })()}
 
         {/* FOREX NEWS */}
         <Section title="Upcoming High-Impact News">
