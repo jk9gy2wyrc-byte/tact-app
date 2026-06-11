@@ -147,11 +147,20 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
 
   // credentials state
   const [login, setLogin] = useState(session.login);
+  const [nickname, setNickname] = useState(session.nickname ?? '');
   const [pass, setPass] = useState('');
   const [pass2, setPass2] = useState('');
   const [credErr, setCredErr] = useState('');
   const [credOk, setCredOk] = useState('');
   const [credLoading, setCredLoading] = useState(false);
+
+  // load saved nickname on mount
+  useEffect(() => {
+    fetch(`/api/prefs/nickname?userId=${session.id}`)
+      .then(r => r.json())
+      .then(d => { if (d.value) setNickname(d.value); })
+      .catch(() => {});
+  }, [session.id]);
 
   // profile state (placeholder fields)
   const [displayName, setDisplayName] = useState('');
@@ -171,9 +180,11 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
     if (login.length < 3) return setCredErr('Логін мінімум 3 символи');
     if (pass && pass.length < 4) return setCredErr('Пароль мінімум 4 символи');
     if (pass && pass !== pass2) return setCredErr('Паролі не співпадають');
-    if (!pass && login === session.login) return setCredErr('Нічого не змінено');
+    const nickTrimmed = nickname.trim();
+    if (!pass && login === session.login && nickTrimmed === (session.nickname ?? '')) return setCredErr('Нічого не змінено');
     setCredLoading(true);
     try {
+      // save login/password
       const res = await fetch('/api/auth/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -181,7 +192,15 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
       });
       const data = await res.json();
       if (!res.ok) { setCredErr(data.error ?? 'Помилка'); return; }
-      onSave({ login: data.login, role: data.role, id: data.id });
+
+      // save nickname via prefs
+      await fetch(`/api/prefs/nickname?userId=${session.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: nickTrimmed }),
+      }).catch(() => {});
+
+      onSave({ login: data.login, role: data.role, id: data.id, nickname: nickTrimmed || null });
       setPass(''); setPass2('');
       setCredOk('Збережено');
     } catch {
@@ -222,8 +241,13 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
               color: session.role === 'admin' ? '#facc15' : 'var(--text)',
               wordBreak: 'break-all',
             }}>
-              {session.login}
+              {session.nickname || session.login}
             </div>
+            {session.nickname && (
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 1, opacity: 0.7 }}>
+                {session.login}
+              </div>
+            )}
             {session.role === 'admin' && (
               <div style={{ fontSize: 10, color: '#facc15', marginTop: 2, opacity: 0.8 }}>admin</div>
             )}
@@ -280,6 +304,15 @@ function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: 
                     placeholder="Логін"
                     value={login}
                     onChange={e => { setLogin(e.target.value); setCredErr(''); setCredOk(''); }}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Нікнейм <span style={{ opacity: 0.5 }}>(відображається в панелі)</span></div>
+                  <input
+                    placeholder="Твій нік (необов'язково)"
+                    value={nickname}
+                    onChange={e => { setNickname(e.target.value); setCredErr(''); setCredOk(''); }}
                     style={inputStyle}
                   />
                 </div>
@@ -574,7 +607,28 @@ export default function App() {
   useEffect(() => { fetch('/api/auth/seed').catch(() => {}); }, []);
   useEffect(() => { if (!isMobile) setDrawerOpen(false); }, [isMobile]);
 
-  const handleAuth = (s: Session) => {
+  // load nickname on app start (if session from localStorage has no nickname yet)
+  useEffect(() => {
+    if (!session || session.nickname !== undefined) return;
+    fetch(`/api/prefs/nickname?userId=${session.id}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.value) {
+          const updated = { ...session, nickname: d.value };
+          setSession(updated);
+          setSessionState(updated);
+        }
+      })
+      .catch(() => {});
+  }, [session?.id]);
+
+  const handleAuth = async (s: Session) => {
+    // load nickname from prefs on login
+    try {
+      const r = await fetch(`/api/prefs/nickname?userId=${s.id}`);
+      const d = await r.json();
+      if (d.value) s = { ...s, nickname: d.value };
+    } catch {}
     setSession(s);
     setSessionState(s);
   };
@@ -606,7 +660,7 @@ export default function App() {
                 borderRadius: 6, padding: '4px 10px', cursor: 'pointer', textAlign: 'left',
               }}
             >
-              {session.login}
+              {session.nickname || session.login}
             </button>
             <button
               onClick={handleLogout}

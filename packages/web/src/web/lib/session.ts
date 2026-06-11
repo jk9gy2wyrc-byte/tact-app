@@ -6,6 +6,7 @@ export interface Session {
   role: string;
   id: number;
   createdAt?: string | null;
+  nickname?: string | null;
 }
 
 // In-memory cache (fast reads)
