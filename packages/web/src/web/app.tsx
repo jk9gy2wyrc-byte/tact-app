@@ -297,7 +297,7 @@ function UserCabinet({ session, onClose, onSave, onLangChange, onThemeChange }: 
   const [login, setLogin] = useState(session.login);
   const [originalLogin, setOriginalLogin] = useState(session.login);
   const [nickname, setNickname] = useState(session.nickname ?? '');
-  const [originalNickname, setOriginalNickname] = useState(session.nickname ?? '');
+  const originalNicknameRef = useRef(session.nickname ?? '');
   const [showPassFields, setShowPassFields] = useState(false);
   const [pass, setPass] = useState('');
   const [pass2, setPass2] = useState('');
@@ -309,7 +309,11 @@ function UserCabinet({ session, onClose, onSave, onLangChange, onThemeChange }: 
   useEffect(() => {
     fetch(`/api/prefs/nickname?userId=${session.id}`)
       .then(r => r.json())
-      .then(d => { if (d.value) { setNickname(d.value); setOriginalNickname(d.value); } })
+      .then(d => {
+        const val = d.value ?? '';
+        setNickname(val);
+        originalNicknameRef.current = val;
+      })
       .catch(() => {});
   }, [session.id]);
 
@@ -331,7 +335,7 @@ function UserCabinet({ session, onClose, onSave, onLangChange, onThemeChange }: 
     const passChanged = showPassFields && !!pass;
     if (passChanged && pass.length < 4) return setCredErr(t.passMin);
     if (passChanged && pass !== pass2) return setCredErr(t.passMismatch);
-    if (!passChanged && loginTrimmed === originalLogin && nickTrimmed === originalNickname) return setCredErr(t.nothingChanged);
+    if (!passChanged && loginTrimmed === originalLogin && nickTrimmed === originalNicknameRef.current) return setCredErr(t.nothingChanged);
     setCredLoading(true);
     try {
       const res = await fetch('/api/auth/update', {
@@ -349,7 +353,7 @@ function UserCabinet({ session, onClose, onSave, onLangChange, onThemeChange }: 
       }).catch(() => {});
 
       setOriginalLogin(data.login);
-      setOriginalNickname(nickTrimmed);
+      originalNicknameRef.current = nickTrimmed;
       onSave({ login: data.login, role: data.role, id: data.id, nickname: nickTrimmed || null });
       setPass(''); setPass2('');
       setCredOk(t.saved);
