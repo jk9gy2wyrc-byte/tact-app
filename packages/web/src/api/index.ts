@@ -210,6 +210,47 @@ const app = new Hono()
         return c.json({ error: 'Невірний логін або пароль' }, 401);
       }
       const role = normalizeRole(user.role);
+
+      // ── send login notification email (fire & forget) ──
+      if (user.email) {
+        const brevoKey = process.env.BREVO_API_KEY;
+        if (brevoKey) {
+          const nickRow = await db.select({ value: userPrefs.value })
+            .from(userPrefs)
+            .where(sql`${userPrefs.userId} = ${user.id} AND ${userPrefs.key} = 'nickname'`)
+            .get();
+          const displayName = nickRow?.value || user.login;
+          const now = new Date();
+          const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+          const timeStr = now.toISOString().slice(11, 16); // HH:MM (UTC)
+          fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: {
+              'accept': 'application/json',
+              'content-type': 'application/json',
+              'api-key': brevoKey,
+            },
+            body: JSON.stringify({
+              sender: { name: 'TSCT', email: 'tsctsupport@gmail.com' },
+              to: [{ email: user.email }],
+              subject: 'Вхід у ваш акаунт TSCT',
+              htmlContent: `
+                <div style="font-family:sans-serif;max-width:460px;margin:0 auto;padding:32px;background:#0d0f11;color:#e2e8f0;border-radius:16px">
+                  <div style="font-size:20px;font-weight:700;margin-bottom:20px;color:#e2e8f0">TSCT</div>
+                  <p style="font-size:15px;margin-bottom:8px;color:#e2e8f0">Вітаємо, <strong>${displayName}</strong>!</p>
+                  <p style="color:#94a3b8;margin-bottom:20px">У ваш персональний кабінет відбувся вхід:</p>
+                  <div style="background:#1a1d2a;border-radius:12px;padding:16px 20px;margin-bottom:20px;color:#e2e8f0;font-size:15px">
+                    📅 <strong>${dateStr}</strong> &nbsp; 🕐 <strong>${timeStr} UTC</strong>
+                  </div>
+                  <p style="color:#94a3b8;font-size:13px;margin-bottom:8px">Якщо це були ви — проігноруйте це повідомлення.</p>
+                  <p style="color:#94a3b8;font-size:13px">Якщо це були не ви — <strong style="color:#ef5350">негайно змініть пароль</strong> у налаштуваннях акаунту.</p>
+                </div>
+              `,
+            }),
+          }).catch(() => {});
+        }
+      }
+
       return c.json({
         id: user.id,
         login: user.login,
