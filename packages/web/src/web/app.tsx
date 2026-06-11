@@ -335,26 +335,39 @@ function UserCabinet({ session, onClose, onSave, onLangChange, onThemeChange }: 
     const passChanged = showPassFields && !!pass;
     if (passChanged && pass.length < 4) return setCredErr(t.passMin);
     if (passChanged && pass !== pass2) return setCredErr(t.passMismatch);
-    if (!passChanged && loginTrimmed === originalLogin && nickTrimmed === originalNicknameRef.current) return setCredErr(t.nothingChanged);
+    const nickChanged = nickTrimmed !== originalNicknameRef.current;
+    const loginChanged = loginTrimmed !== originalLogin;
+    if (!passChanged && !nickChanged && !loginChanged) return setCredErr(t.nothingChanged);
     setCredLoading(true);
     try {
-      const res = await fetch('/api/auth/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: session.id, login: loginTrimmed, password: passChanged ? pass : undefined }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setCredErr(data.error ?? 'Помилка'); return; }
+      let newLogin = originalLogin;
+      let newRole = session.role;
+      let newId = session.id;
 
+      // only call auth/update if login or password changed
+      if (loginChanged || passChanged) {
+        const res = await fetch('/api/auth/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: session.id, login: loginTrimmed, password: passChanged ? pass : undefined }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setCredErr(data.error ?? 'Помилка'); return; }
+        newLogin = data.login;
+        newRole = data.role;
+        newId = data.id;
+      }
+
+      // always save nickname
       await fetch(`/api/prefs/nickname?userId=${session.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ value: nickTrimmed }),
       }).catch(() => {});
 
-      setOriginalLogin(data.login);
+      setOriginalLogin(newLogin);
       originalNicknameRef.current = nickTrimmed;
-      onSave({ login: data.login, role: data.role, id: data.id, nickname: nickTrimmed || null });
+      onSave({ login: newLogin, role: newRole, id: newId, nickname: nickTrimmed || null });
       setPass(''); setPass2('');
       setCredOk(t.saved);
     } catch {
