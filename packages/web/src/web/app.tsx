@@ -139,23 +139,40 @@ function useIsMobile() {
   return mobile;
 }
 
-// ─── EDIT PROFILE MODAL ───────────────────────────────────────────────────────
-function EditProfileModal({ session, onClose, onSave }: { session: Session; onClose: () => void; onSave: (s: Session) => void }) {
+// ─── USER CABINET ─────────────────────────────────────────────────────────────
+type CabinetTab = 'credentials' | 'profile';
+
+function UserCabinet({ session, onClose, onSave }: { session: Session; onClose: () => void; onSave: (s: Session) => void }) {
+  const [activeTab, setActiveTab] = useState<CabinetTab>('credentials');
+
+  // credentials state
   const [login, setLogin] = useState(session.login);
   const [pass, setPass] = useState('');
   const [pass2, setPass2] = useState('');
-  const [err, setErr] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [credErr, setCredErr] = useState('');
+  const [credOk, setCredOk] = useState('');
+  const [credLoading, setCredLoading] = useState(false);
 
-  const submit = async () => {
-    setErr('');
-    if (!login.trim()) return setErr('Введи логін');
-    if (login.length < 3) return setErr('Логін мінімум 3 символи');
-    if (pass && pass.length < 4) return setErr('Пароль мінімум 4 символи');
-    if (pass && pass !== pass2) return setErr('Паролі не співпадають');
-    if (!pass && login === session.login) return setErr('Нічого не змінено');
+  // profile state (placeholder fields)
+  const [displayName, setDisplayName] = useState('');
+  const [bio, setBio] = useState('');
+  const [profileOk, setProfileOk] = useState('');
 
-    setLoading(true);
+  const inputStyle: React.CSSProperties = {
+    width: '100%', fontSize: 13,
+    borderRadius: 8, padding: '10px 12px', boxSizing: 'border-box',
+    background: 'var(--surface2)', border: '1px solid var(--border)',
+    color: 'var(--text)', outline: 'none',
+  };
+
+  const submitCredentials = async () => {
+    setCredErr(''); setCredOk('');
+    if (!login.trim()) return setCredErr('Введи логін');
+    if (login.length < 3) return setCredErr('Логін мінімум 3 символи');
+    if (pass && pass.length < 4) return setCredErr('Пароль мінімум 4 символи');
+    if (pass && pass !== pass2) return setCredErr('Паролі не співпадають');
+    if (!pass && login === session.login) return setCredErr('Нічого не змінено');
+    setCredLoading(true);
     try {
       const res = await fetch('/api/auth/update', {
         method: 'POST',
@@ -163,73 +180,179 @@ function EditProfileModal({ session, onClose, onSave }: { session: Session; onCl
         body: JSON.stringify({ id: session.id, login: login.trim(), password: pass || undefined }),
       });
       const data = await res.json();
-      if (!res.ok) { setErr(data.error ?? 'Помилка'); return; }
+      if (!res.ok) { setCredErr(data.error ?? 'Помилка'); return; }
       onSave({ login: data.login, role: data.role, id: data.id });
-      onClose();
+      setPass(''); setPass2('');
+      setCredOk('Збережено');
     } catch {
-      setErr('Помилка мережі');
+      setCredErr('Помилка мережі');
     } finally {
-      setLoading(false);
+      setCredLoading(false);
     }
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%', marginBottom: 10, fontSize: 14,
-    borderRadius: 10, padding: '10px 14px', boxSizing: 'border-box',
-    background: 'var(--surface2)', border: '1px solid var(--border)',
-    color: 'var(--text)', outline: 'none',
-  };
+  const tabs: { key: CabinetTab; label: string }[] = [
+    { key: 'credentials', label: 'Дані входу' },
+    { key: 'profile', label: 'Редагувати профіль' },
+  ];
 
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 300,
-      background: 'rgba(0,0,0,0.55)', display: 'flex',
+      background: 'rgba(0,0,0,0.6)', display: 'flex',
       alignItems: 'center', justifyContent: 'center',
     }} onClick={onClose}>
       <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: 16, padding: '32px 40px', width: 340,
+        borderRadius: 16, width: 'min(820px, 92vw)', height: 'min(520px, 88vh)',
+        display: 'flex', overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
       }} onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>Редагувати профіль</div>
-        <input
-          placeholder="Логін"
-          value={login}
-          onChange={e => { setLogin(e.target.value); setErr(''); }}
-          style={inputStyle}
-        />
-        <input
-          type="password"
-          placeholder="Новий пароль (залиш пустим, щоб не змінювати)"
-          value={pass}
-          onChange={e => { setPass(e.target.value); setErr(''); }}
-          style={inputStyle}
-        />
-        <input
-          type="password"
-          placeholder="Пароль ще раз"
-          value={pass2}
-          onChange={e => { setPass2(e.target.value); setErr(''); }}
-          style={inputStyle}
-        />
-        {err && (
-          <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10 }}>{err}</div>
-        )}
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button
-            className="btn-ghost"
-            onClick={onClose}
-            style={{ flex: 1, borderRadius: 10, padding: '10px 0', fontSize: 13 }}
-          >
-            Скасувати
-          </button>
-          <button
-            className="btn-primary"
-            onClick={submit}
-            disabled={loading}
-            style={{ flex: 1, borderRadius: 10, padding: '10px 0', fontSize: 13, opacity: loading ? 0.7 : 1 }}
-          >
-            {loading ? '...' : 'Зберегти'}
-          </button>
+
+        {/* Left sidebar */}
+        <div style={{
+          width: 200, borderRight: '1px solid var(--border)',
+          background: 'var(--surface2)', display: 'flex', flexDirection: 'column',
+          flexShrink: 0,
+        }}>
+          {/* Header */}
+          <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Кабінет</div>
+            <div style={{
+              fontSize: 13, fontWeight: 600,
+              color: session.role === 'admin' ? '#facc15' : 'var(--text)',
+              wordBreak: 'break-all',
+            }}>
+              {session.login}
+            </div>
+            {session.role === 'admin' && (
+              <div style={{ fontSize: 10, color: '#facc15', marginTop: 2, opacity: 0.8 }}>admin</div>
+            )}
+          </div>
+
+          {/* Tabs */}
+          <nav style={{ padding: '10px 0', flex: 1 }}>
+            {tabs.map(t => (
+              <div
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                style={{
+                  padding: '10px 16px', fontSize: 13, cursor: 'pointer',
+                  color: activeTab === t.key ? 'var(--text)' : 'var(--text2)',
+                  background: activeTab === t.key ? 'var(--surface)' : 'transparent',
+                  borderLeft: activeTab === t.key ? '2px solid #4b5263' : '2px solid transparent',
+                  transition: 'all 0.15s',
+                  borderRadius: '0 8px 8px 0', margin: '1px 8px 1px 0',
+                }}
+              >
+                {t.label}
+              </div>
+            ))}
+          </nav>
+        </div>
+
+        {/* Main content */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Top bar */}
+          <div style={{
+            padding: '16px 24px', borderBottom: '1px solid var(--border)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>
+              {tabs.find(t => t.key === activeTab)?.label}
+            </div>
+            <button
+              onClick={onClose}
+              style={{ background: 'none', border: 'none', color: 'var(--text2)', fontSize: 20, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}
+            >
+              ×
+            </button>
+          </div>
+
+          {/* Content area */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}>
+
+            {/* ── Credentials tab ── */}
+            {activeTab === 'credentials' && (
+              <div style={{ maxWidth: 380, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Логін</div>
+                  <input
+                    placeholder="Логін"
+                    value={login}
+                    onChange={e => { setLogin(e.target.value); setCredErr(''); setCredOk(''); }}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Новий пароль</div>
+                  <input
+                    type="password"
+                    placeholder="Залиш пустим, щоб не змінювати"
+                    value={pass}
+                    onChange={e => { setPass(e.target.value); setCredErr(''); setCredOk(''); }}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Повторити пароль</div>
+                  <input
+                    type="password"
+                    placeholder="Пароль ще раз"
+                    value={pass2}
+                    onChange={e => { setPass2(e.target.value); setCredErr(''); setCredOk(''); }}
+                    style={inputStyle}
+                  />
+                </div>
+                {credErr && <div style={{ color: 'var(--red)', fontSize: 12 }}>{credErr}</div>}
+                {credOk && <div style={{ color: 'var(--green)', fontSize: 12 }}>{credOk}</div>}
+                <button
+                  className="btn-primary"
+                  onClick={submitCredentials}
+                  disabled={credLoading}
+                  style={{ borderRadius: 8, padding: '10px 0', fontSize: 13, marginTop: 4 }}
+                >
+                  {credLoading ? '...' : 'Зберегти'}
+                </button>
+              </div>
+            )}
+
+            {/* ── Profile tab ── */}
+            {activeTab === 'profile' && (
+              <div style={{ maxWidth: 380, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Ім'я для відображення</div>
+                  <input
+                    placeholder="Як тебе показувати"
+                    value={displayName}
+                    onChange={e => { setDisplayName(e.target.value); setProfileOk(''); }}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Про себе</div>
+                  <textarea
+                    placeholder="Коротко про себе..."
+                    value={bio}
+                    onChange={e => { setBio(e.target.value); setProfileOk(''); }}
+                    rows={4}
+                    style={{ ...inputStyle, resize: 'vertical' as const }}
+                  />
+                </div>
+                {profileOk && <div style={{ color: 'var(--green)', fontSize: 12 }}>{profileOk}</div>}
+                <button
+                  className="btn-primary"
+                  onClick={() => setProfileOk('Збережено')}
+                  style={{ borderRadius: 8, padding: '10px 0', fontSize: 13, marginTop: 4 }}
+                >
+                  Зберегти
+                </button>
+                <div style={{ fontSize: 11, color: 'var(--text2)', opacity: 0.6 }}>
+                  Більше налаштувань профілю з'являться пізніше
+                </div>
+              </div>
+            )}
+
+          </div>
         </div>
       </div>
     </div>
@@ -593,7 +716,7 @@ export default function App() {
       </main>
 
       {editProfileOpen && (
-        <EditProfileModal
+        <UserCabinet
           session={session}
           onClose={() => setEditProfileOpen(false)}
           onSave={s => {
