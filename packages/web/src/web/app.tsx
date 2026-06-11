@@ -899,8 +899,13 @@ export default function App() {
                 fontSize: 11, color: session.role === 'admin' ? '#facc15' : 'var(--text2)',
                 background: 'var(--surface2)', border: '1px solid var(--border)',
                 borderRadius: 6, padding: '4px 10px', cursor: 'pointer', textAlign: 'left',
+                display: 'flex', alignItems: 'center', gap: 5,
               }}
             >
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, opacity: 0.7 }}>
+                <circle cx="8" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
+                <path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
               {session.nickname || session.login}
             </button>
             <button
