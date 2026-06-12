@@ -408,7 +408,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                           {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '••••••' : u.login}
                         </span>
                         {u.login === currentLogin && (
-                          <span style={{ fontSize: 9, color: '#4ade80', background: '#4ade8022', padding: '1px 6px', borderRadius: 10 }>{t.adminYou}</span>
+                          <span style={{ fontSize: 9, color: '#4ade80', background: '#4ade8022', padding: '1px 6px', borderRadius: 10 }}>{t.adminYou}</span>
                         )}
                         {u.login === OWNER_LOGIN && (
                           <span style={{ fontSize: 9, color: '#fb923c', background: '#fb923c22', padding: '1px 6px', borderRadius: 10, fontWeight: 700 }}>Owner</span>
