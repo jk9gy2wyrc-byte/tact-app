@@ -861,8 +861,7 @@ export default function LiveAnalysis() {
           const sessRows = Object.entries(bySess)
             .map(([k, v]) => ({ key: k, wr: v.total ? (v.wins / v.total) * 100 : 0, n: v.total, netR: Math.round(v.netR * 100) / 100 }))
             .sort((a, b) => b.n - a.n);
-          const SESS_COLORS: Record<string, string> = { Asia: '#f0c070', Frankfurt: '#a78bfa', London: '#7eb8f7', Overlap: '#4ade80', 'New York': '#f0a070', Other: '#888' };
-          const getSessColor = (k: string) => SESS_COLORS[k] ?? '#7eb8f7';
+          const getSessColor = (_k: string) => '#7eb8f7';
 
           return (
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>
