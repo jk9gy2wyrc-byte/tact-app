@@ -63,11 +63,12 @@ function RoleDropdown({
   const baseLabel = ROLE_OPTIONS.find(opt => opt.value === visualRole)?.label ?? '—';
   const label = expired ? `${baseLabel} (expired)` : baseLabel;
   const isSelfAdmin = u.login === currentLogin && visualRole === 'admin';
+  const isOwner = u.login === OWNER_LOGIN;
 
   const btnRef = useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; openUp: boolean } | null>(null);
 
-  if (isSelfAdmin) {
+  if (isSelfAdmin || isOwner) {
     return (
       <div style={{
         padding: '6px 12px', borderRadius: 10,
@@ -416,7 +417,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                         )}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        #{i + 1} · {fmt(u.createdAt)}
+                        #{i + 1} · {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '—' : fmt(u.createdAt)}
                         {u.country && !(u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN) && (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                             · {u.country}
@@ -507,7 +508,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                         {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '—' : (u.ip ?? '—')}
                       </td>
                       <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)', fontFamily: 'monospace' }}>
-                        {fmt(u.createdAt)}
+                        {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '—' : fmt(u.createdAt)}
                       </td>
                       <td style={{ padding: '10px 16px' }}>
                         {u.login !== currentLogin && (

@@ -547,6 +547,9 @@ const app = new Hono()
     const caller = await db.select().from(users).where(eq(users.login, asLogin ?? '')).get();
     if (!caller || caller.role !== 'admin') return c.json({ error: 'Forbidden' }, 403);
     const id = Number(c.req.param('id'));
+    // Never allow deleting the owner account
+    const target = await db.select().from(users).where(eq(users.id, id)).get();
+    if (target?.login === 'whatif') return c.json({ error: 'Cannot delete owner' }, 403);
     await db.delete(users).where(eq(users.id, id));
     return c.json({ ok: true }, 200);
   })
@@ -559,6 +562,10 @@ const app = new Hono()
       if (!caller || caller.role !== 'admin') return c.json({ error: 'Forbidden' }, 403);
 
       const id = Number(c.req.param('id'));
+      // Never allow changing the owner's role
+      const target = await db.select().from(users).where(eq(users.id, id)).get();
+      if (target?.login === 'whatif') return c.json({ error: 'Cannot modify owner' }, 403);
+
       const { role } = c.req.valid('json');
 
       const [updated] = await db.update(users).set({ role }).where(eq(users.id, id)).returning();
