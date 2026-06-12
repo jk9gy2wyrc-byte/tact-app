@@ -114,6 +114,7 @@ function downsample(arr: number[], maxPts: number): { idx: number; val: number }
 
 // Collapsible explanation block
 function Explanation({ text }: { text: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <div style={{ marginTop: 10 }}>
@@ -147,6 +148,7 @@ function DeviationSummary({
   mcpSeries?: { med: number[]; p5: number[]; p95: number[] };
   unit?: string;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   const lastBT   = btSeries.at(-1);
@@ -239,6 +241,7 @@ function MetricChart({
   explanation?: string | React.ReactNode;
   isMobile?: boolean;
 }) {
+  const t = useT();
   const BT_PTS = 120;
   const LV_PTS = 60;
   const MC_PTS = 60;
@@ -360,6 +363,7 @@ function StressSlider({
   explain?: { models: string; scenario: string; how: string; impact: string };
   sliderId?: string;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [hlKey, setHlKey] = useState(0);
   const divRef = useRef<HTMLDivElement>(null);
@@ -546,6 +550,7 @@ function MCFilterPanel({ tree, selAssets, selYears, selMonths, onToggleAsset, on
   onToggleMonth: (asset: string, month: string) => void;
   color: string;
 }) {
+  const t = useT();
   const assets = Object.keys(tree).sort();
   const activeAssets = assets.filter(a => selAssets.has(a));
 
