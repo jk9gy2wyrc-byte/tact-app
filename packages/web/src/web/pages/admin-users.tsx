@@ -429,8 +429,8 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                     {u.login !== currentLogin && (
                       confirmDelete === u.id ? (
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button onClick={() => deleteMutation.mutate(u.id)} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: '#f87171', color: '#fff', border: 'none', cursor: 'pointer' }>{t.yes}</button>
-                          <button onClick={() => setConfirmDelete(null)} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }>{t.no}</button>
+                          <button onClick={() => deleteMutation.mutate(u.id)} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: '#f87171', color: '#fff', border: 'none', cursor: 'pointer' }}>{t.yes}</button>
+                          <button onClick={() => setConfirmDelete(null)} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }}>{t.no}</button>
                         </div>
                       ) : (
                         <button onClick={() => setConfirmDelete(u.id)} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: 'transparent', color: '#f87171', border: '1px solid #f8717133', cursor: 'pointer' }}>
@@ -482,7 +482,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                             {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '••••••' : u.login}
                           </span>
                           {u.login === currentLogin && (
-                            <span style={{ fontSize: 9, color: '#4ade80', background: '#4ade8022', padding: '1px 6px', borderRadius: 10 }>{t.adminYou}</span>
+                            <span style={{ fontSize: 9, color: '#4ade80', background: '#4ade8022', padding: '1px 6px', borderRadius: 10 }}>{t.adminYou}</span>
                           )}
                           {u.login === OWNER_LOGIN && (
                             <span style={{ fontSize: 9, color: '#fb923c', background: '#fb923c22', padding: '1px 6px', borderRadius: 10, fontWeight: 700 }}>Owner</span>
@@ -513,8 +513,8 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                           <div style={{ display: 'flex', gap: 6 }}>
                             {confirmDelete === u.id ? (
                               <>
-                                <button onClick={() => deleteMutation.mutate(u.id)} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: '#f87171', color: '#fff', border: 'none', cursor: 'pointer' }>{t.yes}</button>
-                                <button onClick={() => setConfirmDelete(null)} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }>{t.no}</button>
+                                <button onClick={() => deleteMutation.mutate(u.id)} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: '#f87171', color: '#fff', border: 'none', cursor: 'pointer' }}>{t.yes}</button>
+                                <button onClick={() => setConfirmDelete(null)} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }}>{t.no}</button>
                               </>
                             ) : (
                               <button onClick={() => setConfirmDelete(u.id)} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'transparent', color: '#f87171', border: '1px solid #f8717133', cursor: 'pointer' }}>
