@@ -369,6 +369,7 @@ export const T = {
     chartsCompMetrics: 'Порівняння метрик',
     chartsCompModeLabel: (cmpN: number | null) =>
       cmpN != null ? ` (по ${cmpN} уг.)` : '',
+    chartsDeviationNLabel: (n: number) => ` (N=${n})`,
     chartsDeviationFull: (nLabel: string) => `Відхилення${nLabel}`,
     chartsMcBandHeaderBootstrap: 'Monte Carlo — Stress Simulation',
     chartsMcBootstrapDesc: 'Bootstrap + стрес-фактори · Ручний запуск',
@@ -736,6 +737,7 @@ How to read:
     chartsCompMetrics: 'Metric comparison',
     chartsCompModeLabel: (cmpN: number | null) =>
       cmpN != null ? ` (by ${cmpN} tr.)` : '',
+    chartsDeviationNLabel: (n: number) => ` (N=${n})`,
     chartsDeviationFull: (nLabel: string) => `Deviation${nLabel}`,
     chartsMcBandHeaderBootstrap: 'Monte Carlo — Stress Simulation',
     chartsMcBootstrapDesc: 'Bootstrap + stress factors · Manual run',
