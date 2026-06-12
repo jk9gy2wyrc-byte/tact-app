@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { uidParam } from "../lib/session";
+import { useT } from "../lib/i18n";
 import { useMobile } from "../hooks/useMobile";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -86,7 +87,7 @@ function AssetDrillDown({ asset, yearMap, selYears, selMonths, onToggleYear, onT
 }
 
 // MCFilterPanel — asset chips on top, per-asset drill-downs below
-function MCFilterPanel({ tree, selAssets, selYears, selMonths, onToggleAsset, onToggleYear, onToggleMonth, color }: {
+function MCFilterPanel({ tree, selAssets, selYears, selMonths, onToggleAsset, onToggleYear, onToggleMonth, color, assetLabel }: {
   tree: Record<string, Record<string, string[]>>;
   selAssets: Set<string>;
   selYears: Set<string>;   // keyed as "ASSET__YEAR"
@@ -95,6 +96,7 @@ function MCFilterPanel({ tree, selAssets, selYears, selMonths, onToggleAsset, on
   onToggleYear: (asset: string, year: string) => void;
   onToggleMonth: (v: string) => void;
   color: string;
+  assetLabel: string;
 }) {
   const assets = Object.keys(tree).sort();
   const activeAssets = assets.filter(a => selAssets.has(a));
@@ -103,7 +105,7 @@ function MCFilterPanel({ tree, selAssets, selYears, selMonths, onToggleAsset, on
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {/* asset row */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
-        <span style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.06em', minWidth: 48 }}>Актив</span>
+        <span style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.06em', minWidth: 48 }}>{assetLabel}</span>
         {assets.map(a => (
           <Chip key={a} label={a} active={selAssets.has(a)} onClick={() => onToggleAsset(a)} color={color} />
         ))}
@@ -139,6 +141,7 @@ function StatBox({ label, value, color }: { label: string; value: string | numbe
 
 export default function MCSim() {
   const isMobile = useMobile();
+  const t = useT();
 
   const [mcBtAssets,  setMcBtAssets]  = useState<Set<string>>(new Set());
   const [mcBtYears,   setMcBtYears]   = useState<Set<string>>(new Set()); // keyed "ASSET__YEAR"
@@ -226,8 +229,8 @@ export default function MCSim() {
     });
   };
 
-  if (isLoading) return <div style={{ padding: 32, color: 'var(--text2)' }}>Завантаження...</div>;
-  if (error || !data) return <div style={{ padding: 32, color: 'var(--red)' }}>Помилка</div>;
+  if (isLoading) return <div style={{ padding: 32, color: 'var(--text2)' }}>{t.loading}</div>;
+  if (error || !data) return <div style={{ padding: 32, color: 'var(--red)' }}>{t.error}</div>;
 
   const d = data as any;
   const mcPathsSample: number[][] = d.mcPathsSample ?? [];
@@ -276,8 +279,8 @@ export default function MCSim() {
         <div>
           <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Monte Carlo Simulation</div>
           <div style={{ fontSize: 12, color: 'var(--text2)' }}>
-            1000 симуляцій · {btCount} BT угод · {lvCount} Live угод
-            {mcHasFilter ? <span style={{ marginLeft: 8, color: '#a78bfa', fontWeight: 600 }}>· фільтр активний</span> : null}
+            {t.mcSimulations} · {t.mcBtTrades(btCount)} · {t.mcLvTrades(lvCount)}
+            {mcHasFilter ? <span style={{ marginLeft: 8, color: '#a78bfa', fontWeight: 600 }}>{t.mcFilterActive}</span> : null}
           </div>
         </div>
         {mcHasFilter ? (
@@ -285,7 +288,7 @@ export default function MCSim() {
             background: 'rgba(255,77,106,0.12)', border: '1px solid rgba(255,77,106,0.35)',
             color: 'var(--red)', borderRadius: 8, padding: '6px 14px',
             fontSize: 12, fontWeight: 600, cursor: 'pointer',
-          }}>Скинути фільтр</button>
+          }}>{t.mcResetFilter}</button>
         ) : null}
       </div>
 
@@ -296,7 +299,7 @@ export default function MCSim() {
         display: 'flex', flexDirection: 'column', gap: 10,
       }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          Backtest — вибір даних
+          {t.mcBtSelect}
         </div>
         {mcFilterOptions?.btTree ? (
           <MCFilterPanel
@@ -306,8 +309,9 @@ export default function MCSim() {
             onToggleYear={handleMcBtToggleYear}
             onToggleMonth={v => setMcBtMonths(s => toggleSet(s, v))}
             color="#a78bfa"
+            assetLabel={t.mcAsset}
           />
-        ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>}
+        ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>{t.loading}</div>}
       </div>
 
       {/* Live Filter */}
@@ -317,7 +321,7 @@ export default function MCSim() {
         display: 'flex', flexDirection: 'column', gap: 10,
       }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          Live — вибір даних
+          {t.mcLvSelect}
         </div>
         {mcFilterOptions?.lvTree ? (
           <MCFilterPanel
@@ -327,19 +331,20 @@ export default function MCSim() {
             onToggleYear={handleMcLvToggleYear}
             onToggleMonth={v => setMcLvMonths(s => toggleSet(s, v))}
             color="#4ade80"
+            assetLabel={t.mcAsset}
           />
-        ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>}
+        ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>{t.loading}</div>}
       </div>
 
       {/* Stats */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
-        <StatBox label="Медіана (p50)" value={`+${fmt(finalMedian)}R`} />
-        <StatBox label="p5 (нижня)"    value={`${finalP5 >= 0 ? '+' : ''}${fmt(finalP5)}R`} color="#e8830a" />
-        <StatBox label="p95 (верхня)"  value={`+${fmt(finalP95)}R`} color="#e8830a" />
-        <StatBox label="Ймов. прибутку" value={probProfit} color="var(--green)" />
-        <StatBox label="Ймов. руїни"    value={probRuin}   color={ruinPct > 0 ? 'var(--red)' : 'var(--green)'} />
-        {finalLive !== null && <StatBox label="Live vs медіана" value={liveVsMedian} color={finalLive >= finalMedian ? 'var(--green)' : 'var(--yellow)'} />}
-        {finalLive !== null && <StatBox label="Live в p5–p95"   value={liveInBand ? 'Так ✓' : 'Ні ✗'} color={liveInBand ? 'var(--green)' : 'var(--red)'} />}
+        <StatBox label={t.mcMedian} value={`+${fmt(finalMedian)}R`} />
+        <StatBox label={t.mcP5}    value={`${finalP5 >= 0 ? '+' : ''}${fmt(finalP5)}R`} color="#e8830a" />
+        <StatBox label={t.mcP95}   value={`+${fmt(finalP95)}R`} color="#e8830a" />
+        <StatBox label={t.mcProfitProb} value={probProfit} color="var(--green)" />
+        <StatBox label={t.mcRuinProb}   value={probRuin}   color={ruinPct > 0 ? 'var(--red)' : 'var(--green)'} />
+        {finalLive !== null && <StatBox label={t.mcLiveVsMedian} value={liveVsMedian} color={finalLive >= finalMedian ? 'var(--green)' : 'var(--yellow)'} />}
+        {finalLive !== null && <StatBox label={t.mcLiveInBand}   value={liveInBand ? t.mcLiveInBandYes : t.mcLiveInBandNo} color={liveInBand ? 'var(--green)' : 'var(--red)'} />}
       </div>
 
       {/* Chart */}
@@ -348,7 +353,7 @@ export default function MCSim() {
         borderRadius: 16, padding: isMobile ? '16px 4px 12px 0' : '20px 8px 12px 0', marginBottom: 24,
       }}>
         <div style={{ fontSize: 11, color: 'var(--text2)', paddingLeft: isMobile ? 16 : 28, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-          Equity paths (100 з 1000)
+          {t.mcEquityPaths}
         </div>
         <ResponsiveContainer width="100%" height={chartH}>
           <LineChart data={chartData} margin={{ top: 4, right: isMobile ? 8 : 24, left: 0, bottom: 4 }}>
@@ -360,7 +365,7 @@ export default function MCSim() {
               contentStyle={{ background: '#151a2b', border: '1px solid #1e2235', borderRadius: 8, fontSize: 11 }}
               formatter={(val: any, name: string) => {
                 if (name.startsWith('path_')) return null;
-                const labels: Record<string, string> = { median: 'Медіана', p5: 'p5', p95: 'p95', live: 'Live' };
+                const labels: Record<string, string> = { median: t.mcMedian, p5: 'p5', p95: 'p95', live: 'Live' };
                 return [`${Number(val).toFixed(2)}R`, labels[name] ?? name];
               }}
               filterNull
@@ -376,19 +381,19 @@ export default function MCSim() {
           </LineChart>
         </ResponsiveContainer>
         <div style={{ display: 'flex', gap: 16, paddingLeft: isMobile ? 16 : 28, marginTop: 8, fontSize: 11, color: 'var(--text2)', flexWrap: 'wrap' }}>
-          <span><span style={{ color: '#e8eaed', marginRight: 4 }}>─</span> Медіана MC</span>
+          <span><span style={{ color: '#e8eaed', marginRight: 4 }}>─</span> {t.mcMedian} MC</span>
           <span><span style={{ color: '#e8830a', marginRight: 4 }}>╌</span> p5 / p95</span>
           <span><span style={{ color: '#7eb8f7', marginRight: 4 }}>─</span> Live</span>
-          <span><span style={{ color: '#2a3a5a', marginRight: 4 }}>─</span> Симуляції</span>
+          <span><span style={{ color: '#2a3a5a', marginRight: 4 }}>─</span> {t.mcSimulations.split(' ')[0]}</span>
         </div>
       </div>
 
       {/* Info */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px', fontSize: 12, color: 'var(--text2)', lineHeight: 1.8 }}>
-        <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 8, fontSize: 13 }}>Як читати</div>
-        <div><b style={{ color: 'var(--text)' }}>Bootstrap MC</b> — кожна симуляція випадково тягне угоди з вибраних бектестів і будує equity curve.</div>
-        <div style={{ marginTop: 8 }}><b style={{ color: '#e8830a' }}>p5 / p95</b> — 90% симуляцій між цими лініями. Live нижче p5 — сигнал.</div>
-        <div style={{ marginTop: 8 }}><b style={{ color: '#7eb8f7' }}>Live крива</b> будується на вибраних live угодах.</div>
+        <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 8, fontSize: 13 }}>{t.mcHowToRead}</div>
+        <div><b style={{ color: 'var(--text)' }}>Bootstrap MC</b> {t.mcHowToReadBootstrap}</div>
+        <div style={{ marginTop: 8 }}><b style={{ color: '#e8830a' }}>p5 / p95</b> {t.mcHowToReadBand}</div>
+        <div style={{ marginTop: 8 }}><b style={{ color: '#7eb8f7' }}>Live</b> {t.mcHowToReadLive}</div>
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { uidParam, getSession } from "../lib/session";
 import { useMobile } from "../hooks/useMobile";
 import AccessWrapper from "../components/AccessWrapper";
 import { fetchAccess } from "../lib/access";
+import { useT } from "../lib/i18n";
 
 async function fetchStats() {
   const r = await fetch(`/api/stats${uidParam()}`);
@@ -788,6 +789,7 @@ function WeakSpots({ trades }: { trades: any[] }) {
 
 // ── Consistency Score ─────────────────────────────────────────────────────────
 function ConsistencyScore({ trades, btAvgRR, lvAvgRR }: { trades: any[]; btAvgRR: number; lvAvgRR: number }) {
+  const t = useT();
   type TargetMode = 'manual' | 'backtest' | 'live';
   const [mode, setMode] = useState<TargetMode>(() => (localStorage.getItem('cs_mode') as TargetMode) ?? 'live');
   const [manualRR, setManualRR] = useState(() => localStorage.getItem('cs_manual_rr') ?? '2');
@@ -881,22 +883,21 @@ function ConsistencyScore({ trades, btAvgRR, lvAvgRR }: { trades: any[]; btAvgRR
 
         {showInfo && (
           <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12, color: 'var(--text2)', lineHeight: 1.6 }}>
-            <div style={{ color: 'var(--text)', fontWeight: 600, marginBottom: 6, fontSize: 12 }}>Як розраховується показник стабільності</div>
+            <div style={{ color: 'var(--text)', fontWeight: 600, marginBottom: 6, fontSize: 12 }}>{t.csInfoTitle}</div>
             <div style={{ marginBottom: 4 }}>
-              <span style={{ color: 'var(--text)' }}>Оцінка відхилення</span> — базується на стандартному відхиленні net R по всіх угодах.
-              Менше відхилення = більш передбачувані результати. Оцінка: <span style={{ fontFamily: 'monospace' }}>max(0, 100 − stdDev × 20)</span>
+              <span style={{ color: 'var(--text)' }}>{t.csDeviationScore}</span> — {t.csDeviationDesc} <span style={{ fontFamily: 'monospace' }}>max(0, 100 − stdDev × 20)</span>
             </div>
             <div style={{ marginBottom: 4 }}>
-              <span style={{ color: 'var(--text)' }}>Оцінка влучності</span> — % угод, де net R потрапляє в діапазон <span style={{ fontFamily: 'monospace' }}>[−targetRR, +targetRR]</span>.
-              Угоди поза діапазоном (надто великі прибутки або збитки) знижують оцінку.
+              <span style={{ color: 'var(--text)' }}>{t.csAccuracyScore}</span> — {t.csAccuracyDesc} <span style={{ fontFamily: 'monospace' }}>[−targetRR, +targetRR]</span>.
+              {t.csAccuracyNote}
             </div>
             <div style={{ marginBottom: 4 }}>
-              <span style={{ color: 'var(--text)' }}>Підсумкова оцінка</span> — середнє обох: <span style={{ fontFamily: 'monospace' }}>(оцінкаВідхилення + оцінкаВлучності) / 2</span>
+              <span style={{ color: 'var(--text)' }}>{t.csFinalScore}</span> — {t.csFinalDesc} <span style={{ fontFamily: 'monospace' }}>(deviationScore + accuracyScore) / 2</span>
             </div>
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 6 }}>
-              <span style={{ color: '#7eb8f7' }}>≥ 70</span> Стабільний &nbsp;·&nbsp;
-              <span style={{ color: '#f0c070' }}>40–69</span> Помірний &nbsp;·&nbsp;
-              <span style={{ color: '#f0a070' }}>&lt; 40</span> Нестабільний
+              <span style={{ color: '#7eb8f7' }}>≥ 70</span> {t.csConsistent} &nbsp;·&nbsp;
+              <span style={{ color: '#f0c070' }}>40–69</span> {t.csModerate} &nbsp;·&nbsp;
+              <span style={{ color: '#f0a070' }}>&lt; 40</span> {t.csInconsistent}
             </div>
           </div>
         )}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from "@tanstack/react-query";
 import { getSession } from "../lib/session";
 import { fetchAccess } from "../lib/access";
+import { useT } from "../lib/i18n";
 import {
   DEFAULT_SUBSCRIPTION_SETTINGS,
   type SubscriptionPlans,
@@ -23,6 +24,7 @@ const cloneConfig = (config: SubscriptionSettingsPayload): SubscriptionSettingsP
 type SubscriptionApiResponse = SubscriptionSettingsPayload & { updatedAt?: string | null };
 
 export default function Subscription() {
+  const t = useT();
   const session = getSession();
   const isAdmin = session?.role === 'admin';
   const userRole = session?.role ?? 'free';
@@ -151,7 +153,7 @@ export default function Subscription() {
       try {
         const res = await fetch('/api/subscription/settings');
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? 'Не вдалося отримати налаштування');
+        if (!res.ok) throw new Error(data.error ?? t.subLoadFailed);
         if (cancelled) return;
         const next = cloneConfig(data as SubscriptionApiResponse);
         setConfig(next);
@@ -161,7 +163,7 @@ export default function Subscription() {
         setEditPlans(clonePlans(next.plans));
         setUpdatedAt((data as SubscriptionApiResponse).updatedAt ?? null);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Помилка завантаження');
+        if (!cancelled) setError(err instanceof Error ? err.message : t.subLoadError);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -171,7 +173,7 @@ export default function Subscription() {
   }, []);
 
   const saveConfig = async (nextConfig: SubscriptionSettingsPayload) => {
-    if (!session || !isAdmin) throw new Error('Немає прав для редагування');
+    if (!session || !isAdmin) throw new Error(t.subNoRights);
     setSaving(true);
     setGlobalMessage(null);
     try {
@@ -187,7 +189,7 @@ export default function Subscription() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Не вдалося зберегти');
+      if (!res.ok) throw new Error(data.error ?? t.subSaveFailed);
       const normalized = cloneConfig(data as SubscriptionApiResponse);
       setConfig(normalized);
       setEditButtonText(normalized.buttonText);
@@ -195,7 +197,7 @@ export default function Subscription() {
       setEditContactMessage(normalized.contactMessage ?? '');
       setEditPlans(clonePlans(normalized.plans));
       setUpdatedAt((data as SubscriptionApiResponse).updatedAt ?? null);
-      setGlobalMessage('Налаштування збережено');
+      setGlobalMessage(t.subSaved);
       return normalized;
     } finally {
       setSaving(false);
@@ -221,7 +223,7 @@ export default function Subscription() {
       });
       setShowEditModal(false);
     } catch (err) {
-      setEditModalError(err instanceof Error ? err.message : 'Помилка збереження');
+      setEditModalError(err instanceof Error ? err.message : t.subSaveError);
     }
   };
 
@@ -240,7 +242,7 @@ export default function Subscription() {
       });
       setShowPlansModal(false);
     } catch (err) {
-      setPlansModalError(err instanceof Error ? err.message : 'Помилка збереження планів');
+      setPlansModalError(err instanceof Error ? err.message : t.subPlansModalSaveError);
     }
   };
 
@@ -294,14 +296,14 @@ export default function Subscription() {
           {globalMessage}
           {updatedAt && (
             <span style={{ marginLeft: 8, color: 'var(--text2)' }}>
-              (оновлено {new Date(updatedAt).toLocaleString('uk-UA')})
+              {t.subUpdated(new Date(updatedAt).toLocaleString('uk-UA'))}
             </span>
           )}
         </div>
       )}
 
       {loading && (
-        <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>Завантаження налаштувань...</div>
+        <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>{t.subLoading}</div>
       )}
 
       <div style={{
@@ -309,7 +311,7 @@ export default function Subscription() {
         borderRadius: 16, padding: 32, marginBottom: 24,
       }}>
         <div style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 12 }}>
-          Ваш поточний статус:
+          {t.subCurrentStatus}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
           <span style={{
@@ -391,13 +393,13 @@ export default function Subscription() {
         <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 20 }}>What's included in access</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
           {[
-            { title: 'Dashboard', desc: 'Загальний огляд лайв і бектест перформансу: еквіті, статистика, новини ринку та тижневі відхилення ціни' },
-            { title: 'Live Database', desc: 'Додавай, редагуй і керуй своїми лайв угодами з усіма деталями' },
-            { title: 'Backtest DB', desc: 'Зберігай і аналізуй історію своїх бектест угод' },
-            { title: 'Live Analysis', desc: 'Еквіті крива, розподіл PnL, розподіл R на угоду, консістенсі скор, сесії, вінрейт, вінстрік / лузстрік, порівняння місяців' },
-            { title: 'BT Analysis', desc: 'Еквіті крива, розподіл PnL, розподіл R на угоду, консістенсі скор, сесії, вінрейт, вінстрік / лузстрік, порівняння місяців і років, аналіз по різних активах і датасетах' },
-            { title: 'Analysis & MC', desc: 'Порівняння еквіті Net R vs Gross R (бектест і лайв), вінрейт, avg RR, профіт фактор, макс дродаун, Std Dev, SQN, 9 стрес-метрик, Survival Rate і Monte Carlo симуляції' },
-            { title: 'COT Data', desc: 'Щотижнева звітність яку публікує CFTC (Commodity Futures Trading Commission) — позиції великих гравців для макро конфлюенсу' },
+            { title: 'Dashboard', desc: t.subFeatureDashboard },
+            { title: 'Live Database', desc: t.subFeatureLiveDb },
+            { title: 'Backtest DB', desc: t.subFeatureBacktestDb },
+            { title: 'Live Analysis', desc: t.subFeatureLiveAnalysis },
+            { title: 'BT Analysis', desc: t.subFeatureBtAnalysis },
+            { title: 'Analysis & MC', desc: t.subFeatureMC },
+            { title: 'COT Data', desc: t.subFeatureCOT },
           ].map((item, i) => (
             <div key={i} style={{
               background: 'var(--bg)', border: '1px solid var(--border)',

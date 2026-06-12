@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useT } from "../lib/i18n";
 import { useMobile } from "../hooks/useMobile";
 import { useQuery } from "@tanstack/react-query";
 import { uidParam } from "../lib/session";
@@ -121,7 +122,7 @@ function Explanation({ text }: { text: string }) {
         style={{ fontSize: 11, padding: '4px 12px', borderRadius: 8 }}
         onClick={() => setOpen(o => !o)}
       >
-        {open ? '▲' : '▼'} Пояснення
+        {open ? '▲' : '▼'} {t.chartsExplanation}
       </button>
       {open && (
         <div style={{
@@ -159,7 +160,7 @@ function DeviationSummary({
   const devBT  = lastBT  !== 0 ? ((lastLv - lastBT)  / Math.abs(lastBT)  * 100) : null;
   const devMed = lastMed != null && lastMed !== 0 ? ((lastLv - lastMed) / Math.abs(lastMed) * 100) : null;
   const inBand = lastP5 != null && lastP95 != null
-    ? (lastLv >= lastP5 && lastLv <= lastP95 ? 'У межах норми' : lastLv < lastP5 ? 'Нижче p5 — увага!' : 'Вище p95 — увага!')
+    ? (lastLv >= lastP5 && lastLv <= lastP95 ? 'norm' : lastLv < lastP5 ? 'below' : 'above')
     : null;
 
   const fmtVal = (v: number) => `${v.toFixed(3)}${unit}`;
@@ -173,7 +174,7 @@ function DeviationSummary({
         style={{ fontSize: 11, padding: '4px 12px', borderRadius: 8 }}
         onClick={() => setOpen(o => !o)}
       >
-        {open ? '▲' : '▼'} Поточне відхилення
+        {open ? '▲' : '▼'} {t.chartsDeviation}
       </button>
       {open && (
         <div style={{
@@ -183,30 +184,30 @@ function DeviationSummary({
         }}>
           <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
             <div>
-              <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Live (останнє)</div>
+              <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>{t.chartsLiveLast}</div>
               <div className="mono" style={{ color: LIVE_COLOR }}>{fmtVal(lastLv)}</div>
             </div>
             <div>
-              <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs Бектест</div>
+              <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>{t.chartsVsBt}</div>
               <div className="mono" style={{ color: devBT != null ? color(devBT) : 'var(--text2)' }}>
                 {devBT != null ? fmtPct(devBT) : '—'}
               </div>
             </div>
             {devMed != null && (
               <div>
-                <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>vs Очікуване (MC)</div>
+                <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>{t.chartsVsMc}</div>
                 <div className="mono" style={{ color: color(devMed) }}>{fmtPct(devMed)}</div>
               </div>
             )}
             {inBand && (
               <div>
-                <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>MC p5–p95</div>
-                <div style={{ color: inBand.includes('увага') ? '#f87171' : '#4ade80', fontWeight: 600, fontSize: 12 }}>{inBand}</div>
+                <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>{t.chartsMcBand}</div>
+                <div style={{ color: inBand === 'below' || inBand === 'above' ? '#f87171' : '#4ade80', fontWeight: 600, fontSize: 12 }}>{inBand === 'norm' ? t.chartsInNorm : inBand === 'below' ? t.chartsBelowP5 : t.chartsAboveP95}</div>
               </div>
             )}
             {lastP5 != null && lastP95 != null && (
               <div>
-                <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>Очікуваний діапазон</div>
+                <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 4 }}>{t.chartsExpRange}</div>
                 <div className="mono" style={{ color: MC_BAND_COLOR }}>[{fmtVal(lastP5)} — {fmtVal(lastP95)}]</div>
               </div>
             )}
@@ -273,7 +274,7 @@ function MetricChart({
     <div style={chartStyle(isMobile)}>
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>{title}</div>
       {btSeries.length === 0 ? (
-        <div style={{ color: 'var(--text2)', padding: 24, textAlign: 'center' }}>Немає даних</div>
+        <div style={{ color: 'var(--text2)', padding: 24, textAlign: 'center' }}>{t.chartsNoData}</div>
       ) : (
         <>
           <ResponsiveContainer width="100%" height={height}>
@@ -408,10 +409,10 @@ function StressSlider({
       </div>
       {explain && open && (
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', marginBottom: 6, fontSize: 10, color: 'var(--text2)', lineHeight: 1.6 }}>
-          <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Що моделює: </span>{explain.models}</div>
-          <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Сценарій: </span>{explain.scenario}</div>
-          <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Як працює: </span>{explain.how}</div>
-          <div><span style={{ color: 'var(--text)', fontWeight: 700 }}>Вплив: </span>{explain.impact}</div>
+          <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>{t.chartsModels}: </span>{explain.models}</div>
+          <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>{t.chartsScenario}: </span>{explain.scenario}</div>
+          <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>{t.chartsHowWorks}: </span>{explain.how}</div>
+          <div><span style={{ color: 'var(--text)', fontWeight: 700 }}>{t.chartsImpact}: </span>{explain.impact}</div>
         </div>
       )}
       <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 6 }}>{description}</div>
@@ -552,7 +553,7 @@ function MCFilterPanel({ tree, selAssets, selYears, selMonths, onToggleAsset, on
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {/* asset row */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
-        <span style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.06em', minWidth: 48 }}>Актив</span>
+        <span style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.06em', minWidth: 48 }}>{t.chartsActiv}</span>
         {assets.map(a => (
           <Chip key={a} label={a} active={selAssets.has(a)} onClick={() => onToggleAsset(a)} color={color} />
         ))}
@@ -653,7 +654,7 @@ const ScfFactorAccordion = ({ id, label, factors, scfOpen, toggleScf, stressPara
             <div style={{ width: 80, fontSize: 9, color: 'var(--text2)', opacity: 0.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>Impact</div>
           </div>
           {factors.length === 0
-            ? <span style={{ fontSize: 10, color: 'var(--text2)' }}>Всі фактори = 0</span>
+            ? <span style={{ fontSize: 10, color: 'var(--text2)' }}>{t.chartsFactorsZero}</span>
             : factors.map(f => {
               const val = stressParams ? fmtStressVal(f.key, stressParams) : '';
               return (
@@ -688,6 +689,7 @@ const ScfFactorAccordion = ({ id, label, factors, scfOpen, toggleScf, stressPara
 // ──────────────────────────────────────────────────────────────────────────────
 
 export default function Charts() {
+  const t = useT();
   const isMobile = useMobile();
   const { data: accessData } = useQuery({ queryKey: ['access'], queryFn: fetchAccess, staleTime: 60_000 });
   const { data, isLoading, error } = useQuery({ queryKey: ['stats'], queryFn: fetchStats });
@@ -940,7 +942,7 @@ export default function Charts() {
       setMcRunResult(await res.json());
       fetchImpact(stressParams);
     } catch (e: any) {
-      setMcRunError(e.message ?? 'Помилка симуляції');
+      setMcRunError(e.message ?? t.chartsMcRunError);
     }
     setMcRunLoading(false);
   }, [mcBtAssets, mcBtYears, mcBtMonths, mcLvAssets, mcLvYears, mcLvMonths, mcNSim, mcHorizon, mcStdDev, mcTradeCost, mcJitter, stressParams]);
@@ -987,7 +989,7 @@ export default function Charts() {
   const saveCombo = () => {
     const combo: SavedCombo = {
       id: Date.now().toString(),
-      name: saveComboName.trim() || 'Без назви',
+      name: saveComboName.trim() || t.chartsUnnamedCombo,
       params: { ...stressParams },
       mcParams: {
         nSim: mcNSim,
@@ -1012,7 +1014,7 @@ export default function Charts() {
 
   const isModified = JSON.stringify(stressParams) !== JSON.stringify(defaultStress);
 
-  if (isLoading) return <div style={{ padding: 32, color: 'var(--text2)' }}>Завантаження...</div>;
+  if (isLoading) return <div style={{ padding: 32, color: 'var(--text2)' }}>{t.loading}</div>;
 
   const isBlocked = Boolean(accessData && !accessData.hasAccess);
   
@@ -1030,7 +1032,7 @@ export default function Charts() {
     );
   }
 
-  if (error || !data) return <div style={{ padding: 32, color: 'var(--red)' }}>Помилка</div>;
+  if (error || !data) return <div style={{ padding: 32, color: 'var(--red)' }}>{t.error}</div>;
 
   const d = data as any;
   const btEq: number[] = d.btEquity ?? [];
@@ -1204,10 +1206,10 @@ export default function Charts() {
 
       {/* LEGEND */}
       <div style={{ display: 'flex', gap: isMobile ? 10 : 20, marginBottom: isMobile ? 12 : 20, fontSize: isMobile ? 11 : 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span><span style={{ color: BT_COLOR,      fontWeight: 700 }}>━</span> Бектест</span>
-        <span><span style={{ color: LIVE_COLOR,    fontWeight: 700 }}>━</span> Live (синій)</span>
-        <span><span style={{ color: MC_MED_COLOR,  fontWeight: 700 }}>- -</span> MC median (білий)</span>
-        <span><span style={{ color: MC_BAND_COLOR, fontWeight: 700 }}>- -</span> MC p5/p95 (помаранчевий)</span>
+        <span><span style={{ color: BT_COLOR,      fontWeight: 700 }}>━</span> {t.chartsBtColor}</span>
+        <span><span style={{ color: LIVE_COLOR,    fontWeight: 700 }}>━</span> {t.chartsLiveColor}</span>
+        <span><span style={{ color: MC_MED_COLOR,  fontWeight: 700 }}>- -</span> {t.chartsMcMedianColor}</span>
+        <span><span style={{ color: MC_BAND_COLOR, fontWeight: 700 }}>- -</span> {t.chartsMcBandColor}</span>
       </div>
 
       {/* EQUITY CURVES */}
@@ -1215,11 +1217,11 @@ export default function Charts() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600 }}>
-              Equity Curves — {equityViewMode === 'cumulative' ? 'Cumulative' : 'Середнє R/угоду (темп зростання)'}
+              {t.chartsEquityCurves(equityViewMode === 'cumulative' ? 'Cumulative' : t.chartsEquityGrowthRate)}
             </div>
             {equityViewMode === 'normalized' && (
               <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 3 }}>
-                Y = накопичений R ÷ кількість угод до цієї точки. Криві близько = однаковий темп зростання.
+                {t.chartsNormalizedDesc}
               </div>
             )}
           </div>
@@ -1230,7 +1232,7 @@ export default function Charts() {
                 background: equityViewMode === mode ? 'var(--surface2)' : 'transparent',
                 border: equityViewMode === mode ? '1px solid var(--border)' : '1px solid transparent',
               }} onClick={() => setEquityViewMode(mode)}>
-                {mode === 'cumulative' ? 'Кумулятивний' : 'Нормалізований'}
+                {mode === 'cumulative' ? t.chartsCumulative : t.chartsNormalized}
               </button>
             ))}
           </div>
@@ -1268,7 +1270,7 @@ export default function Charts() {
         })()}
 
         {btEq.length === 0 ? (
-          <div style={{ color: 'var(--text2)', padding: 40, textAlign: 'center' }}>Немає даних бектесту.</div>
+          <div style={{ color: 'var(--text2)', padding: 40, textAlign: 'center' }}>{t.chartsNoBtData}</div>
         ) : (
           <>
             <ResponsiveContainer width="100%" height={isMobile ? 220 : 340}>
@@ -1334,12 +1336,12 @@ export default function Charts() {
                 { label: 'BT Net vs BT Gross',      a: btNet,   b: btGross, aLabel: 'BT Net R',     bLabel: 'BT Gross R'  },
               ];
 
-              const nLabel = cmpN != null ? ` (по ${cmpN} уг.)` : '';
+              const nLabel = cmpN != null ? t.chartsDeviationNLabel(cmpN) : '';
 
               return (
                 <div style={{ marginTop: 10, padding: '10px 14px', background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12 }}>
                   <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', marginBottom: 8 }}>
-                    Відхилення{nLabel}
+                    {t.chartsDeviationFull(nLabel)}
                   </div>
                   <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                     {metrics.map(m => {
@@ -1398,8 +1400,8 @@ export default function Charts() {
 
               // Mode line
               lines.push(isCumul
-                ? `Режим: кумулятивний — порівнюються фінальні значення всіх угод.`
-                : `Режим: нормалізований — порівняння по ${cmpN} угодах (коротша серія).`
+                ? t.chartsCompModeDesc('cumulative', null)
+                : t.chartsCompModeDesc('normalized', cmpN ?? null)
               );
               lines.push('');
 
@@ -1409,13 +1411,13 @@ export default function Charts() {
                 const r   = liveVsBtNet.dR;
                 const sign = r >= 0 ? '+' : '';
                 if (pct != null && Math.abs(pct) < 10) {
-                  lines.push(`Live Net vs BT Net: ${sign}${r.toFixed(2)}R (${sign}${pct.toFixed(1)}%) — Live близький до бектесту, відхилення в нормі.`);
+                  lines.push(t.chartsLiveNetVsBtNet(sign, r.toFixed(2), pct.toFixed(1), 'close'));
                 } else if (pct != null && pct < -50) {
-                  lines.push(`Live Net vs BT Net: ${sign}${r.toFixed(2)}R (${sign}${pct.toFixed(1)}%) — Live суттєво нижче бектесту. Можливі причини: зміна ринкового режиму, overfitting бектесту або деградація стратегії.`);
+                  lines.push(t.chartsLiveNetVsBtNet(sign, r.toFixed(2), pct.toFixed(1), 'below'));
                 } else if (pct != null && pct < 0) {
-                  lines.push(`Live Net vs BT Net: ${sign}${r.toFixed(2)}R (${sign}${pct.toFixed(1)}%) — Live відстає від бектесту. Варто перевірити чи не змінились умови ринку.`);
+                  lines.push(t.chartsLiveNetVsBtNet(sign, r.toFixed(2), pct.toFixed(1), 'behind'));
                 } else if (pct != null && pct > 0) {
-                  lines.push(`Live Net vs BT Net: ${sign}${r.toFixed(2)}R (${sign}${pct.toFixed(1)}%) — Live випереджає бектест. Можливо ринок зараз сприятливий для стратегії.`);
+                  lines.push(t.chartsLiveNetVsBtNet(sign, r.toFixed(2), pct.toFixed(1), 'ahead'));
                 }
               }
 
@@ -1424,16 +1426,16 @@ export default function Charts() {
                 const gPct = liveVsBtGross.dP;
                 const nPct = liveVsBtNet.dP;
                 if (gPct != null && nPct != null && Math.abs(nPct - gPct) < 5) {
-                  lines.push(`Live Gross vs BT Gross: ${liveVsBtGross.dP != null ? (liveVsBtGross.dP >= 0 ? '+' : '') + liveVsBtGross.dP.toFixed(1) + '%' : '—'} — відхилення майже таке ж як Net. Комісії не є головною причиною проблеми.`);
+                  lines.push(t.chartsGrossSameAsNet(liveVsBtGross.dP != null ? (liveVsBtGross.dP >= 0 ? '+' : '') + liveVsBtGross.dP.toFixed(1) + '%' : '—'));
                 } else if (gPct != null && nPct != null && Math.abs(nPct) > Math.abs(gPct) + 5) {
-                  lines.push(`Gross відхилення менше ніж Net — комісії/слипаж підсилюють відставання Live від бектесту.`);
+                  lines.push(t.chartsGrossCheck);
                 }
               }
 
               // Комісії Live
               if (liveNetVsGross && liveNetVsGross.dP != null) {
                 const pct = Math.abs(liveNetVsGross.dP);
-                lines.push(`Комісії Live: −${pct.toFixed(1)}% від Gross прибутку.`);
+                lines.push(t.chartsLiveCostPct(pct.toFixed(1)));
               }
 
               // Комісії BT vs Live порівняння
@@ -1441,9 +1443,9 @@ export default function Charts() {
                 const btCost   = Math.abs(btNetVsGross.dP);
                 const liveCost = Math.abs(liveNetVsGross.dP);
                 if (liveCost > btCost + 3) {
-                  lines.push(`В бектесті комісії складали −${btCost.toFixed(1)}%, в Live — −${liveCost.toFixed(1)}%. Live платить більше ніж закладено в бектест.`);
+                  lines.push(t.chartsCostBtVsLiveHigher(btCost.toFixed(1), liveCost.toFixed(1)));
                 } else {
-                  lines.push(`Рівень комісій у Live (${liveCost.toFixed(1)}%) близький до бектесту (${btCost.toFixed(1)}%).`);
+                  lines.push(t.chartsCostMatch(liveCost.toFixed(1), btCost.toFixed(1)));
                 }
               }
 
@@ -1457,14 +1459,14 @@ export default function Charts() {
 
       {/* STATS TABLE */}
       <div style={chartStyle(isMobile)}>
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Порівняння метрик</div>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>{t.chartsCompMetrics}</div>
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <table style={{ minWidth: 400 }}>
           <thead>
             <tr>
-              <th>Метрика</th>
-              <th style={{ color: BT_COLOR }}>Бектест</th>
-              <th style={{ color: MC_MED_COLOR }}>MC Очікуване</th>
+              <th>{t.chartsMetricLabel}</th>
+              <th style={{ color: BT_COLOR }}>{t.chartsBtLabel}</th>
+              <th style={{ color: MC_MED_COLOR }}>{t.chartsMcExpected}</th>
               <th style={{ color: LIVE_COLOR }}>Live</th>
               <th>Live vs BT</th>
             </tr>
@@ -1517,23 +1519,23 @@ export default function Charts() {
           const p95Last = wrMCseries?.p95.at(-1) ?? null;
 
           const lines: string[] = [];
-          lines.push('Відсоток виграшних угод у ковзному вікні (BT=20 трейдів, Live=10).\n');
+          lines.push(t.chartsRollingWrDesc);
 
           if (lvLast != null) {
             // vs MC band
             if (p5Last != null && p95Last != null) {
               if (lvLast < p5Last) {
-                lines.push(`⚠️ WR (${lvLast.toFixed(1)}%) вийшов нижче p5 (${p5Last.toFixed(1)}%) — сигнал тривоги. Стратегія деградує або ринковий режим змінився.`);
+                lines.push(t.chartsRollingWrBelowP5(lvLast.toFixed(1), p5Last.toFixed(1)));
               } else if (lvLast > p95Last) {
-                lines.push(`WR (${lvLast.toFixed(1)}%) вище p95 (${p95Last.toFixed(1)}%) — незвично добре. Можливо короткострокова серія удачі, стежте за стабільністю.`);
+                lines.push(t.chartsRollingWrAboveP95(lvLast.toFixed(1), p95Last.toFixed(1)));
               } else if (medLast != null) {
                 const devMed = ((lvLast - medLast) / Math.abs(medLast)) * 100;
                 if (devMed < -15) {
-                  lines.push(`WR (${lvLast.toFixed(1)}%) помітно нижче MC медіани (${medLast.toFixed(1)}%), але ще в межах p5–p95. Тенденція до зниження — варто спостерігати.`);
+                  lines.push(t.chartsRollingWrBelowMed(lvLast.toFixed(1), medLast.toFixed(1)));
                 } else if (Math.abs(devMed) <= 15) {
-                  lines.push(`WR (${lvLast.toFixed(1)}%) близький до MC медіани (${medLast.toFixed(1)}%) і в межах норми p5–p95. Стратегія виконується відповідно до очікувань.`);
+                  lines.push(t.chartsRollingWrNearMed(lvLast.toFixed(1), medLast.toFixed(1)));
                 } else {
-                  lines.push(`WR (${lvLast.toFixed(1)}%) вище MC медіани (${medLast.toFixed(1)}%) і в межах норми. Хороший результат.`);
+                  lines.push(t.chartsRollingWrAboveMed(lvLast.toFixed(1), medLast.toFixed(1)));
                 }
               }
             }
@@ -1542,21 +1544,21 @@ export default function Charts() {
             if (btLast != null) {
               const devBT = lvLast - btLast;
               if (devBT < -10) {
-                lines.push(`Відставання від бектесту: −${Math.abs(devBT).toFixed(1)}pp. Бектест WR ${btLast.toFixed(1)}% — Live не досягає цього рівня.`);
+                lines.push(t.chartsRollingWrBtBehind(Math.abs(devBT).toFixed(1), btLast.toFixed(1)));
               } else if (devBT > 10) {
-                lines.push(`Live WR перевищує бектест на +${devBT.toFixed(1)}pp (BT ${btLast.toFixed(1)}%). Можливо сприятлива ринкова фаза.`);
+                lines.push(t.chartsRollingWrBtAhead(devBT.toFixed(1), btLast.toFixed(1)));
               } else {
-                lines.push(`Live WR (${lvLast.toFixed(1)}%) відповідає бектесту (${btLast.toFixed(1)}%) — відхилення незначне.`);
+                lines.push(t.chartsRollingWrBtMatch(lvLast.toFixed(1), btLast.toFixed(1)));
               }
             }
 
             // Conclusion
             if (p5Last != null && lvLast < p5Last) {
-              lines.push('\nВисновок: стратегія під тиском. Якщо WR не відновиться протягом наступних 10–15 угод — розгляньте паузу для аналізу.');
+              lines.push(t.chartsRollingWrConclusionCrit);
             } else if (p5Last != null && medLast != null && lvLast < medLast && lvLast >= p5Last) {
-              lines.push('\nВисновок: WR знизився відносно бектесту і MC очікування, але ще не вийшов за межі допустимого коридору. Якщо крива пробʼє p5 — це сигнал тривоги.');
+              lines.push(t.chartsRollingWrConclusionWarn);
             } else {
-              lines.push('\nВисновок: WR в нормальному діапазоні, стратегія працює відповідно до очікувань.');
+              lines.push(t.chartsRollingWrConclusionOk);
             }
           }
 
@@ -1583,41 +1585,41 @@ export default function Charts() {
           const p95Last = rrMC?.p95?.at(-1) ?? null;
 
           const lines: string[] = [];
-          lines.push('Середнє співвідношення ризик/прибуток за ковзним вікном (BT=20, Live=10).\n');
+          lines.push(t.chartsRollingRrDesc);
 
           if (lvLast != null) {
             if (p5Last != null && p95Last != null) {
               if (lvLast < p5Last) {
-                lines.push(`⚠️ Avg RR (${lvLast.toFixed(2)}) нижче p5 (${p5Last.toFixed(2)}) — якість виконання угод критично знизилась. Перевірте дисципліну виходів.`);
+                lines.push(t.chartsRollingRrBelowP5(lvLast.toFixed(2), p5Last.toFixed(2)));
               } else if (lvLast > p95Last) {
-                lines.push(`Avg RR (${lvLast.toFixed(2)}) вище p95 (${p95Last.toFixed(2)}) — незвично високий. Можлива серія виняткових угод.`);
+                lines.push(t.chartsRollingRrAboveP95(lvLast.toFixed(2), p95Last.toFixed(2)));
               } else if (medLast != null) {
                 const devMed = ((lvLast - medLast) / Math.abs(medLast)) * 100;
                 if (devMed < -15) {
-                  lines.push(`Avg RR (${lvLast.toFixed(2)}) помітно нижче MC медіани (${medLast.toFixed(2)}), але ще в межах p5–p95. Якість входів знижується — стежте.`);
+                  lines.push(t.chartsRollingRrBelowMed(lvLast.toFixed(2), medLast.toFixed(2)));
                 } else if (Math.abs(devMed) <= 15) {
-                  lines.push(`Avg RR (${lvLast.toFixed(2)}) близький до MC медіани (${medLast.toFixed(2)}) — якість виконання в нормі.`);
+                  lines.push(t.chartsRollingRrNearMed(lvLast.toFixed(2), medLast.toFixed(2)));
                 } else {
-                  lines.push(`Avg RR (${lvLast.toFixed(2)}) вище MC медіани (${medLast.toFixed(2)}) — відмінна якість угод у поточному вікні.`);
+                  lines.push(t.chartsRollingRrAboveMed(lvLast.toFixed(2), medLast.toFixed(2)));
                 }
               }
             }
             if (btLast != null) {
               const devBT = ((lvLast - btLast) / Math.abs(btLast)) * 100;
               if (devBT < -15) {
-                lines.push(`Відставання від бектесту: ${devBT.toFixed(1)}%. BT Avg RR ${btLast.toFixed(2)} — Live не досягає очікуваного рівня.`);
+                lines.push(t.chartsRollingRrBtBehind(devBT.toFixed(1), btLast.toFixed(2)));
               } else if (devBT > 15) {
-                lines.push(`Live Avg RR перевищує бектест на +${devBT.toFixed(1)}% (BT ${btLast.toFixed(2)}).`);
+                lines.push(t.chartsRollingRrBtAhead(devBT.toFixed(1), btLast.toFixed(2)));
               } else {
-                lines.push(`Live Avg RR (${lvLast.toFixed(2)}) відповідає бектесту (${btLast.toFixed(2)}) — відхилення незначне.`);
+                lines.push(t.chartsRollingRrBtMatch(lvLast.toFixed(2), btLast.toFixed(2)));
               }
             }
             if (p5Last != null && lvLast < p5Last) {
-              lines.push('\nВисновок: якість виконання угод під серйозним тиском. Проаналізуйте останні угоди — можливо змінилась дисципліна виходу або якість сетапів.');
+              lines.push(t.chartsRollingRrConclusionCrit);
             } else if (p5Last != null && medLast != null && lvLast < medLast && lvLast >= p5Last) {
-              lines.push('\nВисновок: Avg RR знизився відносно очікувань, але ще в допустимому коридорі. Продовжуйте спостереження.');
+              lines.push(t.chartsRollingRrConclusionWarn);
             } else {
-              lines.push('\nВисновок: Avg RR в нормальному діапазоні, якість виконання угод відповідає бектесту.');
+              lines.push(t.chartsRollingRrConclusionOk);
             }
           }
 
@@ -1643,43 +1645,43 @@ export default function Charts() {
           const p95Last = pfMC?.p95?.at(-1) ?? null;
 
           const lines: string[] = [];
-          lines.push('Profit Factor = Сума виграшів / Сума програшів у ковзному вікні (BT=20, Live=10). PF > 1 — прибутковість.\n');
+          lines.push(t.chartsRollingPfDesc);
 
           if (lvLast != null) {
             if (p5Last != null && p95Last != null) {
               if (lvLast < p5Last) {
-                lines.push(`⚠️ PF (${lvLast.toFixed(2)}) нижче p5 (${p5Last.toFixed(2)}) — стратегія збиткова і виходить за межі допустимого. Серйозний сигнал.`);
+                lines.push(t.chartsRollingPfBelowP5(lvLast.toFixed(2), p5Last.toFixed(2)));
               } else if (lvLast > p95Last) {
-                lines.push(`PF (${lvLast.toFixed(2)}) вище p95 (${p95Last.toFixed(2)}) — незвично висока прибутковість у вікні. Можлива серія.`);
+                lines.push(t.chartsRollingPfAboveP95(lvLast.toFixed(2), p95Last.toFixed(2)));
               } else if (medLast != null) {
                 const devMed = ((lvLast - medLast) / Math.abs(medLast)) * 100;
                 if (devMed < -20) {
-                  lines.push(`PF (${lvLast.toFixed(2)}) помітно нижче MC медіани (${medLast.toFixed(2)}), але ще в межах норми p5–p95. Тенденція до зниження.`);
+                  lines.push(t.chartsRollingPfBelowMed(lvLast.toFixed(2), medLast.toFixed(2)));
                 } else if (Math.abs(devMed) <= 20) {
-                  lines.push(`PF (${lvLast.toFixed(2)}) близький до MC медіани (${medLast.toFixed(2)}) — прибутковість відповідає очікуванням.`);
+                  lines.push(t.chartsRollingPfNearMed(lvLast.toFixed(2), medLast.toFixed(2)));
                 } else {
-                  lines.push(`PF (${lvLast.toFixed(2)}) вище MC медіани (${medLast.toFixed(2)}) — прибутковість краща за очікувану.`);
+                  lines.push(t.chartsRollingPfAboveMed(lvLast.toFixed(2), medLast.toFixed(2)));
                 }
               }
             }
             if (btLast != null) {
               const devBT = ((lvLast - btLast) / Math.abs(btLast)) * 100;
               if (devBT < -20) {
-                lines.push(`PF відстає від бектесту на ${devBT.toFixed(1)}% (BT ${btLast.toFixed(2)}). Live менш прибутковий ніж в бектесті.`);
+                lines.push(t.chartsRollingPfBtBehind(devBT.toFixed(1), btLast.toFixed(2)));
               } else if (devBT > 20) {
-                lines.push(`Live PF перевищує бектест на +${devBT.toFixed(1)}% (BT ${btLast.toFixed(2)}).`);
+                lines.push(t.chartsRollingPfBtAhead(devBT.toFixed(1), btLast.toFixed(2)));
               } else {
-                lines.push(`Live PF (${lvLast.toFixed(2)}) відповідає бектесту (${btLast.toFixed(2)}) — відхилення незначне.`);
+                lines.push(t.chartsRollingPfBtMatch(lvLast.toFixed(2), btLast.toFixed(2)));
               }
             }
             if (p5Last != null && lvLast < 1) {
-              lines.push('\nВисновок: стратегія збиткова в поточному вікні. Якщо PF не відновиться — розгляньте паузу для аналізу.');
+              lines.push(t.chartsRollingPfConclusionCrit);
             } else if (p5Last != null && lvLast < p5Last) {
-              lines.push('\nВисновок: PF критично низький. Перегляньте управління виходами та якість сетапів.');
+              lines.push(t.chartsRollingPfConclusionCrit2);
             } else if (p5Last != null && medLast != null && lvLast < medLast && lvLast >= p5Last) {
-              lines.push('\nВисновок: PF нижче очікуваного, але ще в нормі. Продовжуйте спостереження, не змінюйте стратегію.');
+              lines.push(t.chartsRollingPfConclusionWarn);
             } else {
-              lines.push('\nВисновок: Profit Factor в нормальному діапазоні, стратегія прибуткова відповідно до очікувань.');
+              lines.push(t.chartsRollingPfConclusionOk);
             }
           }
 
@@ -1705,41 +1707,41 @@ export default function Charts() {
           const p95Last = ddMC?.p95?.at(-1) ?? null;
 
           const lines: string[] = [];
-          lines.push('Максимальна просадка (в R) від піку до дна у ковзному вікні (BT=20, Live=10). Менше = краще.\n');
+          lines.push(t.chartsRollingDdDesc);
 
           if (lvLast != null) {
             if (p95Last != null) {
               if (lvLast > p95Last) {
-                lines.push(`⚠️ Max DD (${lvLast.toFixed(2)}R) перевищує p95 (${p95Last.toFixed(2)}R) — просадка виходить за межі очікуваної. Підвищений ризик.`);
+                lines.push(t.chartsRollingDdAboveP95(lvLast.toFixed(2), p95Last.toFixed(2)));
               } else if (p5Last != null && lvLast < p5Last) {
-                lines.push(`Max DD (${lvLast.toFixed(2)}R) дуже низький (нижче p5 ${p5Last.toFixed(2)}R) — незвично мала просадка. Можлива серія вдалих угод.`);
+                lines.push(t.chartsRollingDdBelowP5(lvLast.toFixed(2), p5Last.toFixed(2)));
               } else if (medLast != null) {
                 const devMed = ((lvLast - medLast) / Math.abs(medLast)) * 100;
                 if (devMed > 20) {
-                  lines.push(`Max DD (${lvLast.toFixed(2)}R) помітно вищий за MC медіану (${medLast.toFixed(2)}R), але ще в межах p5–p95. Просадка зростає — стежте.`);
+                  lines.push(t.chartsRollingDdAboveMed(lvLast.toFixed(2), medLast.toFixed(2)));
                 } else if (Math.abs(devMed) <= 20) {
-                  lines.push(`Max DD (${lvLast.toFixed(2)}R) близький до MC медіани (${medLast.toFixed(2)}R) — просадка в межах норми.`);
+                  lines.push(t.chartsRollingDdNearMed(lvLast.toFixed(2), medLast.toFixed(2)));
                 } else {
-                  lines.push(`Max DD (${lvLast.toFixed(2)}R) нижчий за MC медіану (${medLast.toFixed(2)}R) — контроль ризику краще очікуваного.`);
+                  lines.push(t.chartsRollingDdBelowMed(lvLast.toFixed(2), medLast.toFixed(2)));
                 }
               }
             }
             if (btLast != null) {
               const devBT = ((lvLast - btLast) / Math.abs(btLast || 1)) * 100;
               if (devBT > 20) {
-                lines.push(`Live DD на +${devBT.toFixed(1)}% вищий ніж в бектесті (BT ${btLast.toFixed(2)}R) — Live торгівля несе більшу просадку.`);
+                lines.push(t.chartsRollingDdBtHigher(devBT.toFixed(1), btLast.toFixed(2)));
               } else if (devBT < -20) {
-                lines.push(`Live DD на ${devBT.toFixed(1)}% нижчий ніж в бектесті (BT ${btLast.toFixed(2)}R) — Live контролює ризик краще.`);
+                lines.push(t.chartsRollingDdBtLower(devBT.toFixed(1), btLast.toFixed(2)));
               } else {
-                lines.push(`Live DD (${lvLast.toFixed(2)}R) відповідає бектесту (${btLast.toFixed(2)}R) — відхилення незначне.`);
+                lines.push(t.chartsRollingDdBtMatch(lvLast.toFixed(2), btLast.toFixed(2)));
               }
             }
             if (p95Last != null && lvLast > p95Last) {
-              lines.push('\nВисновок: просадка критична. Зменшіть розмір позицій або зробіть паузу до стабілізації.');
+              lines.push(t.chartsRollingDdConclusionCrit);
             } else if (medLast != null && lvLast > medLast * 1.2) {
-              lines.push('\nВисновок: просадка підвищена відносно очікувань, але ще в межах допустимого. Контролюйте ризик-менеджмент.');
+              lines.push(t.chartsRollingDdConclusionWarn);
             } else {
-              lines.push('\nВисновок: Max Drawdown в нормальному діапазоні, ризик-менеджмент відповідає бектесту.');
+              lines.push(t.chartsRollingDdConclusionOk);
             }
           }
 
@@ -1765,12 +1767,7 @@ export default function Charts() {
         refY={0}
         height={isMobile ? 160 : 200}
         isMobile={isMobile}
-        explanation="Стандартне відхилення розподілу Net R у ковзному вікні. Вимірює консистентність результатів. Низьке значення = стабільні результати. Різкий ріст StdDev означає підвищену нестабільність у live-торгівлі відносно бектесту.
-
-Як читати:
-• Обидві криві рівні → Live веде себе так само консистентно як бектест
-• Синя вища за сіру → Live результати хаотичніші, більший розкид R
-• Синя нижча за сіру → Live стабільніший (рідко)"
+        explanation={t.chartsStdDevExplanation}
       />
 
       {/* ─────────────────────── UNIFIED MC + STRESS ──────────────────────── */}
@@ -1778,14 +1775,14 @@ export default function Charts() {
         {/* ── HEADER ── */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700 }}>Monte Carlo — Stress Simulation</div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{t.chartsMcBandHeaderBootstrap}</div>
             <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>
-              Bootstrap + стрес-фактори · Ручний запуск
-              {mcHasFilter ? <span style={{ marginLeft: 8, color: '#a78bfa', fontWeight: 600 }}>· фільтр активний</span> : null}
+              {t.chartsMcBootstrapDesc}
+              {mcHasFilter ? <span style={{ marginLeft: 8, color: '#a78bfa', fontWeight: 600 }}>{t.chartsFilterActive}</span> : null}
             </div>
           </div>
           {mcHasFilter && (
-            <button onClick={resetMcFilter} style={{ background: 'rgba(255,77,106,0.12)', border: '1px solid rgba(255,77,106,0.35)', color: 'var(--red)', borderRadius: 7, padding: '4px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Скинути фільтр</button>
+            <button onClick={resetMcFilter} style={{ background: 'rgba(255,77,106,0.12)', border: '1px solid rgba(255,77,106,0.35)', color: 'var(--red)', borderRadius: 7, padding: '4px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{t.chartsResetFilter}</button>
           )}
         </div>
 
@@ -1795,73 +1792,73 @@ export default function Charts() {
           {/* BT Filter */}
           <div style={{ background: 'var(--surface2)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 10, padding: '12px 14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Backtest — вибір даних</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{t.chartsBtSelectLabel}</div>
               {mcCustomData?.btCount != null && (
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.3)', borderRadius: 4, padding: '1px 7px', fontVariantNumeric: 'tabular-nums' }}>
-                  {mcCustomData.btCount} угод
+                  {t.tradesCount(mcCustomData.btCount)}
                 </span>
               )}
             </div>
             {mcFilterOptions?.btTree ? (
               <MCFilterPanel tree={mcFilterOptions.btTree} selAssets={mcBtAssets} selYears={mcBtYears} selMonths={mcBtMonths} onToggleAsset={handleMcBtToggleAsset} onToggleYear={handleMcBtToggleYear} onToggleMonth={(asset, m) => setMcBtMonths(s => toggleSet(s, `${asset}__${m}`))} color="#a78bfa" />
-            ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>}
+            ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>{t.loading}</div>}
           </div>
 
           {/* Live Filter */}
           <div style={{ background: 'var(--surface2)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 10, padding: '12px 14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Live — вибір даних</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{t.chartsLvSelectLabel}</div>
               {mcCustomData?.lvCount != null && (
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 4, padding: '1px 7px', fontVariantNumeric: 'tabular-nums' }}>
-                  {mcCustomData.lvCount} угод
+                  {t.tradesCount(mcCustomData.lvCount)}
                 </span>
               )}
             </div>
             {mcFilterOptions?.lvTree ? (
               <MCFilterPanel tree={mcFilterOptions.lvTree} selAssets={mcLvAssets} selYears={mcLvYears} selMonths={mcLvMonths} onToggleAsset={handleMcLvToggleAsset} onToggleYear={handleMcLvToggleYear} onToggleMonth={(asset, m) => setMcLvMonths(s => toggleSet(s, `${asset}__${m}`))} color="#4ade80" />
-            ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>Завантаження...</div>}
+            ) : <div style={{ fontSize: 12, color: 'var(--text2)' }}>{t.loading}</div>}
           </div>
 
           {/* Sim params row */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 10 }}>
             {/* N Simulations */}
             <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
-              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>N симуляцій</div>
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>{t.chartsNSimLabel}</div>
               <input
                 type="number" min={100} max={20000} step={500}
                 value={mcNSim}
                 onChange={e => setMcNSim(Math.max(100, Math.min(20000, Number(e.target.value) || 5000)))}
                 style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', fontSize: 13, fontWeight: 700, color: 'var(--text)', boxSizing: 'border-box' }}
               />
-              <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>за замовч. 5000</div>
+              <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>{t.chartsNSimDefault}</div>
             </div>
             {/* Horizon */}
             <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
-              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Горизонт (угод)</div>
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>{t.chartsHorizonLabel}</div>
               <input
                 type="number" min={1} max={2000} step={10}
                 value={mcHorizon}
-                placeholder="= к-сть BT угод"
+                placeholder={t.chartsHorizonPlaceholder}
                 onChange={e => setMcHorizon(e.target.value === '' ? '' : Math.max(1, Number(e.target.value)))}
                 style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', fontSize: 13, fontWeight: 700, color: 'var(--text)', boxSizing: 'border-box' }}
               />
-              <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>відповідає к-сті BT</div>
+              <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>{t.chartsHorizonDefault}</div>
             </div>
             {/* Trade cost */}
             <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
-              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Trade cost (R/угода)</div>
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>{t.chartsTradeCostLabel}</div>
               <input
                 type="number" step={0.001}
                 value={mcTradeCost}
-                placeholder="= avg з BT"
+                placeholder={t.chartsTradeCostPlaceholder}
                 onChange={e => setMcTradeCost(e.target.value === '' ? '' : Number(e.target.value))}
                 style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', fontSize: 13, fontWeight: 700, color: 'var(--text)', boxSizing: 'border-box' }}
               />
-              <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>від'ємне = cost</div>
+              <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>{t.chartsTradeCostDefault}</div>
             </div>
             {/* Std Dev formula */}
             <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
-              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Std Dev формула</div>
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>{t.chartsStdDevLabel}</div>
               <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
                 {(['n-1', 'n'] as const).map(f => (
                   <button key={f} onClick={() => setMcStdDev(f)} style={{
@@ -1870,7 +1867,7 @@ export default function Charts() {
                   }}>{f === 'n-1' ? 'N−1' : 'N'}</button>
                 ))}
               </div>
-              <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>{mcStdDev === 'n-1' ? 'вибірка / <100 угод' : 'генеральна / >100'}</div>
+              <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>{mcStdDev === 'n-1' ? t.chartsStdDevSample : t.chartsStdDevPop}</div>
             </div>
           </div>
 
@@ -1883,10 +1880,10 @@ export default function Charts() {
               </div>
               {jitterOpen && (
                 <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', marginBottom: 6, fontSize: 10, color: 'var(--text2)', lineHeight: 1.6 }}>
-                  <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Що моделює: </span>Природну мінливість розміру трейдів — spread, re-quote, різниця між бектест-ціною і реальним виконанням.</div>
-                  <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Сценарій: </span>Ринок рухається на тебе під час виконання — ти отримуєш трейд, але з іншим RR ніж у бектесті.</div>
-                  <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>Як працює: </span>До кожного семплованого трейду додається нормальний шум N(0, std × jitter). При jitter=0.15 це ±15% від стандартного відхилення вибірки.</div>
-                  <div><span style={{ color: 'var(--text)', fontWeight: 700 }}>Вплив: </span>Розширює розкид кривих при малих датасетах. Корисно коли вибірка &lt;100 трейдів — без jitter криві виглядають штучно рівними.</div>
+                  <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>{t.chartsModels}: </span>{t.chartsJitterModelsText}</div>
+                  <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>{t.chartsScenario}: </span>{t.chartsJitterScenarioText}</div>
+                  <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text)', fontWeight: 700 }}>{t.chartsHowWorks}: </span>{t.chartsJitterHowText}</div>
+                  <div><span style={{ color: 'var(--text)', fontWeight: 700 }}>{t.chartsImpact}: </span>{t.chartsJitterImpactText}</div>
                 </div>
               )}
               <input
@@ -1895,11 +1892,11 @@ export default function Charts() {
                 onChange={e => setMcJitter(Math.max(0, Math.min(1, Number(e.target.value) || 0)))}
                 style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', fontSize: 13, fontWeight: 700, color: 'var(--text)', boxSizing: 'border-box' }}
               />
-              <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>0 = вимкнено · 0.15 = ±15% std шум · збільшує розкид при малих датасетах</div>
+              <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>{t.chartsJitterDefault}</div>
             </div>
             <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
-              <StressSlider label="Max DD Threshold" description="Просадка понад цей поріг = blown account. Впливає на Survival Rate." value={stressParams.survivalThreshold} min={2} max={50} step={1} format={v => `${v}R`} onChange={v => setSP('survivalThreshold', v)} accent="#6b7280"
-                explain={{ models: 'Максимально допустиму просадку рахунку — поріг після якого стратегія вважається провалена.', scenario: 'Ти поставив правило: якщо просадка перевищить X R — зупиняєш торгівлю. Цей параметр симулює скільки симуляцій досягають цього порогу.', how: 'В кожній MC симуляції відстежується максимальна просадка. Якщо вона перевищує threshold — симуляція рахується як "blown". Survival Rate = % симуляцій що вижили.', impact: 'Зменшення порогу різко знижує Survival Rate. При 5R порозі і лосс-стріку 3-4 трейди ти майже гарантовано "підриваєшся". Реалістичний поріг — 10-20R.' }}
+              <StressSlider label="Max DD Threshold" description={t.chartsSliderSurvivalDesc} value={stressParams.survivalThreshold} min={2} max={50} step={1} format={v => `${v}R`} onChange={v => setSP('survivalThreshold', v)} accent="#6b7280"
+                explain={{ models: t.chartsExplainSurvivalModels, scenario: t.chartsExplainSurvivalScenario, how: t.chartsExplainSurvivalHow, impact: t.chartsExplainSurvivalImpact }}
               />
             </div>
           </div>
@@ -1907,55 +1904,55 @@ export default function Charts() {
 
           {/* Stress sliders */}
           <div style={{ background: 'var(--surface2)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, padding: '14px 16px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Стрес-фактори</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>{t.chartsLossFactors}</div>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 0 : '0 32px' }}>
               {/* Left */}
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Фактори збитків</div>
-                <StressSlider label="Loss Amplification" description="Збільшити розмір кожного збитку. 1.0 = без змін, 1.2 = збитки на 20% більші" value={stressParams.lossAmp} min={1} max={2} step={0.05} format={v => `×${v.toFixed(2)}`} onChange={v => setSP('lossAmp', v)} accent="#f87171" sliderId="lossAmp"
-                  explain={{ models: 'Систематичне збільшення реальних збитків відносно бектесту — ширший спред, гірше виконання стопів, новинні гепи.', scenario: 'Ти торгуєш бектест з SL=1R, але на реальному ринку стопи спрацьовують по 1.2R через слип та гепи під час волатильності.', how: 'Кожен збитковий трейд у симуляції множиться на цей коефіцієнт. 1.2× означає що -1R стає -1.2R для кожного програшу.', impact: 'Прямо впливає на Total R та Max DD. При ×1.3 і WR 50% система може стати збитковою. Найбільш реалістичний діапазон для активного трейдингу: 1.05–1.2.' }} />
-                <StressSlider label="Win Reduction" description="Зменшити розмір кожного виграшу. 1.0 = без змін, 0.8 = виграші на 20% менші" value={stressParams.winReduction} min={0.4} max={1} step={0.05} format={v => `×${v.toFixed(2)}`} onChange={v => setSP('winReduction', v)} accent="#fb923c" sliderId="winReduction"
-                  explain={{ models: 'Ранній вихід з прибуткових угод — ти закрив раніше цілі через страх розвороту або зменшив TP.', scenario: 'Бектест показує середній виграш 2R, але в реальності ти виходиш по 1.6R через психологічний тиск або часткові виходи.', how: 'Кожен прибутковий трейд у симуляції множиться на цей коефіцієнт. 0.8× означає що +2R стає +1.6R.', impact: 'Знижує середнє очікування (EV) та SQN. При 0.7× навіть система з WR 60% може мати від\'ємне EV. Комбінація з Loss Amplification — найжорсткіший стрес-тест.' }} />
-                <StressSlider label="WR Degradation" description="Конвертувати % випадкових TP в SL. 0.1 = 10% виграшів стають програшами" value={stressParams.wrDegradation} min={0} max={0.4} step={0.01} format={v => `${(v * 100).toFixed(0)}%`} onChange={v => setSP('wrDegradation', v)} accent="#facc15" sliderId="wrDegradation"
-                  explain={{ models: 'Деградацію win rate — ринок змінився, сетап відпрацьовує гірше, або фільтрація входів погіршилась.', scenario: 'Бектест показав WR 55%, але через зміну режиму ринку або overtrade 10% виграшів перетворилися на програші.', how: 'Рандомно вибрані X% виграшів конвертуються в збитки (TP → SL). Це знижує реальний WR пропорційно значенню параметра.', impact: 'Найсильніший вплив на системи з низьким RR. При WR 50% і degradation 0.15 реальний WR стає ~42.5% — більшість систем з RR 1:1 стають збитковими.' }} />
-                <StressSlider label="Execution Slippage" description="Додатковий cost per trade в R (окремо від Trade cost). 0.05 = −0.05R" value={stressParams.slippage} min={0} max={0.3} step={0.01} format={v => `−${v.toFixed(2)}R`} onChange={v => setSP('slippage', v)} accent="#a78bfa" sliderId="slippage"
-                  explain={{ models: 'Систематичний сліпаж при виконанні — різниця між очікуваною і реальною ціною входу/виходу.', scenario: 'Ти торгуєш на відкритті свічки, але реально отримуєш ціну на 0.05R гірше через затримку ордера або недостатню ліквідність.', how: 'До кожного трейду (і виграшу і програшу) додається фіксований від\'ємний cost у R. Окремо від Trade Cost — моделює ринковий сліпаж а не комісію.', impact: 'При 100 трейдах і slippage 0.05R це -5R на рік лише від сліпажу. Малий вплив на окремий трейд, але суттєвий на великій вибірці.' }} />
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>{t.chartsLossFactors}</div>
+                <StressSlider label="Loss Amplification" description={t.chartsSliderLossAmpDesc} value={stressParams.lossAmp} min={1} max={2} step={0.05} format={v => `×${v.toFixed(2)}`} onChange={v => setSP('lossAmp', v)} accent="#f87171" sliderId="lossAmp"
+                  explain={{ models: t.chartsExplainLossAmpModels, scenario: t.chartsExplainLossAmpScenario, how: t.chartsExplainLossAmpHow, impact: t.chartsExplainLossAmpImpact }} />
+                <StressSlider label="Win Reduction" description={t.chartsSliderWinRedDesc} value={stressParams.winReduction} min={0.4} max={1} step={0.05} format={v => `×${v.toFixed(2)}`} onChange={v => setSP('winReduction', v)} accent="#fb923c" sliderId="winReduction"
+                  explain={{ models: t.chartsExplainWinRedModels, scenario: t.chartsExplainWinRedScenario, how: t.chartsExplainWinRedHow, impact: t.chartsExplainWinRedImpact }} />
+                <StressSlider label="WR Degradation" description={t.chartsSliderWrDegDesc} value={stressParams.wrDegradation} min={0} max={0.4} step={0.01} format={v => `${(v * 100).toFixed(0)}%`} onChange={v => setSP('wrDegradation', v)} accent="#facc15" sliderId="wrDegradation"
+                  explain={{ models: t.chartsExplainWrDegModels, scenario: t.chartsExplainWrDegScenario, how: t.chartsExplainWrDegHow, impact: t.chartsExplainWrDegImpact }} />
+                <StressSlider label="Execution Slippage" description={t.chartsSliderSlipDesc} value={stressParams.slippage} min={0} max={0.3} step={0.01} format={v => `−${v.toFixed(2)}R`} onChange={v => setSP('slippage', v)} accent="#a78bfa" sliderId="slippage"
+                  explain={{ models: t.chartsExplainSlipModels, scenario: t.chartsExplainSlipScenario, how: t.chartsExplainSlipHow, impact: t.chartsExplainSlipImpact }} />
               </div>
               {/* Right */}
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Додаткові фактори</div>
-                <StressSlider label="Human Error" description="Тильт, забув стоп. З ймовірністю X% трейд стає −1R незалежно від результату" value={stressParams.humanError} min={0} max={0.2} step={0.005} format={v => `${(v * 100).toFixed(1)}%`} onChange={v => setSP('humanError', v)} accent="#f87171" sliderId="humanError"
-                  explain={{ models: 'Психологічні помилки — тильт, порушення правил, ігнорування стопів під впливом емоцій.', scenario: 'Після серії програшів ти не виставив стоп або переніс його далі. Один раз на 20 трейдів ти отримуєш катастрофічний збиток замість розрахункового.', how: 'З ймовірністю X% будь-який трейд (і виграшний і програшний) замінюється на фіксований -1R — незалежно від оригінального результату.', impact: 'Навіть 2% помилок помітно псують SQN та збільшують Max DD. При 5% частота катастрофічних трейдів стає системною проблемою — система втрачає edge.' }} />
-                <StressSlider label="Fatigue Decay" description="Злякався відкату, вийшов раніше. Кожен прибутковий трейд зменшується на X%" value={stressParams.fatigue} min={0} max={0.5} step={0.01} format={v => `−${(v * 100).toFixed(0)}% від виграшу`} onChange={v => setSP('fatigue', v)} accent="#fb923c" sliderId="fatigue"
-                  explain={{ models: 'Накопичену втому від торгівлі — зменшення якості утримання позицій після тривалих сесій або серій трейдів.', scenario: 'До кінця дня або після 5+ трейдів ти виходиш раніше цілі. Виграшний трейд 2R закривається по 1.4R через психологічну втому.', how: 'Кожен прибутковий трейд зменшується на X% від свого значення. 20% decay перетворює +2R на +1.6R на кожному виграші.', impact: 'Поступово "з\'їдає" EV системи. Комбінується з Win Reduction — разом моделюють загальну деградацію утримання прибутків.' }} />
-                <StressSlider label="Bad Slip Prob" description="Ймовірність що стоп спрацює по гіршій ціні (гепи, новини)" value={stressParams.badSlipProb} min={0} max={0.5} step={0.01} format={v => `${(v * 100).toFixed(0)}%`} onChange={v => setSP('badSlipProb', v)} accent="#38bdf8" sliderId="badSlipProb"
-                  explain={{ models: 'Ймовірність екстремального сліпажу при виконанні стопу — геп на відкритті, новини, flash crash.', scenario: 'Ти тримаєш позицію через ніч. Ціна гепує повз твій стоп і ти виходиш по набагато гіршій ціні ніж планував.', how: 'З ймовірністю X% збитковий трейд додатково множиться на Bad Slip Multiplier. Два параметри працюють разом.', impact: 'Самостійно майже не впливає — тільки в парі з Bad Slip Mult. При 20% prob і 2× mult кожен п\'ятий програш стає вдвічі більшим.' }} />
-                <StressSlider label="Bad Slip Mult" description="Сила удару при поганому виконанні. 1.4× = збиток −1R стає −1.4R" value={stressParams.badSlipMult} min={1} max={3} step={0.1} format={v => `×${v.toFixed(1)}`} onChange={v => setSP('badSlipMult', v)} accent="#38bdf899" sliderId="badSlipMult"
-                  explain={{ models: 'Розмір збитку при спрацюванні поганого виконання (в парі з Bad Slip Prob).', scenario: 'Геп через новини — стоп на -1R але реальний вихід по -2.5R. Ринок пройшов ліквідність і пішов далі перед розворотом.', how: 'Коли спрацьовує Bad Slip Prob, збиток множиться на цей коефіцієнт. 2.0× при -1R дає -2R фактичного збитку.', impact: 'Критично впливає на Max DD при комбінації з високим Prob. ×3 навіть при 10% prob може зруйнувати Survival Rate.' }} />
-                <StressSlider label="Missed Win" description="Пропустив прибуткову угоду. Прибуток стає 0R" value={stressParams.missedWin} min={0} max={0.5} step={0.01} format={v => `${(v * 100).toFixed(0)}%`} onChange={v => setSP('missedWin', v)} accent="#4ade80" sliderId="missedWin"
-                  explain={{ models: 'Пропущені прибуткові можливості — не встиг увійти, відволікся, вже в позиції, вирішив пропустити сетап.', scenario: 'Сетап спрацював поки ти спав або був зайнятий. 15% сетапів ти просто не берешь — вони відпрацьовують без тебе.', how: 'X% випадково вибраних виграшних трейдів замінюються на 0R — ніби ти не увійшов. Збиткові трейди залишаються незмінними.', impact: 'Асиметрично погіршує результат — ти пропускаєш виграші але не пропускаєш програші. Знижує WR та Total R. 15% missed wins ≈ -15% від загального профіту.' }} />
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>{t.chartsExtraFactors}</div>
+                <StressSlider label="Human Error" description={t.chartsSliderHumanErrDesc} value={stressParams.humanError} min={0} max={0.2} step={0.005} format={v => `${(v * 100).toFixed(1)}%`} onChange={v => setSP('humanError', v)} accent="#f87171" sliderId="humanError"
+                  explain={{ models: t.chartsExplainHumanErrModels, scenario: t.chartsExplainHumanErrScenario, how: t.chartsExplainHumanErrHow, impact: t.chartsExplainHumanErrImpact }} />
+                <StressSlider label="Fatigue Decay" description={t.chartsSliderFatigueDesc} value={stressParams.fatigue} min={0} max={0.5} step={0.01} format={v => t.chartsSliderFatigueFormat(v)} onChange={v => setSP('fatigue', v)} accent="#fb923c" sliderId="fatigue"
+                  explain={{ models: t.chartsExplainFatigueModels, scenario: t.chartsExplainFatigueScenario, how: t.chartsExplainFatigueHow, impact: t.chartsExplainFatigueImpact }} />
+                <StressSlider label="Bad Slip Prob" description={t.chartsSliderBadSlipProbDesc} value={stressParams.badSlipProb} min={0} max={0.5} step={0.01} format={v => `${(v * 100).toFixed(0)}%`} onChange={v => setSP('badSlipProb', v)} accent="#38bdf8" sliderId="badSlipProb"
+                  explain={{ models: t.chartsExplainBadSlipProbModels, scenario: t.chartsExplainBadSlipProbScenario, how: t.chartsExplainBadSlipProbHow, impact: t.chartsExplainBadSlipProbImpact }} />
+                <StressSlider label="Bad Slip Mult" description={t.chartsSliderBadSlipMultDesc} value={stressParams.badSlipMult} min={1} max={3} step={0.1} format={v => `×${v.toFixed(1)}`} onChange={v => setSP('badSlipMult', v)} accent="#38bdf899" sliderId="badSlipMult"
+                  explain={{ models: t.chartsExplainBadSlipMultModels, scenario: t.chartsExplainBadSlipMultScenario, how: t.chartsExplainBadSlipMultHow, impact: t.chartsExplainBadSlipMultImpact }} />
+                <StressSlider label="Missed Win" description={t.chartsSliderMissedWinDesc} value={stressParams.missedWin} min={0} max={0.5} step={0.01} format={v => `${(v * 100).toFixed(0)}%`} onChange={v => setSP('missedWin', v)} accent="#4ade80" sliderId="missedWin"
+                  explain={{ models: t.chartsExplainMissedWinModels, scenario: t.chartsExplainMissedWinScenario, how: t.chartsExplainMissedWinHow, impact: t.chartsExplainMissedWinImpact }} />
               </div>
             </div>
           </div>
 
           {/* Combos row */}
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8, opacity: isModified ? 1 : 0.4 }} onClick={resetStress}>Скинути стрес</button>
-            <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8 }} onClick={() => { setSaveOpen(o => !o); setSaveComboName(''); }}>Зберегти комбінацію</button>
+            <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8, opacity: isModified ? 1 : 0.4 }} onClick={resetStress}>{t.chartsResetStress}</button>
+            <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8 }} onClick={() => { setSaveOpen(o => !o); setSaveComboName(''); }}>{t.chartsSaveCombo}</button>
             {savedCombos.length > 0 && (
               <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 12px', borderRadius: 8 }} onClick={() => setSavedCombosOpen(o => !o)}>
-                {savedCombosOpen ? '▲' : '▼'} Збережені ({savedCombos.length})
+                {savedCombosOpen ? '▲' : '▼'} {t.chartsSavedCombos(savedCombos.length)}
               </button>
             )}
           </div>
 
           {saveOpen && (
             <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
-              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>Зберегти комбінацію факторів</div>
-              <input type="text" placeholder="Назва..." value={saveComboName} onChange={e => setSaveComboName(e.target.value)} onKeyDown={(e: any) => e.key === 'Enter' && saveCombo()} style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', fontSize: 12, color: 'var(--text)', marginBottom: 10, boxSizing: 'border-box' }} />
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>{t.chartsSaveComboTitle}</div>
+              <input type="text" placeholder={t.chartsSaveComboPlaceholder} value={saveComboName} onChange={e => setSaveComboName(e.target.value)} onKeyDown={(e: any) => e.key === 'Enter' && saveCombo()} style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', fontSize: 12, color: 'var(--text)', marginBottom: 10, boxSizing: 'border-box' }} />
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8, background: '#1e3a5f', border: '1px solid #3b82f6' }} onClick={saveCombo}>✓ Зберегти</button>
-                <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8 }} onClick={() => setSaveOpen(false)}>Скасувати</button>
+                <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8, background: '#1e3a5f', border: '1px solid #3b82f6' }} onClick={saveCombo}>{t.chartsSaveComboBtn}</button>
+                <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 14px', borderRadius: 8 }} onClick={() => setSaveOpen(false)}>{t.cancel}</button>
               </div>
             </div>
           )}
@@ -1968,15 +1965,15 @@ export default function Charts() {
                     <div style={{ fontSize: 12, fontWeight: 600 }}>{combo.name}</div>
                     <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>
                       {[
-                        combo.mcParams ? `${combo.mcParams.nSim.toLocaleString()} сим` : null,
-                        combo.mcParams?.horizon !== '' && combo.mcParams?.horizon ? `горизонт ${combo.mcParams.horizon}` : null,
+                        combo.mcParams ? t.chartsSimsUnit(combo.mcParams.nSim.toLocaleString()) : null,
+                        combo.mcParams?.horizon !== '' && combo.mcParams?.horizon ? t.chartsHorizonUnit(combo.mcParams.horizon) : null,
                         combo.mcParams?.jitter ? `jitter ${combo.mcParams.jitter}` : null,
                         combo.mcParams?.btAssets.length ? `BT: ${combo.mcParams.btAssets.join(',')}` : null,
                         ...(Object.entries(combo.params) as [string, number][]).filter(([k, v]) => v !== (defaultStress as any)[k]).map(([k, v]) => `${k}: ${v}`),
-                      ].filter(Boolean).join(' · ') || 'всі за замовчуванням'}
+                      ].filter(Boolean).join(' · ') || t.chartsComboDefault}
                     </div>
                   </div>
-                  <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, color: '#7eb8f7', border: '1px solid #1e3a5f' }} onClick={() => loadCombo(combo)}>Застосувати</button>
+                  <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, color: '#7eb8f7', border: '1px solid #1e3a5f' }} onClick={() => loadCombo(combo)}>{t.chartsApply}</button>
                   <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, color: '#f87171' }} onClick={() => deleteCombo(combo.id)}>✕</button>
                 </div>
               ))}
@@ -1998,7 +1995,7 @@ export default function Charts() {
           >
             {mcRunLoading ? `Running ${mcNSim.toLocaleString()} simulations...` : '▶ Run Simulation'}
           </button>
-          {mcRunError && <div style={{ color: '#f87171', fontSize: 12, padding: '8px 12px', background: 'rgba(248,113,113,0.1)', borderRadius: 8 }}>Помилка: {mcRunError}</div>}
+          {mcRunError && <div style={{ color: '#f87171', fontSize: 12, padding: '8px 12px', background: 'rgba(248,113,113,0.1)', borderRadius: 8 }}>{t.chartsSimError(mcRunError)}</div>}
         </div>
 
         {/* ── RESULTS ── */}
@@ -2018,9 +2015,9 @@ export default function Charts() {
 
           // ── Summary cards ──────────────────────────────────────────────
           const summaryCards = [
-            { label: 'Очікуваний результат (медіана)', scenario: 'med', totalR: r.summary.med.totalR, sqn: r.summary.med.sqn, borderColor: 'rgba(167,139,250,0.4)' },
-            { label: 'Гірший сценарій (p5)',           scenario: 'p5',  totalR: r.summary.p5.totalR,  sqn: r.summary.p5.sqn,  borderColor: 'rgba(248,113,113,0.4)' },
-            { label: 'Кращий сценарій (p95)',          scenario: 'p95', totalR: r.summary.p95.totalR, sqn: r.summary.p95.sqn, borderColor: 'rgba(74,222,128,0.4)' },
+            { label: t.chartsSimExpected, scenario: 'med', totalR: r.summary.med.totalR, sqn: r.summary.med.sqn, borderColor: 'rgba(167,139,250,0.4)' },
+            { label: t.chartsSimWorst, scenario: 'p5',  totalR: r.summary.p5.totalR,  sqn: r.summary.p5.sqn,  borderColor: 'rgba(248,113,113,0.4)' },
+            { label: t.chartsSimBest, scenario: 'p95', totalR: r.summary.p95.totalR, sqn: r.summary.p95.sqn, borderColor: 'rgba(74,222,128,0.4)' },
           ];
 
           return (
@@ -2028,13 +2025,13 @@ export default function Charts() {
 
               {/* Meta */}
               <div style={{ fontSize: 10, color: 'var(--text2)' }}>
-                {r.nSim.toLocaleString()} симуляцій · горизонт {r.horizon} угод · trade cost {r.tradeCost >= 0 ? '+' : ''}{r.tradeCost.toFixed(4)}R/угода
-                {r.tradeCost === r.avgCostBt ? ' (avg з BT)' : ' (власний)'}
+                {t.chartsSimCount(r.nSim.toLocaleString(), r.horizon, r.tradeCost >= 0 ? '+' + r.tradeCost.toFixed(4) : r.tradeCost.toFixed(4))}
+                {r.tradeCost === r.avgCostBt ? t.chartsSimCountAvg : t.chartsSimCountCustom}
                 {r.jitter > 0 ? ` · jitter ×${r.jitter.toFixed(2)}` : ''}
               </div>
 
               {/* Результати симуляції header */}
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1 }}>Результати симуляції</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1 }}>{t.chartsSimResults}</div>
 
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3,1fr)', gap: 12 }}>
                 {summaryCards.map(card => {
@@ -2123,8 +2120,8 @@ export default function Charts() {
                   );
                 })()}
                 <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap', fontSize: 10, color: 'var(--text2)' }}>
-                  <span><span style={{ color: '#2a7bb5' }}>━</span> {r.mcPathsSample.length} прикладів симуляцій</span>
-                  <span><span style={{ color: MC_MED_COLOR }}>━</span> Медіана</span>
+                  <span><span style={{ color: '#2a7bb5' }}>━</span> {t.chartsMcExamples(r.mcPathsSample.length)}</span>
+                  <span><span style={{ color: MC_MED_COLOR }}>━</span> {t.chartsMcMedianLine}</span>
                   <span><span style={{ color: MC_BAND_COLOR }}>- -</span> p5/p95</span>
                 </div>
               </div>
@@ -2147,7 +2144,7 @@ export default function Charts() {
                 return (
                   <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1 }}>Вплив стрес-факторів</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1 }}>{t.chartsFactorImpact}</div>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         {(['bt', 'lv'] as const).map(ref => (
                           <button key={ref} onClick={() => setMcImpactRef(ref)} style={{
@@ -2161,7 +2158,7 @@ export default function Charts() {
                       </div>
                     </div>
                     {activeImpacts.length === 0 ? (
-                      <div style={{ fontSize: 11, color: 'var(--text2)' }}>Стрес-фактори неактивні</div>
+                      <div style={{ fontSize: 11, color: 'var(--text2)' }}>{t.chartsFactorsInactive}</div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {[...r.factorImpacts].sort((a, b) => a.impact - b.impact).map(row => {
@@ -2176,7 +2173,7 @@ export default function Charts() {
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
                                 <span
                                   style={{ fontSize: 11, color: isActive ? 'var(--text)' : 'var(--text2)', cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 3 }}
-                                  title="Перейти до налаштування"
+                                  title={t.chartsGoToSettings}
                                   onClick={() => {
                                     // badSlip key maps to badSlipProb slider
                                     const sliderId = row.key === 'badSlip' ? 'badSlipProb' : row.key;
@@ -2204,10 +2201,10 @@ export default function Charts() {
                         })}
                         {refVal !== 0 && (
                           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 4, fontSize: 11, color: 'var(--text2)' }}>
-                            {refLabel} {refVal >= 0 ? '+' : ''}{refVal.toFixed(2)}R → MC медіана {mcMedTotal >= 0 ? '+' : ''}{mcMedTotal.toFixed(2)}R <span style={{ color: totalImpact < 0 ? '#f87171' : '#4ade80', fontWeight: 700 }}>({totalImpact >= 0 ? '+' : ''}{totalImpact.toFixed(2)}R)</span>
+                            {refLabel} {refVal >= 0 ? '+' : ''}{refVal.toFixed(2)}R → {t.chartsMcMedianShort} {mcMedTotal >= 0 ? '+' : ''}{mcMedTotal.toFixed(2)}R <span style={{ color: totalImpact < 0 ? '#f87171' : '#4ade80', fontWeight: 700 }}>({totalImpact >= 0 ? '+' : ''}{totalImpact.toFixed(2)}R)</span>
                           </div>
                         )}
-                        <div style={{ fontSize: 9, color: '#4b5563' }}>* % = вага фактора. R значення = пропорційна частка Σ (MC медіана vs {refLabel}).</div>
+                        <div style={{ fontSize: 9, color: '#4b5563' }}>* % = weight of factor. R value = proportional share of Σ (MC median vs {refLabel}).</div>
                       </div>
                     )}
 
@@ -2227,14 +2224,14 @@ export default function Charts() {
                       ];
                       return (
                         <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Ключові метрики</div>
+                          <div style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{t.chartsKeyMetrics}</div>
                           <div style={{ overflowX: 'auto' }}>
                             <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
                               <thead>
                                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                                  <th style={{ textAlign: 'left', padding: '4px 8px', color: 'var(--text2)', fontWeight: 600, fontSize: 10 }}>Метрика</th>
+                                  <th style={{ textAlign: 'left', padding: '4px 8px', color: 'var(--text2)', fontWeight: 600, fontSize: 10 }}>{t.chartsMetricLabel}</th>
                                   <th style={{ textAlign: 'right', padding: '4px 8px', color: '#6b7280', fontWeight: 600, fontSize: 10 }}>{refLabel}</th>
-                                  <th style={{ textAlign: 'right', padding: '4px 8px', color: MC_MED_COLOR, fontWeight: 600, fontSize: 10 }}>MC медіана</th>
+                                  <th style={{ textAlign: 'right', padding: '4px 8px', color: MC_MED_COLOR, fontWeight: 600, fontSize: 10 }}>{t.chartsMcMedianShort}</th>
                                   <th style={{ textAlign: 'right', padding: '4px 8px', color: MC_BAND_COLOR, fontWeight: 600, fontSize: 10 }}>p5</th>
                                   <th style={{ textAlign: 'right', padding: '4px 8px', color: MC_BAND_COLOR, fontWeight: 600, fontSize: 10 }}>p95</th>
                                 </tr>
@@ -2276,7 +2273,7 @@ export default function Charts() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
                     <XAxis dataKey="bin" stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickFormatter={v => v.toFixed(1)} />
                     <YAxis stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} />
-                    <Tooltip formatter={(v: any, n: any) => [v, 'Симуляцій']} labelFormatter={v => `SQN ≈ ${Number(v).toFixed(2)}`} contentStyle={{ background: 'var(--surface2)', border: '1px solid var(--border)', fontSize: 11 }} />
+                    <Tooltip formatter={(v: any, n: any) => [v, t.chartsSimulations('')]} labelFormatter={v => `SQN ≈ ${Number(v).toFixed(2)}`} contentStyle={{ background: 'var(--surface2)', border: '1px solid var(--border)', fontSize: 11 }} />
                     <Bar dataKey="count" fill="#6b7280" radius={[2, 2, 0, 0]} />
                     <ReferenceLine x={r.summary.med.sqn} stroke={MC_MED_COLOR} strokeWidth={2} label={{ value: 'med', position: 'top', fontSize: 9, fill: MC_MED_COLOR }} />
                   </BarChart>
@@ -2303,12 +2300,12 @@ export default function Charts() {
                     <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 6 }}>Max DD</div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
                       <div>
-                        <div style={{ fontSize: 9, color: 'var(--text2)', marginBottom: 2 }}>медіана</div>
+                        <div style={{ fontSize: 9, color: 'var(--text2)', marginBottom: 2 }}>{t.chartsSimMedianShort}</div>
                         <div style={{ fontSize: 20, fontWeight: 700, color: '#fb923c', fontVariantNumeric: 'tabular-nums' }}>{r.ddMed.toFixed(2)}R</div>
                       </div>
                       <div style={{ width: 1, height: 32, background: 'var(--border)', alignSelf: 'center' }} />
                       <div>
-                        <div style={{ fontSize: 9, color: '#f87171', marginBottom: 2 }}>p5 (гірший)</div>
+                        <div style={{ fontSize: 9, color: '#f87171', marginBottom: 2 }}>{t.chartsSimWorstShort}</div>
                         <div style={{ fontSize: 20, fontWeight: 700, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>{r.ddP5.toFixed(2)}R</div>
                       </div>
                     </div>
@@ -2320,7 +2317,7 @@ export default function Charts() {
                       <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}>
                         <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>P(DD &gt; {stressParams.survivalThreshold}R)</div>
                         <div style={{ fontSize: 22, fontWeight: 700, color: pColor, fontVariantNumeric: 'tabular-nums' }}>{r.ddProbAboveThreshold}%</div>
-                        <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>ймовірність blown account</div>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>{t.chartsBlownProb}</div>
                       </div>
                     );
                   })()}
@@ -2331,14 +2328,14 @@ export default function Charts() {
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>Max DD Distribution</div>
                 <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 8 }}>
-                  мед={r.ddMed.toFixed(2)}R · p5 (гірший) = {r.ddP5.toFixed(2)}R
+                  {t.chartsSimCount2(r.ddMed.toFixed(2), r.ddP5.toFixed(2))}
                 </div>
                 <ResponsiveContainer width="100%" height={isMobile ? 140 : 180}>
                   <BarChart data={r.ddDistribution} margin={{ top: 4, right: 8, bottom: 4, left: 0 }} barSize={14}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
                     <XAxis dataKey="bin" stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickFormatter={v => v.toFixed(1)} label={{ value: 'DD (R)', position: 'insideBottomRight', offset: -4, fontSize: 9, fill: '#5a5f6a' }} />
                     <YAxis stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} />
-                    <Tooltip formatter={(v: any) => [v, 'Симуляцій']} labelFormatter={v => `Max DD ≈ ${Number(v).toFixed(2)}R`} contentStyle={{ background: 'var(--surface2)', border: '1px solid var(--border)', fontSize: 11 }} />
+                    <Tooltip formatter={(v: any) => [v, t.chartsSimulations('')]} labelFormatter={v => `Max DD ≈ ${Number(v).toFixed(2)}R`} contentStyle={{ background: 'var(--surface2)', border: '1px solid var(--border)', fontSize: 11 }} />
                     <Bar dataKey="count" fill="#6b7280" radius={[2, 2, 0, 0]} />
                     <ReferenceLine x={r.ddMed} stroke="#facc15" strokeWidth={2} label={{ value: 'med', position: 'top', fontSize: 9, fill: '#facc15' }} />
                     <ReferenceLine x={stressParams.survivalThreshold} stroke="#f87171" strokeWidth={1.5} strokeDasharray="4 2" label={{ value: 'threshold', position: 'insideTopRight', fontSize: 9, fill: '#f87171' }} />
@@ -2450,14 +2447,14 @@ export default function Charts() {
                 // status
                 let eqStatus = '', eqStatusColor = '';
                 if (lvFinalEq > 0 && lvFinalEq < medProfit) {
-                  eqStatus = 'В нормі'; eqStatusColor = '#facc15';
+                  eqStatus = t.chartsEqInNorm; eqStatusColor = '#facc15';
                 } else if (lvFinalEq <= 0) {
-                  eqStatus = 'Нижче норми'; eqStatusColor = '#f87171';
+                  eqStatus = t.chartsEqBelowNorm; eqStatusColor = '#f87171';
                 } else if (lvFinalEq >= medProfit) {
-                  eqStatus = 'В нормі'; eqStatusColor = '#4ade80';
+                  eqStatus = t.chartsEqInNorm; eqStatusColor = '#4ade80';
                 }
                 if (lvFinalEq <= medLoss) {
-                  eqStatus = 'Нижче норми !!!'; eqStatusColor = '#f87171';
+                  eqStatus = t.chartsEqBelowNormCrit; eqStatusColor = '#f87171';
                 }
 
                 // ═══════════════════════════════════════════════════════════
@@ -2482,13 +2479,13 @@ export default function Charts() {
 
                 let ddStatus = '', ddStatusColor = '';
                 if (lvFinalDD > ddWorst) {
-                  ddStatus = 'Вище норми !!!'; ddStatusColor = '#f87171';
+                  ddStatus = t.chartsDdAboveNormCrit; ddStatusColor = '#f87171';
                 } else if (lvFinalDD > ddLimit) {
-                  ddStatus = 'Вище норми'; ddStatusColor = '#f87171';
+                  ddStatus = t.chartsDdAboveNorm; ddStatusColor = '#f87171';
                 } else if (lvFinalDD <= ddMedian) {
-                  ddStatus = 'Нижче норми'; ddStatusColor = '#4ade80';
+                  ddStatus = t.chartsDdBelowNorm; ddStatusColor = '#4ade80';
                 } else {
-                  ddStatus = 'В нормі'; ddStatusColor = '#fb923c';
+                  ddStatus = t.chartsDdInNorm; ddStatusColor = '#fb923c';
                 }
 
                 // ═══════════════════════════════════════════════════════════
@@ -2514,13 +2511,13 @@ export default function Charts() {
 
                 let sqnStatus = '', sqnStatusColor = '';
                 if (lvFinalSQN < sqnP5) {
-                  sqnStatus = 'Нижче норми'; sqnStatusColor = '#f87171';
+                  sqnStatus = t.chartsSqnBelowNorm; sqnStatusColor = '#f87171';
                 } else if (lvFinalSQN < sqnMed) {
-                  sqnStatus = 'В нормі'; sqnStatusColor = '#facc15';
+                  sqnStatus = t.chartsSqnInNormYellow; sqnStatusColor = '#facc15';
                 } else if (lvFinalSQN < sqnP95) {
-                  sqnStatus = 'В нормі'; sqnStatusColor = '#4ade80';
+                  sqnStatus = t.chartsSqnInNorm; sqnStatusColor = '#4ade80';
                 } else {
-                  sqnStatus = 'Вище норми'; sqnStatusColor = '#4ade80';
+                  sqnStatus = t.chartsSqnAboveNorm; sqnStatusColor = '#4ade80';
                 }
 
                 // ═══════════════════════════════════════════════════════════
@@ -2545,11 +2542,11 @@ export default function Charts() {
 
                 let wrStatus = '', wrStatusColor = '';
                 if (lvFinalWR < wrP5) {
-                  wrStatus = 'Нижче норми !!!'; wrStatusColor = '#f87171';
+                  wrStatus = t.chartsWrBelowNormCrit; wrStatusColor = '#f87171';
                 } else if (lvFinalWR < wrMed) {
-                  wrStatus = 'Нижче норми'; wrStatusColor = '#fb923c';
+                  wrStatus = t.chartsWrBelowNorm; wrStatusColor = '#fb923c';
                 } else {
-                  wrStatus = 'В нормі'; wrStatusColor = '#4ade80';
+                  wrStatus = t.chartsWrInNorm; wrStatusColor = '#4ade80';
                 }
 
                 // ═══════════════════════════════════════════════════════════
@@ -2582,11 +2579,11 @@ export default function Charts() {
 
                 let strkStatus = '', strkStatusColor = '';
                 if (lvStreakFinal > strkP95) {
-                  strkStatus = 'Вище норми !!!'; strkStatusColor = '#f87171';
+                  strkStatus = t.chartsStrkAboveNormCrit; strkStatusColor = '#f87171';
                 } else if (lvStreakFinal > strkMed) {
-                  strkStatus = 'Підвищений'; strkStatusColor = '#fb923c';
+                  strkStatus = t.chartsStrkAboveNorm; strkStatusColor = '#fb923c';
                 } else {
-                  strkStatus = 'В нормі'; strkStatusColor = '#4ade80';
+                  strkStatus = t.chartsStrkInNorm; strkStatusColor = '#4ade80';
                 }
 
                 // ═══════════════════════════════════════════════════════════
@@ -2619,11 +2616,11 @@ export default function Charts() {
 
                 let pfStatus = '', pfStatusColor = '';
                 if (lvPF < pfP5) {
-                  pfStatus = 'Нижче норми !!!'; pfStatusColor = '#f87171';
+                  pfStatus = t.chartsPfBelowNormCrit; pfStatusColor = '#f87171';
                 } else if (lvPF < pfMed) {
-                  pfStatus = 'Нижче медіани'; pfStatusColor = '#fb923c';
+                  pfStatus = t.chartsPfBelowMedian; pfStatusColor = '#fb923c';
                 } else {
-                  pfStatus = 'В нормі'; pfStatusColor = '#4ade80';
+                  pfStatus = t.chartsPfInNorm; pfStatusColor = '#4ade80';
                 }
 
                 const fmtPF = (v: number) => v >= 9.99 ? '∞' : v.toFixed(2);
@@ -2682,19 +2679,19 @@ export default function Charts() {
                           <span style={{ fontWeight: 700, fontFamily: 'monospace', color: LIVE_COLOR }}>{fmtR(lvFinalEq)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                          <span style={{ color: 'var(--text2)' }}>Dev. від med. profit</span>
+                          <span style={{ color: 'var(--text2)' }}>{t.chartsDevFromMedProfit}</span>
                           <span style={{ fontFamily: 'monospace', color: '#e5e7eb' }}>{fmtR(eqDevLive)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                          <span style={{ color: 'var(--text2)' }}>BT dev. від med. profit</span>
+                          <span style={{ color: 'var(--text2)' }}>{t.chartsBtDevFromMedProfit}</span>
                           <span style={{ fontFamily: 'monospace', color: '#e5e7eb' }}>{fmtR(eqDevBt)}</span>
                         </div>
                       </div>
 
                       <ScfStatusBadge label={eqStatus} color={eqStatusColor} />
 
-                      <ScfFactorAccordion id="scf3_eq_profit" label="Exp. Med. Profit — фактори які впливали" factors={toFactorPct(retFactors.filter((f: any) => f.impact < 0))} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
-                      <ScfFactorAccordion id="scf3_eq_loss" label="Exp. Med. Loss — фактори які впливали" factors={toFactorPct(retFactors.filter((f: any) => f.impact < 0))} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
+                      <ScfFactorAccordion id="scf3_eq_profit" label={t.chartsScfEqProfit} factors={toFactorPct(retFactors.filter((f: any) => f.impact < 0))} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
+                      <ScfFactorAccordion id="scf3_eq_loss" label={t.chartsScfEqLoss} factors={toFactorPct(retFactors.filter((f: any) => f.impact < 0))} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
                     </ScfBlockCard>
 
                     {/* ── BLOCK 2: Max DD ── */}
@@ -2748,7 +2745,7 @@ export default function Charts() {
 
                       <ScfStatusBadge label={ddStatus} color={ddStatusColor} />
 
-                      <ScfFactorAccordion id="scf3_dd_med" label="Med. DD — фактори які впливали" factors={toFactorPct(ddFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
+                      <ScfFactorAccordion id="scf3_dd_med" label={t.chartsScfDdMed} factors={toFactorPct(ddFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
                     </ScfBlockCard>
 
                     {/* ── BLOCK 3: SQN ── */}
@@ -2795,7 +2792,7 @@ export default function Charts() {
                           <span style={{ fontFamily: 'monospace', color: '#e5e7eb' }}>{sqnP5.toFixed(2)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                          <span style={{ color: 'var(--text2)' }}>Медіана</span>
+                          <span style={{ color: 'var(--text2)' }}>{t.chartsMedianaShort}</span>
                           <span style={{ fontFamily: 'monospace', color: '#e5e7eb' }}>{sqnMed.toFixed(2)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
@@ -2806,7 +2803,7 @@ export default function Charts() {
 
                       <ScfStatusBadge label={sqnStatus} color={sqnStatusColor} />
 
-                      <ScfFactorAccordion id="scf3_sqn_med" label="Med. SQN — фактори які впливали" factors={toFactorPct(sqnFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
+                      <ScfFactorAccordion id="scf3_sqn_med" label={t.chartsScfSqnMed} factors={toFactorPct(sqnFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
                     </ScfBlockCard>
 
                     {/* ── BLOCK 4: Win Rate ── */}
@@ -2850,14 +2847,14 @@ export default function Charts() {
                           <span style={{ fontFamily: 'monospace', color: '#e5e7eb' }}>{fmtPct(wrP5)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                          <span style={{ color: 'var(--text2)' }}>Медіана</span>
+                          <span style={{ color: 'var(--text2)' }}>{t.chartsMedianaShort}</span>
                           <span style={{ fontFamily: 'monospace', color: '#e5e7eb' }}>{fmtPct(wrMed)}</span>
                         </div>
                       </div>
 
                       <ScfStatusBadge label={wrStatus} color={wrStatusColor} />
 
-                      <ScfFactorAccordion id="scf3_wr_med" label="Med. WR — фактори які впливали" factors={toFactorPct(wrFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
+                      <ScfFactorAccordion id="scf3_wr_med" label={t.chartsScfWrMed} factors={toFactorPct(wrFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
                     </ScfBlockCard>
 
                     {/* ── BLOCK 5: Losing Streak ── */}
@@ -2904,7 +2901,7 @@ export default function Charts() {
                           <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{strkP5}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                          <span style={{ color: 'var(--text2)' }}>Медіана</span>
+                          <span style={{ color: 'var(--text2)' }}>{t.chartsMedianaShort}</span>
                           <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{strkMed}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
@@ -2915,7 +2912,7 @@ export default function Charts() {
 
                       <ScfStatusBadge label={strkStatus} color={strkStatusColor} />
 
-                      <ScfFactorAccordion id="scf3_strk" label="Losing Streak — фактори які впливали" factors={toFactorPct(retFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
+                      <ScfFactorAccordion id="scf3_strk" label={t.chartsScfStrk} factors={toFactorPct(retFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
                     </ScfBlockCard>
 
                     {/* ── BLOCK 6: Profit Factor ── */}
@@ -2962,7 +2959,7 @@ export default function Charts() {
                           <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{fmtPF(pfP5)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                          <span style={{ color: 'var(--text2)' }}>Медіана</span>
+                          <span style={{ color: 'var(--text2)' }}>{t.chartsMedianaShort}</span>
                           <span style={{ fontFamily: 'monospace', color: 'var(--text2)' }}>{fmtPF(pfMed)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
@@ -2973,7 +2970,7 @@ export default function Charts() {
 
                       <ScfStatusBadge label={pfStatus} color={pfStatusColor} />
 
-                      <ScfFactorAccordion id="scf3_pf" label="Profit Factor — фактори які впливали" factors={toFactorPct(retFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
+                      <ScfFactorAccordion id="scf3_pf" label={t.chartsScfPf} factors={toFactorPct(retFactors)} scfOpen={scfOpen} toggleScf={toggleScf} stressParams={stressParams} />
                     </ScfBlockCard>
 
                     </div>{/* end grid */}

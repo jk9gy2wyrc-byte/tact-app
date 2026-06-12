@@ -135,6 +135,7 @@ function getStoredLang(): Lang {
 }
 function setStoredLang(l: Lang) {
   localStorage.setItem('platform_lang', l);
+  window.dispatchEvent(new Event('platform_lang_changed'));
 }
 function getStoredTheme(): 'dark' | 'light' {
   return (localStorage.getItem('platform_theme') as 'dark' | 'light') ?? 'dark';

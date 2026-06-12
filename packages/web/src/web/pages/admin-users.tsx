@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React, { useState, useEffect, useRef } from "react";
 import { useMobile } from "../hooks/useMobile";
+import { useT } from "../lib/i18n";
 
 type RoleOptionValue = 'admin' | 'paid' | 'free-trial' | 'free' | 'no-access';
 
@@ -150,7 +151,7 @@ function RoleDropdown({
           })}
           <div style={{ fontSize: 10, color: '#4ade80', padding: '6px 8px 0', borderTop: '1px solid var(--border)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
             <span style={{ display: 'inline-block', width: 4, height: 4, borderRadius: '50%', background: '#4ade80' }}></span>
-            <span>Зберігається автоматично</span>
+            <span>{t.savedAuto}</span>
           </div>
         </div>
       )}
@@ -229,6 +230,7 @@ function GrowthChart({ data, labelRange }: { data: { date: string; total: number
 }
 
 export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
+  const t = useT();
   const qc = useQueryClient();
   const isMobile = useMobile();
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
@@ -359,8 +361,8 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
         </div>
       </div>
 
-      {isLoading && <div style={{ color: 'var(--text2)', padding: 24 }}>Завантаження...</div>}
-      {error && <div style={{ color: 'var(--red)', padding: 24 }}>Помилка доступу</div>}
+      {isLoading && <div style={{ color: 'var(--text2)', padding: 24 }}>{t.loading}</div>}
+      {error && <div style={{ color: 'var(--red)', padding: 24 }}>{t.accessError}</div>}
 
       {!isLoading && !error && (
         <>
@@ -406,7 +408,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                           {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '••••••' : u.login}
                         </span>
                         {u.login === currentLogin && (
-                          <span style={{ fontSize: 9, color: '#4ade80', background: '#4ade8022', padding: '1px 6px', borderRadius: 10 }}>ТИ</span>
+                          <span style={{ fontSize: 9, color: '#4ade80', background: '#4ade8022', padding: '1px 6px', borderRadius: 10 }>{t.adminYou}</span>
                         )}
                         {u.login === OWNER_LOGIN && (
                           <span style={{ fontSize: 9, color: '#fb923c', background: '#fb923c22', padding: '1px 6px', borderRadius: 10, fontWeight: 700 }}>Owner</span>
@@ -427,12 +429,12 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                     {u.login !== currentLogin && (
                       confirmDelete === u.id ? (
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button onClick={() => deleteMutation.mutate(u.id)} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: '#f87171', color: '#fff', border: 'none', cursor: 'pointer' }}>Так</button>
-                          <button onClick={() => setConfirmDelete(null)} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }}>Ні</button>
+                          <button onClick={() => deleteMutation.mutate(u.id)} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: '#f87171', color: '#fff', border: 'none', cursor: 'pointer' }>{t.yes}</button>
+                          <button onClick={() => setConfirmDelete(null)} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }>{t.no}</button>
                         </div>
                       ) : (
                         <button onClick={() => setConfirmDelete(u.id)} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: 'transparent', color: '#f87171', border: '1px solid #f8717133', cursor: 'pointer' }}>
-                          Видалити
+                          {t.delete}
                         </button>
                       )
                     )}
@@ -446,7 +448,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                 </div>
               ))}
               {users.length === 0 && (
-                <div style={{ textAlign: 'center', color: 'var(--text2)', fontSize: 13, padding: 32 }}>Немає юзерів</div>
+                <div style={{ textAlign: 'center', color: 'var(--text2)', fontSize: 13, padding: 32 }}>{t.noUsers}</div>
               )}
             </div>
           ) : (
@@ -480,7 +482,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                             {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '••••••' : u.login}
                           </span>
                           {u.login === currentLogin && (
-                            <span style={{ fontSize: 9, color: '#4ade80', background: '#4ade8022', padding: '1px 6px', borderRadius: 10 }}>ТИ</span>
+                            <span style={{ fontSize: 9, color: '#4ade80', background: '#4ade8022', padding: '1px 6px', borderRadius: 10 }>{t.adminYou}</span>
                           )}
                           {u.login === OWNER_LOGIN && (
                             <span style={{ fontSize: 9, color: '#fb923c', background: '#fb923c22', padding: '1px 6px', borderRadius: 10, fontWeight: 700 }}>Owner</span>
@@ -511,12 +513,12 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                           <div style={{ display: 'flex', gap: 6 }}>
                             {confirmDelete === u.id ? (
                               <>
-                                <button onClick={() => deleteMutation.mutate(u.id)} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: '#f87171', color: '#fff', border: 'none', cursor: 'pointer' }}>Так</button>
-                                <button onClick={() => setConfirmDelete(null)} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }}>Ні</button>
+                                <button onClick={() => deleteMutation.mutate(u.id)} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: '#f87171', color: '#fff', border: 'none', cursor: 'pointer' }>{t.yes}</button>
+                                <button onClick={() => setConfirmDelete(null)} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }>{t.no}</button>
                               </>
                             ) : (
                               <button onClick={() => setConfirmDelete(u.id)} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'transparent', color: '#f87171', border: '1px solid #f8717133', cursor: 'pointer' }}>
-                                Видалити
+                                {t.delete}
                               </button>
                             )}
                           </div>
@@ -527,7 +529,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                   {users.length === 0 && (
                     <tr>
                       <td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: 'var(--text2)', fontSize: 13 }}>
-                        Немає юзерів
+                        {t.noUsers}
                       </td>
                     </tr>
                   )}

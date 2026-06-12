@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { uidParam } from "../lib/session";
 import { useMobile } from "../hooks/useMobile";
+import { useT } from "../lib/i18n";
 
 async function fetchLive() {
   const r = await fetch(`/api/live-trades${uidParam()}`);
@@ -299,16 +300,17 @@ function EditModal({ trade, onClose, onSave, isPending }: {
 
 function DeleteBtn({ onConfirm, style: extraStyle }: { onConfirm: () => void; style?: React.CSSProperties }) {
   const [open, setOpen] = useState(false);
+  const t = useT();
   return (
     <div style={{ position: 'relative', display: 'inline-block' }} onClick={e => e.stopPropagation()}>
       <button style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6, background: '#2a2d33', border: '1px solid var(--border)', color: 'var(--text2)', cursor: 'pointer', ...extraStyle }}
         onClick={e => { e.stopPropagation(); setOpen(p => !p); }}>×</button>
       {open && (
         <div style={{ position: 'absolute', top: '110%', right: 0, zIndex: 9999, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', minWidth: 160, whiteSpace: 'nowrap' }}>
-          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>Видалити?</div>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>{t.deleteConfirm}</div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button style={{ flex: 1, padding: '5px 0', borderRadius: 7, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer', fontSize: 12 }} onClick={() => setOpen(false)}>Ні</button>
-            <button style={{ flex: 1, padding: '5px 0', borderRadius: 7, border: '1px solid var(--red)', background: 'var(--red)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }} onClick={() => { onConfirm(); setOpen(false); }}>Так</button>
+            <button style={{ flex: 1, padding: '5px 0', borderRadius: 7, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer', fontSize: 12 }} onClick={() => setOpen(false)}>{t.no}</button>
+            <button style={{ flex: 1, padding: '5px 0', borderRadius: 7, border: '1px solid var(--red)', background: 'var(--red)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }} onClick={() => { onConfirm(); setOpen(false); }}>{t.yes}</button>
           </div>
         </div>
       )}
@@ -368,6 +370,7 @@ function TradeCard({ t, onEdit, onDelete, onPreview }: { t: any; onEdit: () => v
 }
 
 export default function LiveTrades() {
+  const t = useT();
   const isMobile = useMobile();
   const qc = useQueryClient();
   const { data: trades = [], isLoading } = useQuery({ queryKey: ['live-trades'], queryFn: fetchLive });
@@ -607,26 +610,26 @@ export default function LiveTrades() {
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '28px 28px 24px', maxWidth: 480, width: '90%', position: 'relative' }}>
             <button onClick={() => setShowUploadWarning(false)} style={{ position: 'absolute', top: 12, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 16, lineHeight: 1, padding: 4 }}>✕</button>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, color: 'var(--text)', paddingRight: 20 }}>
-              Обов'язкові поля для позицій
+              {t.uploadRequiredFields}
             </div>
             <img
               src="https://storage.googleapis.com/runable-templates/cli-uploads%2FyWU6F2OopHdw0bQIxNc7YVgN2QUzEepa%2FZhgLnmnTM2V0ldapzw_WQ%2Fimage_FxgLef.png"
-              alt="Приклад таблиці"
+              alt={t.uploadTableExample}
               style={{ width: '100%', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 14 }}
             />
             <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, marginBottom: 10 }}>
-              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Дата</strong> — формат <code>MM.YYYY</code> або <code>DD.MM.YYYY</code><br />
-              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Напрямок</strong> (Buy / Sell)<br />
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>{t.uploadFieldDate}</strong> — {t.uploadFieldDateFmt}<br />
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>{t.uploadFieldDir}</strong> (Buy / Sell)<br />
               <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>RR</strong> (Risk-to-Reward)<br />
-              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Сесія</strong><br />
-              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>Результат</strong> (Win / Loss / BE)
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>{t.uploadFieldSession}</strong><br />
+              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>{t.uploadFieldResult}</strong> (Win / Loss / BE)
             </div>
             <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 14 }}>
-              (Попередження: завжди перевіряйте правильність заповнених даних самотужки для уникнення помилок)
+              {t.uploadWarning}
             </div>
             <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
               <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 8 }}>
-                Натисни <strong style={{ color: 'var(--text)' }}>Скопіювати</strong> та встав у свій Excel файл (<code>Cmd+V</code> / <code>Ctrl+V</code>) — отримаєш готову таблицю:
+                {t.uploadCopyHint}
               </div>
               <button
                 className="btn-ghost"
@@ -644,16 +647,16 @@ export default function LiveTrades() {
                     document.execCommand('copy'); document.body.removeChild(ta);
                   });
                   const btn = e.currentTarget;
-                  btn.textContent = '✅ Скопійовано!';
-                  setTimeout(() => { btn.textContent = '📋 Скопіювати шаблон таблиці'; }, 2000);
+                  btn.textContent = '✅ ' + t.uploadCopied;
+                  setTimeout(() => { btn.textContent = '📋 ' + t.uploadCopyBtn; }, 2000);
                 }}
               >
-                📋 Скопіювати шаблон таблиці
+                📋 {t.uploadCopyBtn}
               </button>
             </div>
             <button className="btn-primary" style={{ width: '100%', padding: '10px', fontSize: 13, fontWeight: 600 }}
               onClick={() => { setShowUploadWarning(false); setShowUpload(true); setFileResult(null); }}>
-              Ознайомився
+              {t.uploadGotIt}
             </button>
           </div>
         </div>
@@ -671,14 +674,14 @@ export default function LiveTrades() {
               style={{ border: `2px dashed ${dragging ? '#4b5263' : 'var(--border)'}`, borderRadius: 12, padding: isMobile ? '28px 16px' : '40px 24px', textAlign: 'center', cursor: 'pointer', background: dragging ? '#1a1d2a' : 'var(--bg)', transition: 'all 0.15s', marginBottom: 12 }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>📂</div>
               <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{isMobile ? 'Tap to browse' : 'Drop file here or click to browse'}</div>
-              <div style={{ fontSize: 12, color: 'var(--text2)' }}>або вставте скріншот <kbd style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px', fontSize: 11 }}>Ctrl+V</kbd></div>
+              <div style={{ fontSize: 12, color: 'var(--text2)' }}>{t.uploadOrPaste} <kbd style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px', fontSize: 11 }}>Ctrl+V</kbd></div>
               <input ref={fileRef} type="file" accept=".xlsx,.xls,image/*" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }} />
             </div>
           )}
           {/* Parsing spinner */}
           {aiParsing && (
             <div style={{ color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10 }}>
-              <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', fontSize: 16 }}>◌</span> AI розпізнає скріншот...
+              <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', fontSize: 16 }}>◌</span> {t.aiParsing}
             </div>
           )}
           {importMutation.isPending && (
@@ -694,13 +697,13 @@ export default function LiveTrades() {
           {aiRows && aiRows.length > 0 && (
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}>
-                AI розпізнав {aiRows.length} угод — перевір і підтверди:
+                {t.aiRecognized(aiRows.length)}
               </div>
               <div style={{ overflowX: 'auto', marginBottom: 12 }}>
                 <table style={{ minWidth: 560, borderCollapse: 'collapse', width: '100%' }}>
                   <thead>
                     <tr style={{ background: 'var(--surface2)' }}>
-                      {['✓','Дата','Напрям','Результат','RR','Сесія','Cost','Актив'].map(h => (
+                      {['✓', t.uploadColDate, t.uploadColDir, t.uploadColResult, 'RR', t.uploadColSession, 'Cost', t.uploadColAsset].map(h => (
                         <th key={h} style={{ padding: '5px 8px', fontSize: 10, color: 'var(--text2)', textAlign: 'left', fontWeight: 500 }}>{h}</th>
                       ))}
                     </tr>
@@ -730,18 +733,18 @@ export default function LiveTrades() {
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                 <button className="btn-primary" onClick={handleAiSave} disabled={aiSaving || aiChecked.every(v => !v)}
                   style={{ padding: '8px 20px', fontSize: 13 }}>
-                  {aiSaving ? 'Зберігаємо...' : `Зберегти (${aiChecked.filter(Boolean).length})`}
+                  {aiSaving ? t.aiSaving : t.aiSaveBtn(aiChecked.filter(Boolean).length)}
                 </button>
                 <button className="btn-ghost" onClick={() => { setAiRows(null); setAiChecked([]); setAiError(''); }}
                   style={{ padding: '8px 14px', fontSize: 13 }}>
-                  Скасувати
+                  {t.cancel}
                 </button>
               </div>
             </div>
           )}
           {fileResult && !aiRows && (
             <div style={{ background: fileResult.error ? '#1a0808' : '#081a0f', border: `1px solid ${fileResult.error ? 'var(--red)' : 'var(--green)'}`, borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
-              {fileResult.error ? <div style={{ color: 'var(--red)' }}>❌ {fileResult.error}</div> : <div style={{ color: 'var(--green)' }}>✅ Збережено {fileResult.inserted} угод.</div>}
+              {fileResult.error ? <div style={{ color: 'var(--red)' }}>❌ {fileResult.error}</div> : <div style={{ color: 'var(--green)' }}>✅ {t.aiSaved(fileResult.inserted)}</div>}
             </div>
           )}
         </div>
