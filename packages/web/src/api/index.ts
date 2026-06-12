@@ -171,11 +171,11 @@ const app = new Hono()
       db.run(sql`ALTER TABLE users ADD COLUMN fp TEXT`).catch(() => {}),
     ]);
     // Ensure admin user exists with correct role
-    const existing = await db.select().from(users).where(eq(users.login, 'vygnanskyi@gmail.com')).get();
+    const existing = await db.select().from(users).where(eq(users.login, 'whatif')).get();
     if (!existing) {
-      await db.insert(users).values({ login: 'vygnanskyi@gmail.com', password: '7777', role: 'admin', email: 'vygnanskyi@gmail.com' });
+      await db.insert(users).values({ login: 'whatif', password: '7777', role: 'admin', email: 'vygnanskyi@gmail.com' });
     } else if (existing.role !== 'admin') {
-      await db.update(users).set({ role: 'admin' }).where(eq(users.login, 'vygnanskyi@gmail.com'));
+      await db.update(users).set({ role: 'admin' }).where(eq(users.login, 'whatif'));
     }
     return c.json({ ok: true }, 200);
   })
@@ -2372,11 +2372,11 @@ export default app;
       db.run(sql`ALTER TABLE users ADD COLUMN fp TEXT`).catch(() => {}),
     ]);
     // Ensure admin user exists with correct role
-    const existing = await db.select().from(users).where(eq(users.login, 'vygnanskyi@gmail.com')).get();
+    const existing = await db.select().from(users).where(eq(users.login, 'whatif')).get();
     if (!existing) {
-      await db.insert(users).values({ login: 'vygnanskyi@gmail.com', password: '7777', role: 'admin', email: 'vygnanskyi@gmail.com' });
+      await db.insert(users).values({ login: 'whatif', password: '7777', role: 'admin', email: 'vygnanskyi@gmail.com' });
     } else if (existing.role !== 'admin') {
-      await db.update(users).set({ role: 'admin' }).where(eq(users.login, 'vygnanskyi@gmail.com'));
+      await db.update(users).set({ role: 'admin' }).where(eq(users.login, 'whatif'));
     }
   } catch (e) {
     console.error('[startup migration] failed:', e);
