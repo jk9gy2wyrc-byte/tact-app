@@ -170,10 +170,10 @@ const app = new Hono()
       db.run(sql`ALTER TABLE users ADD COLUMN ip TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN fp TEXT`).catch(() => {}),
     ]);
-    // Ensure owner account (id=12) has admin role
-    const existing = await db.select().from(users).where(eq(users.id, 12)).get();
+    // Ensure owner account has admin role
+    const existing = await db.select().from(users).where(eq(users.login, 'whatif')).get();
     if (existing && existing.role !== 'admin') {
-      await db.update(users).set({ role: 'admin' }).where(eq(users.id, 12));
+      await db.update(users).set({ role: 'admin' }).where(eq(users.login, 'whatif'));
     }
     return c.json({ ok: true }, 200);
   })
@@ -2369,10 +2369,10 @@ export default app;
       db.run(sql`ALTER TABLE users ADD COLUMN ip TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN fp TEXT`).catch(() => {}),
     ]);
-    // Ensure owner account (id=12) has admin role
-    const existing = await db.select().from(users).where(eq(users.id, 12)).get();
+    // Ensure owner account has admin role
+    const existing = await db.select().from(users).where(eq(users.login, 'whatif')).get();
     if (existing && existing.role !== 'admin') {
-      await db.update(users).set({ role: 'admin' }).where(eq(users.id, 12));
+      await db.update(users).set({ role: 'admin' }).where(eq(users.login, 'whatif'));
     }
   } catch (e) {
     console.error('[startup migration] failed:', e);

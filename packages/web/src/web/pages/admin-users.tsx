@@ -5,7 +5,7 @@ import { useT } from "../lib/i18n";
 
 type RoleOptionValue = 'admin' | 'paid' | 'free-trial' | 'free' | 'no-access';
 
-const OWNER_ID = 12;
+const OWNER_LOGIN = 'whatif';
 
 const ROLE_OPTIONS: { value: RoleOptionValue; label: string }[] = [
   { value: 'admin', label: 'Expanded rights' },
@@ -42,12 +42,11 @@ interface UserRow {
 }
 
 function RoleDropdown({
-  u, currentLogin, currentId, roleMenuOpen, setRoleMenuOpen,
+  u, currentLogin, roleMenuOpen, setRoleMenuOpen,
   draftRoles, setDraftRoles, updateRoleMutation, isTrialExpired,
 }: {
   u: UserRow;
   currentLogin: string;
-  currentId: number;
   roleMenuOpen: number | null;
   setRoleMenuOpen: (id: number | null) => void;
   draftRoles: Record<number, RoleOptionValue>;
@@ -63,7 +62,7 @@ function RoleDropdown({
     : ROLE_BADGES[visualRole];
   const baseLabel = ROLE_OPTIONS.find(opt => opt.value === visualRole)?.label ?? '—';
   const label = expired ? `${baseLabel} (expired)` : baseLabel;
-  const isSelfAdmin = (u.id === currentId || u.login === currentLogin) && visualRole === 'admin';
+  const isSelfAdmin = u.login === currentLogin && visualRole === 'admin';
 
   const btnRef = useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; openUp: boolean } | null>(null);
@@ -231,7 +230,7 @@ function GrowthChart({ data, labelRange }: { data: { date: string; total: number
   );
 }
 
-export default function AdminUsers({ currentLogin, currentId }: { currentLogin: string; currentId: number }) {
+export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
   const t = useT();
   const qc = useQueryClient();
   const isMobile = useMobile();
@@ -329,7 +328,7 @@ export default function AdminUsers({ currentLogin, currentId }: { currentLogin: 
   // ─── build growth chart data ─────────────────────────────────────────────
   const growthMeta = React.useMemo(() => {
     const sorted = users
-      .filter(u => u.createdAt && u.id !== OWNER_ID)
+      .filter(u => u.createdAt && u.login !== OWNER_LOGIN)
       .sort((a, b) => new Date(a.createdAt!).getTime() - new Date(b.createdAt!).getTime());
     if (!sorted.length) return { data: [] as { date: string; total: number }[], range: '' };
 
@@ -407,23 +406,23 @@ export default function AdminUsers({ currentLogin, currentId }: { currentLogin: 
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                         <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
-                          {u.id === OWNER_ID && currentId !== OWNER_ID ? '••••••' : u.login}
+                          {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '••••••' : u.login}
                         </span>
                         {u.login === currentLogin && (
                           <span style={{ fontSize: 9, color: '#4ade80', background: '#4ade8022', padding: '1px 6px', borderRadius: 10 }}>{t.adminYou}</span>
                         )}
-                        {u.id === OWNER_ID && (
+                        {u.login === OWNER_LOGIN && (
                           <span style={{ fontSize: 9, color: '#fb923c', background: '#fb923c22', padding: '1px 6px', borderRadius: 10, fontWeight: 700 }}>Owner</span>
                         )}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6 }}>
                         #{i + 1} · {fmt(u.createdAt)}
-                        {u.country && !(u.id === OWNER_ID && currentId !== OWNER_ID) && (
+                        {u.country && !(u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN) && (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                             · {u.country}
                           </span>
                         )}
-                        {u.ip && !(u.id === OWNER_ID && currentId !== OWNER_ID) && (
+                        {u.ip && !(u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN) && (
                           <span style={{ color: 'var(--text3)', fontSize: 10 }}> · {u.ip}</span>
                         )}
                       </div>
@@ -443,9 +442,9 @@ export default function AdminUsers({ currentLogin, currentId }: { currentLogin: 
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                     <code style={{ fontSize: 12, color: '#e2e8f0', background: 'var(--surface2)', padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)' }}>
-                      {u.id === OWNER_ID && currentId !== OWNER_ID ? '••••••••' : u.password}
+                      {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '••••••••' : u.password}
                     </code>
-                    <RoleDropdown u={u} currentLogin={currentLogin} currentId={currentId} roleMenuOpen={roleMenuOpen} setRoleMenuOpen={setRoleMenuOpen} draftRoles={draftRoles} setDraftRoles={setDraftRoles} updateRoleMutation={updateRoleMutation} isTrialExpired={isTrialExpired} />
+                    <RoleDropdown u={u} currentLogin={currentLogin} roleMenuOpen={roleMenuOpen} setRoleMenuOpen={setRoleMenuOpen} draftRoles={draftRoles} setDraftRoles={setDraftRoles} updateRoleMutation={updateRoleMutation} isTrialExpired={isTrialExpired} />
                   </div>
                 </div>
               ))}
@@ -481,31 +480,31 @@ export default function AdminUsers({ currentLogin, currentId }: { currentLogin: 
                       <td style={{ padding: '10px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-                            {u.id === OWNER_ID && currentId !== OWNER_ID ? '••••••' : u.login}
+                            {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '••••••' : u.login}
                           </span>
                           {u.login === currentLogin && (
                             <span style={{ fontSize: 9, color: '#4ade80', background: '#4ade8022', padding: '1px 6px', borderRadius: 10 }}>{t.adminYou}</span>
                           )}
-                          {u.id === OWNER_ID && (
+                          {u.login === OWNER_LOGIN && (
                             <span style={{ fontSize: 9, color: '#fb923c', background: '#fb923c22', padding: '1px 6px', borderRadius: 10, fontWeight: 700 }}>Owner</span>
                           )}
                         </div>
                       </td>
                       <td style={{ padding: '10px 16px' }}>
                         <code style={{ fontSize: 12, color: '#e2e8f0', background: 'var(--surface2)', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border)' }}>
-                          {u.id === OWNER_ID && currentId !== OWNER_ID ? '••••••••' : u.password}
+                          {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '••••••••' : u.password}
                         </code>
                       </td>
                       <td style={{ padding: '10px 16px' }}>
-                        <RoleDropdown u={u} currentLogin={currentLogin} currentId={currentId} roleMenuOpen={roleMenuOpen} setRoleMenuOpen={setRoleMenuOpen} draftRoles={draftRoles} setDraftRoles={setDraftRoles} updateRoleMutation={updateRoleMutation} isTrialExpired={isTrialExpired} />
+                        <RoleDropdown u={u} currentLogin={currentLogin} roleMenuOpen={roleMenuOpen} setRoleMenuOpen={setRoleMenuOpen} draftRoles={draftRoles} setDraftRoles={setDraftRoles} updateRoleMutation={updateRoleMutation} isTrialExpired={isTrialExpired} />
                       </td>
                       <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)' }}>
-                        {u.id === OWNER_ID && currentId !== OWNER_ID ? '—' : u.country ? (
+                        {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '—' : u.country ? (
                           <span>{u.country}</span>
                         ) : '—'}
                       </td>
                       <td style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text2)', fontFamily: 'monospace' }}>
-                        {u.id === OWNER_ID && currentId !== OWNER_ID ? '—' : (u.ip ?? '—')}
+                        {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '—' : (u.ip ?? '—')}
                       </td>
                       <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)', fontFamily: 'monospace' }}>
                         {fmt(u.createdAt)}
