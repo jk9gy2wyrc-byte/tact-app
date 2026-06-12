@@ -1026,7 +1026,7 @@ export default function App() {
           </Route>
           {session.role === 'admin' && (
             <Route path="/users">
-              <AdminUsers currentLogin={session.login} />
+              <AdminUsers currentLogin={session.login} currentId={session.id} />
             </Route>
           )}
           <Route path="/cot">
