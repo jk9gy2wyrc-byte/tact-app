@@ -313,7 +313,7 @@ export default function Subscription() {
         <div style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 12 }}>
           {t.subCurrentStatus}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
           <span style={{
             fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 20,
             background: roleInfo.bg, color: roleInfo.color,
@@ -321,6 +321,30 @@ export default function Subscription() {
           }}>
             {roleInfo.label}
           </span>
+          {effectiveRole === 'free-trial' && accessData?.hasAccess && accessData?.trialEndsAt && (() => {
+            const msLeft = new Date(accessData.trialEndsAt!).getTime() - Date.now();
+            const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+            let label: string;
+            let color: string;
+            if (daysLeft <= 0) {
+              label = 'Expires today';
+              color = '#f87171';
+            } else if (daysLeft === 1) {
+              label = 'Expires tomorrow';
+              color = '#fb923c';
+            } else if (daysLeft <= 3) {
+              label = `Expires in ${daysLeft} days`;
+              color = '#fb923c';
+            } else {
+              label = `Expires in ${daysLeft} days`;
+              color = 'var(--text2)';
+            }
+            return (
+              <span style={{ fontSize: 12, color, fontWeight: 500 }}>
+                · {label}
+              </span>
+            );
+          })()}
           {(effectiveRole === 'no-access' || (effectiveRole === 'free-trial' && !accessData?.hasAccess)) && (
             <span style={{ fontSize: 13, color: 'var(--text2)' }}>
               Subscribe to get full access
