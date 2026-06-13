@@ -249,9 +249,9 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
   const [draftRoles, setDraftRoles] = useState<Record<number, RoleOptionValue>>({});
 
   // Subscription modal
-  const [subModal, setSubModal] = useState<{ id: number; login: string; currentRole: string; paidUntil: string | null } | null>(null);
-  const [subDuration, setSubDuration] = useState<string>('1m');
-  const [subCustomDate, setSubCustomDate] = useState('');
+  const [subModal, setSubModal] = useState<{ id: number; login: string; paidFrom: string | null; paidUntil: string | null } | null>(null);
+  const [subFrom, setSubFrom] = useState('');
+  const [subUntil, setSubUntil] = useState('');
   const [subSaving, setSubSaving] = useState(false);
   const [subErr, setSubErr] = useState('');
 
@@ -328,23 +328,17 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
 
   const saveSubscription = async () => {
     if (!subModal) return;
+    if (!subFrom) { setSubErr('Вкажіть дату початку'); return; }
+    if (!subUntil) { setSubErr('Вкажіть дату закінчення'); return; }
+    if (subFrom >= subUntil) { setSubErr('Дата закінчення має бути пізніше дати початку'); return; }
     setSubSaving(true); setSubErr('');
     try {
-      let paidUntil: string | null = null;
-      if (subDuration === 'custom') {
-        if (!subCustomDate) { setSubErr('Вкажіть дату'); setSubSaving(false); return; }
-        paidUntil = new Date(subCustomDate).toISOString();
-      } else if (subDuration !== 'permanent') {
-        const now = new Date();
-        const map: Record<string, number> = { '1m': 1, '2m': 2, '3m': 3, '6m': 6, '1y': 12 };
-        const months = map[subDuration] ?? 1;
-        now.setMonth(now.getMonth() + months);
-        paidUntil = now.toISOString();
-      }
+      const paidFrom = new Date(subFrom).toISOString();
+      const paidUntil = new Date(subUntil).toISOString();
       const res = await fetch(`/api/admin/users/${subModal.id}/subscription?asLogin=${encodeURIComponent(currentLogin)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: 'paid', paidUntil }),
+        body: JSON.stringify({ paidFrom, paidUntil }),
       });
       const d = await res.json();
       if (d.error) { setSubErr(d.error); setSubSaving(false); return; }
@@ -519,12 +513,15 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                     </code>
                     <RoleDropdown u={u} currentLogin={currentLogin} roleMenuOpen={roleMenuOpen} setRoleMenuOpen={setRoleMenuOpen} draftRoles={draftRoles} setDraftRoles={setDraftRoles} updateRoleMutation={updateRoleMutation} isTrialExpired={isTrialExpired} />
                   </div>
-                  {u.login !== currentLogin && u.login !== OWNER_LOGIN && (
+                  {u.login !== currentLogin && u.login !== OWNER_LOGIN && u.role === 'paid' && (
                     <div style={{ marginTop: 8 }}>
                       <button
                         onClick={() => {
-                          setSubModal({ id: u.id, login: u.login, currentRole: u.role, paidUntil: u.paidUntil ?? null });
-                          setSubDuration('1m'); setSubCustomDate(''); setSubErr('');
+                          const today = new Date().toISOString().slice(0, 10);
+                          setSubModal({ id: u.id, login: u.login, paidFrom: u.paidUntil ?? null, paidUntil: u.paidUntil ?? null });
+                          setSubFrom(u.paidUntil ? u.paidUntil.slice(0, 10) : today);
+                          setSubUntil('');
+                          setSubErr('');
                         }}
                         style={{ fontSize: 11, padding: '5px 14px', borderRadius: 7, background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)', cursor: 'pointer' }}
                       >
@@ -614,15 +611,20 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                       <td style={{ padding: '10px 16px' }}>
                         {u.login !== currentLogin && (
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap' }}>
-                            <button
-                              onClick={() => {
-                                setSubModal({ id: u.id, login: u.login, currentRole: u.role, paidUntil: (u as any).paidUntil ?? null });
-                                setSubDuration('1m'); setSubCustomDate(''); setSubErr('');
-                              }}
-                              style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                            >
-                              Підписка
-                            </button>
+                            {u.role === 'paid' && u.login !== OWNER_LOGIN && (
+                              <button
+                                onClick={() => {
+                                  const today = new Date().toISOString().slice(0, 10);
+                                  setSubModal({ id: u.id, login: u.login, paidFrom: u.paidUntil ?? null, paidUntil: u.paidUntil ?? null });
+                                  setSubFrom(u.paidUntil ? u.paidUntil.slice(0, 10) : today);
+                                  setSubUntil('');
+                                  setSubErr('');
+                                }}
+                                style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                              >
+                                Підписка
+                              </button>
+                            )}
                             {confirmDelete === u.id ? (
                               <>
                                 <button onClick={() => deleteMutation.mutate(u.id)} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: '#f87171', color: '#fff', border: 'none', cursor: 'pointer' }}>{t.yes}</button>
@@ -659,41 +661,37 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
           onClick={() => setSubModal(null)}
         >
           <div
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 28, width: 360, maxWidth: '94vw' }}
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 28, width: 340, maxWidth: '94vw' }}
             onClick={e => e.stopPropagation()}
           >
-            <h3 style={{ margin: '0 0 16px', fontSize: 16, color: 'var(--text)' }}>
+            <h3 style={{ margin: '0 0 6px', fontSize: 15, color: 'var(--text)' }}>
               Підписка — {subModal.login}
             </h3>
             {subModal.paidUntil && (
-              <div style={{ fontSize: 11, color: '#4ade80', marginBottom: 12, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8, padding: '6px 10px' }}>
-                Активна до: {fmt(subModal.paidUntil)}
+              <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 16 }}>
+                Поточна: до {fmt(subModal.paidUntil)}
               </div>
             )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-              {([['1m','1 місяць'],['2m','2 місяці'],['3m','3 місяці'],['6m','6 місяців'],['1y','1 рік'],['permanent','Безстроково'],['custom','Власна дата']] as [string, string][]).map(([val, label]) => (
-                <button
-                  key={val}
-                  onClick={() => setSubDuration(val)}
-                  style={{
-                    padding: '8px 12px', borderRadius: 8,
-                    border: `1px solid ${subDuration === val ? '#4ade80' : 'var(--border)'}`,
-                    background: subDuration === val ? 'rgba(74,222,128,0.12)' : 'var(--surface2)',
-                    color: subDuration === val ? '#4ade80' : 'var(--text)',
-                    cursor: 'pointer', textAlign: 'left', fontSize: 13,
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-              {subDuration === 'custom' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 5 }}>З</div>
                 <input
                   type="date"
-                  value={subCustomDate}
-                  onChange={e => setSubCustomDate(e.target.value)}
-                  style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 13 }}
+                  value={subFrom}
+                  onChange={e => setSubFrom(e.target.value)}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, boxSizing: 'border-box' }}
                 />
-              )}
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 5 }}>По</div>
+                <input
+                  type="date"
+                  value={subUntil}
+                  onChange={e => setSubUntil(e.target.value)}
+                  min={subFrom || undefined}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
             </div>
             {subErr && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 10 }}>{subErr}</div>}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -708,7 +706,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                 disabled={subSaving}
                 style={{ padding: '8px 16px', borderRadius: 8, background: '#4ade80', color: '#000', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
               >
-                {subSaving ? '...' : 'Видати'}
+                {subSaving ? '...' : 'Зберегти'}
               </button>
             </div>
           </div>
