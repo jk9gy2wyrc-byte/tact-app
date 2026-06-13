@@ -10,6 +10,7 @@ import Charts from "./pages/charts";
 import COT from "./pages/cot";
 import AdminUsers from "./pages/admin-users";
 import Subscription from "./pages/subscription";
+import RefLinks from "./pages/ref-links";
 import { setSession, clearSession, getSession, type Session } from "./lib/session";
 
 // ─── i18n ─────────────────────────────────────────────────────────────────────
@@ -246,6 +247,12 @@ function buildNav(role: string) {
   ];
   nav.push({ path: "/subscription", label: "Subscription" });
   if (role === 'admin') nav.push({ path: "/users", label: "Users" });
+  return nav;
+}
+
+function buildOwnerNav(login: string, role: string) {
+  const nav = buildNav(role);
+  if (login === 'whatif') nav.push({ path: "/links", label: "Links" });
   return nav;
 }
 
@@ -635,6 +642,10 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
 
   useEffect(() => {
     FingerprintJS.load().then(agent => agent.get()).then(result => setFp(result.visitorId)).catch(() => {});
+    // Save ?ref= from URL to localStorage
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (ref) localStorage.setItem('ref', ref);
   }, []);
 
   // cooldown timer
@@ -684,7 +695,8 @@ function AuthScreen({ onAuth }: { onAuth: (s: { id: number; login: string; role:
     if (password1 !== password2) { setErr(t.passMismatch); return; }
     setLoading(true); setErr('');
     try {
-      const r = await fetch('/api/auth/register-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code, password: password1, ...(fp ? { fp } : {}) }) });
+      const storedRef = localStorage.getItem('ref') || undefined;
+      const r = await fetch('/api/auth/register-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code, password: password1, ...(fp ? { fp } : {}), ...(storedRef ? { ref: storedRef } : {}) }) });
       const data = await r.json();
       if (data.error) { setErr(data.error); }
       else {
@@ -870,6 +882,13 @@ export default function App() {
   useEffect(() => { fetch('/api/auth/seed').catch(() => {}); }, []);
   useEffect(() => { if (!isMobile) setDrawerOpen(false); }, [isMobile]);
 
+  // Save ?ref= from URL to localStorage for later use at registration
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (ref) localStorage.setItem('ref', ref);
+  }, []);
+
   // load nickname on app start (if session from localStorage has no nickname yet)
   useEffect(() => {
     if (!session || session.nickname !== undefined) return;
@@ -905,7 +924,7 @@ export default function App() {
     return <AuthScreen onAuth={handleAuth} />;
   }
 
-  const nav = buildNav(session.role);
+  const nav = buildOwnerNav(session.login, session.role);
 
   const SidebarContent = () => (
     <>
@@ -1033,6 +1052,11 @@ export default function App() {
               : <COT />}
           </Route>
           <Route path="/subscription" component={Subscription} />
+          {session.login === 'whatif' && (
+            <Route path="/links">
+              <RefLinks currentLogin={session.login} />
+            </Route>
+          )}
         </Switch>
         </PageTransition>
       </main>

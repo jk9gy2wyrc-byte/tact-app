@@ -10,6 +10,7 @@ export const users = sqliteTable("users", {
   country: text("country"),
   ip: text("ip"),
   fp: text("fp"),
+  ref: text("ref"),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
 });
 
@@ -64,6 +65,13 @@ export const userPrefs = sqliteTable("user_prefs", {
   key: text("key").notNull(),
   value: text("value").notNull(),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
+});
+
+export const refLinks = sqliteTable("ref_links", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  slug: text("slug").notNull().unique(),   // e.g. "discord-server"
+  label: text("label").notNull(),          // e.g. "Discord Server"
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
 });
 
 export const subscriptionSettings = sqliteTable("subscription_settings", {

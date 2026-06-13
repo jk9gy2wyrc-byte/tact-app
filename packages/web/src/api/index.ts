@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { db } from "./database";
-import { backtestTrades, emailCodes, liveTrades, subscriptionSettings, userPrefs, users } from "./database/schema";
+import { backtestTrades, emailCodes, liveTrades, refLinks, subscriptionSettings, userPrefs, users } from "./database/schema";
 import { eq, desc, asc, sql, lt } from "drizzle-orm";
 import * as XLSX from "xlsx";
 import { DEFAULT_SUBSCRIPTION_SETTINGS } from "../shared/subscription";
@@ -169,6 +169,13 @@ const app = new Hono()
       db.run(sql`ALTER TABLE users ADD COLUMN country TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN ip TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN fp TEXT`).catch(() => {}),
+      db.run(sql`ALTER TABLE users ADD COLUMN ref TEXT`).catch(() => {}),
+      db.run(sql`CREATE TABLE IF NOT EXISTS ref_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug TEXT NOT NULL UNIQUE,
+        label TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now'))
+      )`).catch(() => {}),
     ]);
     // Ensure owner account has admin role
     const existing = await db.select().from(users).where(eq(users.login, 'whatif')).get();
@@ -259,10 +266,10 @@ const app = new Hono()
   )
 
   .post('/auth/register',
-    zValidator('json', z.object({ login: z.string().min(3).max(32), password: z.string().min(4), fp: z.string().optional() })),
+    zValidator('json', z.object({ login: z.string().min(3).max(32), password: z.string().min(4), fp: z.string().optional(), ref: z.string().optional() })),
     async (c) => {
       await ensureEmailTables();
-      const { login, password, fp } = c.req.valid('json');
+      const { login, password, fp, ref } = c.req.valid('json');
       const existing = await db.select().from(users).where(eq(users.login, login)).get();
       if (existing) return c.json({ error: 'Логін вже зайнятий' }, 409);
       // fingerprint check
@@ -287,6 +294,7 @@ const app = new Hono()
         ip: regIp,
         country: regCountry,
         fp: fp ?? null,
+        ref: ref ?? null,
       }).returning();
       return c.json({
         id: newUser.id,
@@ -360,10 +368,11 @@ const app = new Hono()
       email: z.string().email(),
       password: z.string().min(4),
       fp: z.string().optional(),
+      ref: z.string().optional(),
     })),
     async (c) => {
       await ensureEmailTables();
-      const { email, password, fp } = c.req.valid('json');
+      const { email, password, fp, ref } = c.req.valid('json');
       // block disposable emails
       if (isDisposableEmail(email)) return c.json({ error: 'Тимчасові поштові адреси не дозволені' }, 400);
       // check email not already used
@@ -393,6 +402,7 @@ const app = new Hono()
         ip: userIp,
         fp: fp ?? null,
         role: 'free-trial',
+        ref: ref ?? null,
       }).returning();
       return c.json({
         id: newUser.id,
@@ -410,10 +420,11 @@ const app = new Hono()
       code: z.string().length(4),
       password: z.string().min(4),
       fp: z.string().optional(),
+      ref: z.string().optional(),
     })),
     async (c) => {
       await ensureEmailTables();
-      const { email, code, password, fp } = c.req.valid('json');
+      const { email, code, password, fp, ref } = c.req.valid('json');
       // cleanup expired codes
       await db.delete(emailCodes).where(lt(emailCodes.expiresAt, Date.now()));
       const record = await db.select().from(emailCodes)
@@ -452,6 +463,7 @@ const app = new Hono()
         ip: userIp,
         fp: fp ?? null,
         role: 'free-trial',
+        ref: ref ?? null,
       }).returning();
       await db.delete(emailCodes).where(eq(emailCodes.email, email));
       return c.json({
@@ -574,6 +586,43 @@ const app = new Hono()
       return c.json({ ok: true, user: updated }, 200);
     }
   )
+
+  // ─── REF LINKS (owner only) ──────────────────────────────────────────────────
+  .get('/ref-links', async (c) => {
+    const asLogin = c.req.query('asLogin');
+    if (asLogin !== 'whatif') return c.json({ error: 'Forbidden' }, 403);
+    const links = await db.select().from(refLinks).all();
+    // count users per slug
+    const allUsers = await db.select({ ref: users.ref }).from(users).all();
+    const counts: Record<string, number> = {};
+    for (const u of allUsers) {
+      if (u.ref) counts[u.ref] = (counts[u.ref] ?? 0) + 1;
+    }
+    return c.json(links.map(l => ({ ...l, userCount: counts[l.slug] ?? 0 })), 200);
+  })
+
+  .post('/ref-links',
+    zValidator('json', z.object({ slug: z.string().min(1).max(64), label: z.string().min(1).max(128) })),
+    async (c) => {
+      const asLogin = c.req.query('asLogin');
+      if (asLogin !== 'whatif') return c.json({ error: 'Forbidden' }, 403);
+      const { slug, label } = c.req.valid('json');
+      try {
+        const [created] = await db.insert(refLinks).values({ slug, label }).returning();
+        return c.json(created, 200);
+      } catch {
+        return c.json({ error: 'Slug вже існує' }, 409);
+      }
+    }
+  )
+
+  .delete('/ref-links/:slug', async (c) => {
+    const asLogin = c.req.query('asLogin');
+    if (asLogin !== 'whatif') return c.json({ error: 'Forbidden' }, 403);
+    const slug = c.req.param('slug');
+    await db.delete(refLinks).where(eq(refLinks.slug, slug));
+    return c.json({ ok: true }, 200);
+  })
 
   // ─── SUBSCRIPTION SETTINGS ──────────────────────────────────────────────────
   .get('/subscription/settings', async (c) => {
@@ -2375,6 +2424,13 @@ export default app;
       db.run(sql`ALTER TABLE users ADD COLUMN country TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN ip TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN fp TEXT`).catch(() => {}),
+      db.run(sql`ALTER TABLE users ADD COLUMN ref TEXT`).catch(() => {}),
+      db.run(sql`CREATE TABLE IF NOT EXISTS ref_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug TEXT NOT NULL UNIQUE,
+        label TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now'))
+      )`).catch(() => {}),
     ]);
     // Ensure owner account has admin role
     const existing = await db.select().from(users).where(eq(users.login, 'whatif')).get();
