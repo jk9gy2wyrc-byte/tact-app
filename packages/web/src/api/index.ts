@@ -73,6 +73,7 @@ const ensureEmailTables = async () => {
       db.run(sql`ALTER TABLE users ADD COLUMN country TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN ip TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN fp TEXT`).catch(() => {}),
+      db.run(sql`ALTER TABLE users ADD COLUMN paid_until TEXT`).catch(() => {}),
       db.run(sql`
         CREATE TABLE IF NOT EXISTS email_codes (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -170,6 +171,7 @@ const app = new Hono()
       db.run(sql`ALTER TABLE users ADD COLUMN ip TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN fp TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN ref TEXT`).catch(() => {}),
+      db.run(sql`ALTER TABLE users ADD COLUMN paid_until TEXT`).catch(() => {}),
       db.run(sql`CREATE TABLE IF NOT EXISTS ref_links (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         slug TEXT NOT NULL UNIQUE,
@@ -509,7 +511,24 @@ const app = new Hono()
 
     const role = normalizeRole(user.role);
     if (role === 'admin') return c.json({ hasAccess: true, reason: 'admin', role }, 200);
-    if (role === 'paid' || role === 'free') return c.json({ hasAccess: true, reason: 'full', role }, 200);
+
+    // paid role — check paidUntil expiry
+    if (role === 'paid') {
+      if (user.paidUntil) {
+        const until = Date.parse(user.paidUntil);
+        if (!isNaN(until)) {
+          if (Date.now() <= until) {
+            return c.json({ hasAccess: true, reason: 'paid', role, paidUntil: user.paidUntil }, 200);
+          } else {
+            return c.json({ hasAccess: false, reason: 'paid_expired', role, paidUntil: user.paidUntil }, 200);
+          }
+        }
+      }
+      // paid without expiry = permanent
+      return c.json({ hasAccess: true, reason: 'paid', role }, 200);
+    }
+
+    if (role === 'free') return c.json({ hasAccess: true, reason: 'full', role }, 200);
     if (role === 'no-access') return c.json({ hasAccess: false, reason: 'no_access', role }, 200);
 
     const row = await ensureSubscriptionRow();
@@ -584,6 +603,47 @@ const app = new Hono()
       if (!updated) return c.json({ error: 'User not found' }, 404);
 
       return c.json({ ok: true, user: updated }, 200);
+    }
+  )
+
+  // ─── USER: get own subscription info ─────────────────────────────────────
+  .get('/user/subscription/:id', async (c) => {
+    const id = Number(c.req.param('id'));
+    if (!Number.isFinite(id)) return c.json({ error: 'invalid_id' }, 400);
+    const user = await db.select().from(users).where(eq(users.id, id)).get();
+    if (!user) return c.json({ error: 'not_found' }, 404);
+    const row = await ensureSubscriptionRow();
+    const plans = parsePlans(row.plansJson);
+    const freeWeeks = plans.firstPurchase.freeWeeks ?? DEFAULT_SUBSCRIPTION_SETTINGS.plans.firstPurchase.freeWeeks;
+    const role = normalizeRole(user.role);
+    const createdAtMs = parseDbDate(user.createdAt);
+    const msPerWeek = 7 * 24 * 3600 * 1000;
+    const trialEndsAt = createdAtMs ? new Date(createdAtMs + freeWeeks * msPerWeek).toISOString() : null;
+    return c.json({
+      role,
+      paidUntil: user.paidUntil ?? null,
+      trialEndsAt,
+      freeWeeks,
+    }, 200);
+  })
+
+  // ─── ADMIN: set subscription (role + paidUntil) ──────────────────────────
+  .put('/admin/users/:id/subscription',
+    zValidator('json', z.object({
+      role: z.enum(['admin', 'paid', 'free-trial', 'free', 'no-access']),
+      paidUntil: z.string().nullable().optional(), // ISO date string or null
+    })),
+    async (c) => {
+      const asLogin = c.req.query('asLogin');
+      const caller = await db.select().from(users).where(eq(users.login, asLogin ?? '')).get();
+      if (!caller || caller.role !== 'admin') return c.json({ error: 'Forbidden' }, 403);
+      const id = Number(c.req.param('id'));
+      const target = await db.select().from(users).where(eq(users.id, id)).get();
+      if (!target) return c.json({ error: 'User not found' }, 404);
+      if (target.login === 'whatif') return c.json({ error: 'Cannot modify owner' }, 403);
+      const { role, paidUntil } = c.req.valid('json');
+      await db.update(users).set({ role, paidUntil: paidUntil ?? null }).where(eq(users.id, id));
+      return c.json({ ok: true }, 200);
     }
   )
 
@@ -2434,6 +2494,7 @@ export default app;
       db.run(sql`ALTER TABLE users ADD COLUMN ip TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN fp TEXT`).catch(() => {}),
       db.run(sql`ALTER TABLE users ADD COLUMN ref TEXT`).catch(() => {}),
+      db.run(sql`ALTER TABLE users ADD COLUMN paid_until TEXT`).catch(() => {}),
       db.run(sql`CREATE TABLE IF NOT EXISTS ref_links (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         slug TEXT NOT NULL UNIQUE,

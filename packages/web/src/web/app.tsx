@@ -21,6 +21,7 @@ const TRANSLATIONS = {
     cabinet: 'Кабінет',
     loginData: 'Дані входу',
     platformSettings: 'Налаштування платформи',
+    subscriptionTab: 'Підписка',
     loginLabel: 'Логін',
     nicknameLabel: 'Нікнейм',
     nicknameHint: '(відображається в панелі)',
@@ -77,6 +78,7 @@ const TRANSLATIONS = {
     cabinet: 'Account',
     loginData: 'Login details',
     platformSettings: 'Platform settings',
+    subscriptionTab: 'Subscription',
     loginLabel: 'Login',
     nicknameLabel: 'Nickname',
     nicknameHint: '(shown in panel)',
@@ -284,8 +286,166 @@ function useIsMobile() {
   return mobile;
 }
 
+// ─── SUBSCRIPTION TAB (cabinet) ───────────────────────────────────────────────
+function SubscriptionTab({ session }: { session: Session }) {
+  const [info, setInfo] = useState<{
+    role: string; paidUntil: string | null; trialEndsAt: string | null; freeWeeks: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/user/subscription/${session.id}`)
+      .then(r => r.json())
+      .then(d => setInfo(d))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [session.id]);
+
+  if (loading) return <div style={{ color: 'var(--text2)', fontSize: 13 }}>Завантаження...</div>;
+  if (!info) return <div style={{ color: 'var(--red)', fontSize: 13 }}>Помилка завантаження</div>;
+
+  const now = Date.now();
+
+  const fmtDate = (iso: string | null) => {
+    if (!iso) return '—';
+    try { return new Date(iso).toLocaleDateString('uk-UA', { day: '2-digit', month: 'long', year: 'numeric' }); } catch { return iso; }
+  };
+
+  const daysLeft = (iso: string | null) => {
+    if (!iso) return null;
+    const d = Math.ceil((Date.parse(iso) - now) / 86400_000);
+    return d;
+  };
+
+  // determine status
+  type StatusType = 'admin' | 'paid' | 'paid_expired' | 'trial' | 'trial_expired' | 'free' | 'no_access';
+  let status: StatusType = 'no_access';
+  let statusColor = '#f87171';
+  let statusLabel = 'Немає доступу';
+
+  if (info.role === 'admin') { status = 'admin'; statusColor = '#facc15'; statusLabel = 'Адмін'; }
+  else if (info.role === 'paid') {
+    if (info.paidUntil && Date.parse(info.paidUntil) < now) {
+      status = 'paid_expired'; statusColor = '#f87171'; statusLabel = 'Підписка закінчилась';
+    } else {
+      status = 'paid'; statusColor = '#4ade80'; statusLabel = 'Активна підписка';
+    }
+  }
+  else if (info.role === 'free-trial' || info.role === 'trial') {
+    const trialLeft = daysLeft(info.trialEndsAt);
+    if (trialLeft !== null && trialLeft < 0) {
+      status = 'trial_expired'; statusColor = '#f87171'; statusLabel = 'Пробний період закінчився';
+    } else {
+      status = 'trial'; statusColor = '#7eb8f7'; statusLabel = 'Пробний період';
+    }
+  }
+  else if (info.role === 'free') { status = 'free'; statusColor = '#94a3b8'; statusLabel = 'Безкоштовний'; }
+
+  const FEATURES: Record<StatusType, string[]> = {
+    admin: ['Повний доступ до всіх функцій', 'Управління юзерами', 'Реферальні посилання', 'Налаштування платформи'],
+    paid: ['Повний доступ до всіх функцій', 'Бектест та live-трейди', 'Графіки та аналіз', 'Monte Carlo симуляція'],
+    paid_expired: ['Доступ призупинено', 'Зверніться для продовження підписки'],
+    trial: ['Повний доступ під час пробного періоду', 'Бектест та live-трейди', 'Графіки та аналіз'],
+    trial_expired: ['Пробний період закінчився', 'Для продовження роботи потрібна підписка'],
+    free: ['Базовий доступ', 'Обмежений функціонал'],
+    no_access: ['Доступ заблоковано'],
+  };
+
+  const features = FEATURES[status] ?? [];
+  const paidLeft = daysLeft(info.paidUntil);
+  const trialLeft = daysLeft(info.trialEndsAt);
+
+  return (
+    <div style={{ maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Status badge */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 14,
+        background: 'var(--surface2)', border: `1px solid ${statusColor}44`,
+        borderRadius: 12, padding: '16px 20px',
+      }}>
+        <div style={{
+          width: 12, height: 12, borderRadius: '50%', background: statusColor, flexShrink: 0,
+          boxShadow: `0 0 8px ${statusColor}88`,
+        }} />
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: statusColor }}>{statusLabel}</div>
+          <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>
+            Поточний статус акаунта
+          </div>
+        </div>
+      </div>
+
+      {/* Expiry info */}
+      {(status === 'paid' || status === 'paid_expired') && info.paidUntil && (
+        <div style={{
+          background: 'var(--surface2)', border: '1px solid var(--border)',
+          borderRadius: 10, padding: '12px 16px',
+        }}>
+          <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            {status === 'paid_expired' ? 'Закінчилась' : 'Дійсна до'}
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{fmtDate(info.paidUntil)}</div>
+          {paidLeft !== null && paidLeft >= 0 && (
+            <div style={{ fontSize: 12, color: '#4ade80', marginTop: 4 }}>
+              ще {paidLeft} {paidLeft === 1 ? 'день' : paidLeft < 5 ? 'дні' : 'днів'}
+            </div>
+          )}
+          {paidLeft !== null && paidLeft < 0 && (
+            <div style={{ fontSize: 12, color: '#f87171', marginTop: 4 }}>
+              {Math.abs(paidLeft)} {Math.abs(paidLeft) === 1 ? 'день' : Math.abs(paidLeft) < 5 ? 'дні' : 'днів'} тому
+            </div>
+          )}
+        </div>
+      )}
+
+      {(status === 'trial' || status === 'trial_expired') && info.trialEndsAt && (
+        <div style={{
+          background: 'var(--surface2)', border: '1px solid var(--border)',
+          borderRadius: 10, padding: '12px 16px',
+        }}>
+          <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            {status === 'trial_expired' ? 'Тріал закінчився' : 'Тріал до'}
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{fmtDate(info.trialEndsAt)}</div>
+          {trialLeft !== null && trialLeft >= 0 && (
+            <div style={{ fontSize: 12, color: '#7eb8f7', marginTop: 4 }}>
+              ще {trialLeft} {trialLeft === 1 ? 'день' : trialLeft < 5 ? 'дні' : 'днів'}
+            </div>
+          )}
+          {trialLeft !== null && trialLeft < 0 && (
+            <div style={{ fontSize: 12, color: '#f87171', marginTop: 4 }}>
+              закінчився {Math.abs(trialLeft)} {Math.abs(trialLeft) === 1 ? 'день' : Math.abs(trialLeft) < 5 ? 'дні' : 'днів'} тому
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* What you can do */}
+      <div style={{
+        background: 'var(--surface2)', border: '1px solid var(--border)',
+        borderRadius: 10, padding: '12px 16px',
+      }}>
+        <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          Що доступно
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {features.map((f, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text)' }}>
+              <div style={{
+                width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
+                background: status === 'paid' || status === 'admin' || status === 'trial' ? '#4ade80' : '#f87171',
+              }} />
+              {f}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── USER CABINET ─────────────────────────────────────────────────────────────
-type CabinetTab = 'credentials' | 'settings';
+type CabinetTab = 'credentials' | 'settings' | 'subscription';
 
 function UserCabinet({ session, onClose, onSave, onLangChange, onThemeChange }: {
   session: Session;
@@ -394,6 +554,7 @@ function UserCabinet({ session, onClose, onSave, onLangChange, onThemeChange }: 
   const tabs: { key: CabinetTab; label: string }[] = [
     { key: 'credentials', label: t.loginData },
     { key: 'settings', label: t.platformSettings },
+    { key: 'subscription', label: t.subscriptionTab },
   ];
 
   return (
@@ -604,6 +765,11 @@ function UserCabinet({ session, onClose, onSave, onLangChange, onThemeChange }: 
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* ── Subscription tab ── */}
+            {activeTab === 'subscription' && (
+              <SubscriptionTab session={session} />
             )}
 
           </div>

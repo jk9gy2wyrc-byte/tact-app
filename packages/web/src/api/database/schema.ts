@@ -11,6 +11,7 @@ export const users = sqliteTable("users", {
   ip: text("ip"),
   fp: text("fp"),
   ref: text("ref"),
+  paidUntil: text("paid_until"), // ISO date string, nullable — set when granting paid access with expiry
   createdAt: text("created_at").default(sql`(datetime('now'))`),
 });
 
