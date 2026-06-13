@@ -8,7 +8,7 @@ interface RefLink {
   userCount: number;
 }
 
-const BASE_URL = "https://tact-app.up.railway.app";
+const BASE_URL = "https://tsct.up.railway.app";
 
 export default function RefLinks({ currentLogin }: { currentLogin: string }) {
   const [links, setLinks] = useState<RefLink[]>([]);
