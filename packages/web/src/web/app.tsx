@@ -328,29 +328,24 @@ function UserCabinet({ session, onClose, onSave, onLangChange, onThemeChange }: 
   const submitCredentials = async () => {
     setCredErr(''); setCredOk('');
     const loginTrimmed = login.trim();
-    if (!loginTrimmed) return setCredErr(t.enterLogin);
-    // email validation
-    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRe.test(loginTrimmed)) return setCredErr(t.invalidEmail);
     const nickTrimmed = nickname.trim();
     const passChanged = showPassFields && !!pass;
     if (passChanged && pass.length < 4) return setCredErr(t.passMin);
     if (passChanged && pass !== pass2) return setCredErr(t.passMismatch);
     const nickChanged = nickTrimmed !== originalNicknameRef.current;
-    const loginChanged = loginTrimmed !== originalLogin;
-    if (!passChanged && !nickChanged && !loginChanged) return setCredErr(t.nothingChanged);
+    if (!passChanged && !nickChanged) return setCredErr(t.nothingChanged);
     setCredLoading(true);
     try {
       let newLogin = originalLogin;
       let newRole = session.role;
       let newId = session.id;
 
-      // only call auth/update if login or password changed
-      if (loginChanged || passChanged) {
+      // only call auth/update if password changed
+      if (passChanged) {
         const res = await fetch('/api/auth/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: session.id, login: loginTrimmed, password: passChanged ? pass : undefined }),
+          body: JSON.stringify({ id: session.id, login: loginTrimmed, password: pass }),
         });
         const data = await res.json();
         if (!res.ok) { setCredErr(data.error ?? 'Помилка'); return; }
@@ -479,12 +474,15 @@ function UserCabinet({ session, onClose, onSave, onLangChange, onThemeChange }: 
               <div style={{ maxWidth: 380, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div>
                   <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>{t.loginLabel}</div>
-                  <input
-                    placeholder={t.loginPlaceholder}
-                    value={login}
-                    onChange={e => { setLogin(e.target.value); setCredErr(''); setCredOk(''); }}
-                    style={inputStyle}
-                  />
+                  <div style={{
+                    ...inputStyle,
+                    color: 'var(--text2)',
+                    userSelect: 'text',
+                    cursor: 'default',
+                    opacity: 0.7,
+                  }}>
+                    {login}
+                  </div>
                 </div>
                 <div>
                   <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>{t.nicknameLabel} <span style={{ opacity: 0.5 }}>{t.nicknameHint}</span></div>
