@@ -166,68 +166,6 @@ function RoleDropdown({
         </div>
       )}
 
-      {/* Subscription Modal */}
-      {subModal && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
-          onClick={() => setSubModal(null)}
-        >
-          <div
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 28, width: 360, maxWidth: '94vw' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <h3 style={{ margin: '0 0 16px', fontSize: 16, color: 'var(--text)' }}>
-              Підписка — {subModal.login}
-            </h3>
-            {subModal.paidUntil && (
-              <div style={{ fontSize: 11, color: '#4ade80', marginBottom: 12, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8, padding: '6px 10px' }}>
-                Активна до: {fmt(subModal.paidUntil)}
-              </div>
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-              {([['1m','1 місяць'],['2m','2 місяці'],['3m','3 місяці'],['6m','6 місяців'],['1y','1 рік'],['permanent','Безстроково'],['custom','Власна дата']] as [string, string][]).map(([val, label]) => (
-                <button
-                  key={val}
-                  onClick={() => setSubDuration(val)}
-                  style={{
-                    padding: '8px 12px', borderRadius: 8,
-                    border: `1px solid ${subDuration === val ? '#4ade80' : 'var(--border)'}`,
-                    background: subDuration === val ? 'rgba(74,222,128,0.12)' : 'var(--surface2)',
-                    color: subDuration === val ? '#4ade80' : 'var(--text)',
-                    cursor: 'pointer', textAlign: 'left', fontSize: 13,
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-              {subDuration === 'custom' && (
-                <input
-                  type="date"
-                  value={subCustomDate}
-                  onChange={e => setSubCustomDate(e.target.value)}
-                  style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 13 }}
-                />
-              )}
-            </div>
-            {subErr && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 10 }}>{subErr}</div>}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setSubModal(null)}
-                style={{ padding: '8px 16px', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 13 }}
-              >
-                Скасувати
-              </button>
-              <button
-                onClick={saveSubscription}
-                disabled={subSaving}
-                style={{ padding: '8px 16px', borderRadius: 8, background: '#4ade80', color: '#000', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
-              >
-                {subSaving ? '...' : 'Видати'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
