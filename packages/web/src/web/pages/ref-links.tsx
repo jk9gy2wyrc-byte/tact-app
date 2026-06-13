@@ -326,8 +326,13 @@ export default function RefLinks({ currentLogin }: { currentLogin: string }) {
                     <div style={{
                       background: 'var(--surface2)', borderRadius: 8, padding: '6px 14px',
                       fontSize: 13, color: 'var(--text)', fontWeight: 600, minWidth: 60, textAlign: 'center',
+                      display: 'flex', alignItems: 'center', gap: 5,
                     }}>
-                      👤 {link.userCount}
+                      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, opacity: 0.7 }}>
+                        <circle cx="8" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
+                        <path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                      </svg>
+                      {link.userCount}
                     </div>
                     <button
                       style={{ ...btnStyle('ghost'), padding: '8px 14px' }}
