@@ -271,7 +271,7 @@ export default function RefLinks({ currentLogin }: { currentLogin: string }) {
   });
 
   return (
-    <div style={{ padding: '28px 24px', maxWidth: 860 }}>
+    <div style={{ padding: '28px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <h2 style={{ margin: 0, fontSize: 20, color: 'var(--text)', fontWeight: 700 }}>Реферальні посилання</h2>
         <button style={btnStyle('primary')} onClick={() => { setShowCreate(true); setCreateErr(''); }}>

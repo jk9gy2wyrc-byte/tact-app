@@ -1026,7 +1026,7 @@ function PageTransition({ children, routeKey }: { children: React.ReactNode; rou
       opacity: animating ? 0 : 1,
       transform: animating ? 'translateY(8px)' : undefined,
       transition: 'opacity 0.2s ease, transform 0.2s ease',
-      minHeight: '100%',
+      minHeight: '100vh',
     }}>
       {content}
     </div>
