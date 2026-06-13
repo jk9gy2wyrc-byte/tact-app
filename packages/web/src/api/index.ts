@@ -624,6 +624,15 @@ const app = new Hono()
     return c.json({ ok: true }, 200);
   })
 
+  // GET /api/ref-links/:slug/users — users who registered via this ref link
+  .get('/ref-links/:slug/users', async (c) => {
+    const asLogin = c.req.query('asLogin');
+    if (asLogin !== 'whatif') return c.json({ error: 'Forbidden' }, 403);
+    const slug = c.req.param('slug');
+    const slugUsers = await db.select().from(users).where(eq(users.ref, slug)).orderBy(desc(users.createdAt)).all();
+    return c.json(slugUsers, 200);
+  })
+
   // ─── SUBSCRIPTION SETTINGS ──────────────────────────────────────────────────
   .get('/subscription/settings', async (c) => {
     const row = await ensureSubscriptionRow();

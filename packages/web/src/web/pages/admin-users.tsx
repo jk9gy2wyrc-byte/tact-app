@@ -39,6 +39,13 @@ interface UserRow {
   country: string | null;
   ip: string | null;
   createdAt: string | null;
+  ref: string | null;
+}
+
+interface RefLinkRow {
+  id: number;
+  slug: string;
+  label: string;
 }
 
 function RoleDropdown({
@@ -249,6 +256,24 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
     refetchInterval: 10_000,
   });
 
+  const { data: refLinksData } = useQuery<RefLinkRow[]>({
+    queryKey: ['ref-links'],
+    queryFn: async () => {
+      if (currentLogin !== 'whatif') return [];
+      const res = await fetch(`/api/ref-links?asLogin=${encodeURIComponent(currentLogin)}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 60_000,
+    enabled: currentLogin === 'whatif',
+  });
+
+  const refLabelMap = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const r of refLinksData ?? []) map[r.slug] = r.label;
+    return map;
+  }, [refLinksData]);
+
   const { data: subSettings } = useQuery<{ plans: { firstPurchase: { freeWeeks: number } } }>({
     queryKey: ['subscription-settings'],
     queryFn: async () => {
@@ -416,7 +441,7 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                           <span style={{ fontSize: 9, color: '#fb923c', background: '#fb923c22', padding: '1px 6px', borderRadius: 10, fontWeight: 700 }}>Owner</span>
                         )}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         #{i + 1} · {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '—' : fmt(u.createdAt)}
                         {u.country && !(u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN) && (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
@@ -425,6 +450,15 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                         )}
                         {u.ip && !(u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN) && (
                           <span style={{ color: 'var(--text3)', fontSize: 10 }}> · {u.ip}</span>
+                        )}
+                        {currentLogin === 'whatif' && u.ref && (
+                          <span style={{
+                            fontSize: 10, padding: '2px 6px', borderRadius: 6,
+                            background: 'rgba(126,184,247,0.12)', border: '1px solid rgba(126,184,247,0.3)',
+                            color: '#7eb8f7', fontWeight: 600,
+                          }}>
+                            {refLabelMap[u.ref] ?? u.ref}
+                          </span>
                         )}
                       </div>
                     </div>
@@ -468,6 +502,9 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                     <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>
                       Registered <span style={{ color: 'var(--text3)', fontSize: 10 }}>· UTC+3</span>
                     </th>
+                    {currentLogin === 'whatif' && (
+                      <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>Джерело</th>
+                    )}
                     <th style={{ padding: '10px 16px' }}></th>
                   </tr>
                 </thead>
@@ -510,6 +547,19 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                       <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)', fontFamily: 'monospace' }}>
                         {u.login === OWNER_LOGIN && currentLogin !== OWNER_LOGIN ? '—' : fmt(u.createdAt)}
                       </td>
+                      {currentLogin === 'whatif' && (
+                        <td style={{ padding: '10px 16px' }}>
+                          {u.ref ? (
+                            <span style={{
+                              fontSize: 11, padding: '3px 8px', borderRadius: 8,
+                              background: 'rgba(126,184,247,0.12)', border: '1px solid rgba(126,184,247,0.3)',
+                              color: '#7eb8f7', fontWeight: 600, whiteSpace: 'nowrap',
+                            }}>
+                              {refLabelMap[u.ref] ?? u.ref}
+                            </span>
+                          ) : <span style={{ color: 'var(--text3)', fontSize: 11 }}>—</span>}
+                        </td>
+                      )}
                       <td style={{ padding: '10px 16px' }}>
                         {u.login !== currentLogin && (
                           <div style={{ display: 'flex', gap: 6 }}>
