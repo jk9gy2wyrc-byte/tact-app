@@ -1577,7 +1577,7 @@ const app = new Hono()
       lvAssets:      z.string().optional().default(''),
       lvYears:       z.string().optional().default(''),
       lvMonths:      z.string().optional().default(''),
-      nBlocks:       z.number().int().min(4).max(32).default(16),
+      equalizeN:     z.boolean().optional().default(false),
     })),
     async (c) => {
       const params = c.req.valid('json');
@@ -1604,20 +1604,33 @@ const app = new Hono()
       if (lvMonthsSel.length)    lv = lv.filter(t => lvMonthsSel.includes((t.month ?? '').slice(0, 7)));
       else if (lvYearsSel.length) lv = lv.filter(t => lvYearsSel.includes((t.month ?? '').slice(0, 4)));
 
-      // CSCV PBO calculation
-      function calcPBO(trades: number[]): { pbo: number; nTrades: number } | null {
-        const N = trades.length;
-        if (N < 8) return null;
-        const B = Math.min(params.nBlocks, Math.floor(N / 2) * 2); // ensure even
-        const blockSize = Math.floor(N / B);
-        // Build blocks
-        const blocks: number[][] = [];
-        for (let i = 0; i < B; i++) {
-          blocks.push(trades.slice(i * blockSize, (i + 1) * blockSize));
+      // Auto-select block count based on sample size: 1 block ≈ 10 trades, min 4, max 16, always even
+      const autoBlocks = (n: number) => {
+        const raw = Math.floor(n / 10);
+        const even = raw % 2 === 0 ? raw : raw - 1;
+        return Math.max(4, Math.min(16, even));
+      };
+
+      // Fisher-Yates shuffle sample of size k from arr
+      const sampleN = (arr: number[], k: number): number[] => {
+        const a = [...arr];
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [a[i], a[j]] = [a[j], a[i]];
         }
+        return a.slice(0, k);
+      };
+
+      // CSCV PBO calculation
+      function calcPBO(trades: number[], nBlocks: number): { pbo: number; nTrades: number; nBlocks: number; reliable: boolean } | null {
+        const N = trades.length;
+        if (N < 20) return null;
+        const B = Math.min(nBlocks, Math.floor(N / 2) * 2);
+        const blockSize = Math.floor(N / B);
+        const blocks: number[][] = [];
+        for (let i = 0; i < B; i++) blocks.push(trades.slice(i * blockSize, (i + 1) * blockSize));
         const half = B / 2;
 
-        // Sharpe of array
         const sharpe = (arr: number[]) => {
           if (arr.length < 2) return 0;
           const m = arr.reduce((a, b) => a + b, 0) / arr.length;
@@ -1625,7 +1638,6 @@ const app = new Hono()
           return std > 0 ? (m / std) * Math.sqrt(arr.length) : 0;
         };
 
-        // Generate combinations C(B, half) — use all if ≤ 2000, else sample 2000
         function* combos(n: number, k: number): Generator<number[]> {
           const idxs = Array.from({ length: k }, (_, i) => i);
           while (true) {
@@ -1639,9 +1651,7 @@ const app = new Hono()
         }
 
         const allCombos: number[][] = [];
-        for (const c of combos(B, half)) allCombos.push(c);
-
-        // Sample max 2000
+        for (const combo of combos(B, half)) allCombos.push(combo);
         const sample = allCombos.length <= 2000 ? allCombos : (() => {
           const s: number[][] = [];
           const step = allCombos.length / 2000;
@@ -1655,35 +1665,40 @@ const app = new Hono()
         for (const isIdxs of sample) {
           const isSet = new Set(isIdxs);
           const ooIdxs = allBlockIdxs.filter(i => !isSet.has(i));
-          // IS: find best sub-block by sharpe (each IS block individually)
           let bestSharpe = -Infinity;
-          let bestIdx = isIdxs[0];
           for (const i of isIdxs) {
             const s = sharpe(blocks[i]);
-            if (s > bestSharpe) { bestSharpe = s; bestIdx = i; }
+            if (s > bestSharpe) bestSharpe = s;
           }
-          // OOS: sharpe of that same block on OOS side
-          // We use OOS split sharpe: all OOS blocks combined is the OOS evaluation
-          const oosTrades = ooIdxs.flatMap(i => blocks[i]);
-          oosSharpes.push(sharpe(oosTrades));
-          void bestIdx; // used implicitly via bestSharpe selection
+          oosSharpes.push(sharpe(ooIdxs.flatMap(i => blocks[i])));
         }
 
-        // PBO = fraction of OOS sharpes below median of all OOS sharpes
         const sorted = [...oosSharpes].sort((a, b) => a - b);
         const median = sorted[Math.floor(sorted.length / 2)];
         const pbo = oosSharpes.filter(s => s < median).length / oosSharpes.length;
 
-        return { pbo: Math.round(pbo * 1000) / 1000, nTrades: N };
+        return {
+          pbo: Math.round(pbo * 1000) / 1000,
+          nTrades: N,
+          nBlocks: B,
+          reliable: N >= 100,
+        };
       }
 
-      const btNetR  = bt.map(t => t.netR ?? 0);
-      const lvNetR  = lv.map(t => t.netR ?? 0);
+      let btNetR = bt.map(t => t.netR ?? 0);
+      let lvNetR = lv.map(t => t.netR ?? 0);
 
-      const btPBO = calcPBO(btNetR);
-      const lvPBO = lv.length >= 8 ? calcPBO(lvNetR) : null;
+      // Equalize sample sizes if requested and both have data
+      const equalized = params.equalizeN && lvNetR.length >= 20 && btNetR.length > lvNetR.length;
+      if (equalized) btNetR = sampleN(btNetR, lvNetR.length);
 
-      return c.json({ btPBO, lvPBO });
+      const btBlocks = autoBlocks(btNetR.length);
+      const lvBlocks = autoBlocks(lvNetR.length);
+
+      const btPBO = calcPBO(btNetR, btBlocks);
+      const lvPBO = lvNetR.length >= 20 ? calcPBO(lvNetR, lvBlocks) : null;
+
+      return c.json({ btPBO, lvPBO, equalized });
     }
   )
 

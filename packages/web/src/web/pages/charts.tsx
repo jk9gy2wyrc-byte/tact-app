@@ -926,10 +926,11 @@ export default function Charts() {
   const [pboLvAssets,  setPboLvAssets]  = useState<Set<string>>(new Set());
   const [pboLvYears,   setPboLvYears]   = useState<Set<string>>(new Set());
   const [pboLvMonths,  setPboLvMonths]  = useState<Set<string>>(new Set());
-  const [pboResult,    setPboResult]    = useState<{ btPBO: { pbo: number; nTrades: number } | null; lvPBO: { pbo: number; nTrades: number } | null } | null>(null);
+  const [pboResult,    setPboResult]    = useState<{ btPBO: { pbo: number; nTrades: number; nBlocks: number; reliable: boolean } | null; lvPBO: { pbo: number; nTrades: number; nBlocks: number; reliable: boolean } | null; equalized: boolean } | null>(null);
   const [pboLoading,   setPboLoading]   = useState(false);
   const [pboError,     setPboError]     = useState<string | null>(null);
   const [pboConclusionOpen, setPboConclusionOpen] = useState(false);
+  const [pboEqualizeN, setPboEqualizeN] = useState(false);
 
   const [mcShowBt,     setMcShowBt]     = useState(false);
   const [mcShowLv,     setMcShowLv]     = useState(false);
@@ -1034,6 +1035,7 @@ export default function Charts() {
         lvAssets:      [...pboLvAssets].join(','),
         lvYears:       Array.from(new Set([...pboLvYears].map(k => k.split('__')[1]).filter(Boolean))).join(','),
         lvMonths:      Array.from(new Set([...pboLvMonths].map(k => k.split('__').slice(1).join('__')).filter(Boolean))).join(','),
+        equalizeN:     pboEqualizeN,
       };
       const res = await fetch(`/api/pbo${uidParam()}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1045,7 +1047,7 @@ export default function Charts() {
       setPboError(e.message ?? 'Помилка розрахунку PBO');
     }
     setPboLoading(false);
-  }, [pboBtAssets, pboBtYears, pboBtMonths, pboLvAssets, pboLvYears, pboLvMonths]);
+  }, [pboBtAssets, pboBtYears, pboBtMonths, pboLvAssets, pboLvYears, pboLvMonths, pboEqualizeN]);
   const loadCombo = async (combo: SavedCombo) => {
     setStressParams(combo.params);
     // Restore MC params if saved
@@ -3291,6 +3293,22 @@ export default function Charts() {
                 </div>
               )}
 
+              {/* Equalize toggle */}
+              <div
+                onClick={() => setPboEqualizeN(v => !v)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}
+              >
+                <div style={{ width: 32, height: 18, borderRadius: 9, background: pboEqualizeN ? '#6b7280' : 'var(--surface2)', border: '1px solid var(--border)', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                  <div style={{ position: 'absolute', top: 2, left: pboEqualizeN ? 14 : 2, width: 12, height: 12, borderRadius: '50%', background: pboEqualizeN ? '#fff' : 'var(--text2)', transition: 'left 0.2s' }} />
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--text2)' }}>Вирівняти вибірку BT до розміру Live</span>
+              </div>
+              {pboEqualizeN && (
+                <div style={{ fontSize: 11, color: '#facc15', background: 'rgba(250,204,21,0.08)', border: '1px solid rgba(250,204,21,0.2)', borderRadius: 7, padding: '7px 10px' }}>
+                  З BT буде взята рандомна вибірка розміром = Live. Результат може трохи відрізнятись при кожному запуску.
+                </div>
+              )}
+
               {/* Run button */}
               <button
                 onClick={runPBO}
@@ -3311,22 +3329,34 @@ export default function Charts() {
                 const conclusion = buildConclusion();
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* Equalized notice */}
+                    {pboResult.equalized && (
+                      <div style={{ fontSize: 11, color: '#facc15', background: 'rgba(250,204,21,0.08)', border: '1px solid rgba(250,204,21,0.2)', borderRadius: 7, padding: '7px 10px' }}>
+                        BT вибірка вирівняна до {lv?.nTrades} угод (розмір Live)
+                      </div>
+                    )}
                     {/* Cards */}
                     <div style={{ display: 'grid', gridTemplateColumns: lv ? '1fr 1fr' : '1fr', gap: 12 }}>
                       {/* BT card */}
                       {bt && (
                         <div style={{ background: 'var(--surface2)', border: `1px solid ${pboColor(bt.pbo)}44`, borderRadius: 10, padding: '14px 16px' }}>
-                          <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 6 }}>BT · {bt.nTrades} угод</div>
+                          <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 6 }}>BT · {bt.nTrades} угод · {bt.nBlocks} блоків</div>
                           <div style={{ fontSize: 28, fontWeight: 700, color: pboColor(bt.pbo), fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>{bt.pbo.toFixed(2)}</div>
                           <div style={{ fontSize: 11, fontWeight: 600, color: pboColor(bt.pbo) }}>{pboLabel(bt.pbo)}</div>
+                          {!bt.reliable && (
+                            <div style={{ fontSize: 10, color: '#facc15', marginTop: 6 }}>⚠ &lt;100 угод — результат орієнтовний</div>
+                          )}
                         </div>
                       )}
                       {/* Live card */}
                       {lv && (
                         <div style={{ background: 'var(--surface2)', border: `1px solid ${pboColor(lv.pbo)}44`, borderRadius: 10, padding: '14px 16px' }}>
-                          <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 6 }}>Live · {lv.nTrades} угод</div>
+                          <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 6 }}>Live · {lv.nTrades} угод · {lv.nBlocks} блоків</div>
                           <div style={{ fontSize: 28, fontWeight: 700, color: pboColor(lv.pbo), fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>{lv.pbo.toFixed(2)}</div>
                           <div style={{ fontSize: 11, fontWeight: 600, color: pboColor(lv.pbo) }}>{pboLabel(lv.pbo)}</div>
+                          {!lv.reliable && (
+                            <div style={{ fontSize: 10, color: '#facc15', marginTop: 6 }}>⚠ &lt;100 угод — результат орієнтовний</div>
+                          )}
                         </div>
                       )}
                     </div>
