@@ -129,6 +129,50 @@ function expiryEmailHtml(opts: {
   };
 }
 
+// ─── runExpiryNotifications — called by cron and manual endpoint ──────────────
+async function runExpiryNotifications(): Promise<{ sent: number; failed: number }> {
+  const allUsers = await db.select().from(users).all();
+  const row = await ensureSubscriptionRow();
+  const plans = parsePlans(row.plansJson);
+  const freeWeeks = plans.firstPurchase.freeWeeks ?? 2;
+  const msPerWeek = 7 * 24 * 3600 * 1000;
+  const msPerDay = 24 * 3600 * 1000;
+  const now = Date.now();
+
+  let sent = 0, failed = 0;
+
+  for (const u of allUsers) {
+    if (!u.email) continue;
+    const lang: 'UA' | 'EN' = u.country === 'UA' ? 'UA' : 'EN';
+    const name = u.login;
+
+    if (u.role === 'free-trial' || u.role === 'trial') {
+      const createdMs = parseDbDate(u.createdAt);
+      if (!createdMs) continue;
+      const trialEnd = createdMs + freeWeeks * msPerWeek;
+      const diff = trialEnd - now;
+      // send only on expiry day (within last 24h)
+      if (diff <= 0 && diff > -msPerDay) {
+        const { subject, html } = expiryEmailHtml({ name, lang, type: 'trial-expired' });
+        const ok = await sendBrevoEmail(u.email, subject, html);
+        if (ok) sent++; else failed++;
+      }
+    } else if (u.role === 'paid') {
+      const paidUntil = parseDbDate((u as any).paidUntil);
+      if (!paidUntil) continue;
+      const diff = paidUntil - now;
+      // send only on expiry day (within last 24h)
+      if (diff <= 0 && diff > -msPerDay) {
+        const { subject, html } = expiryEmailHtml({ name, lang, type: 'sub-expired' });
+        const ok = await sendBrevoEmail(u.email, subject, html);
+        if (ok) sent++; else failed++;
+      }
+    }
+  }
+
+  return { sent, failed };
+}
+
 // ─── disposable email domains list ───────────────────────────────────────────
 import disposableDomains from 'disposable-email-domains';
 const DISPOSABLE_SET = new Set<string>(disposableDomains as string[]);
@@ -868,56 +912,8 @@ const app = new Hono()
       const { asLogin } = c.req.valid('json');
       const caller = await db.select().from(users).where(eq(users.login, asLogin)).get();
       if (!caller || caller.role !== 'admin') return c.json({ error: 'Forbidden' }, 403);
-
-      const allUsers = await db.select().from(users).all();
-      const row = await ensureSubscriptionRow();
-      const plans = parsePlans(row.plansJson);
-      const freeWeeks = plans.firstPurchase.freeWeeks ?? 2;
-      const msPerWeek = 7 * 24 * 3600 * 1000;
-      const msPerDay = 24 * 3600 * 1000;
-      const now = Date.now();
-      const THREE_DAYS = 3 * msPerDay;
-
-      let sent = 0, failed = 0;
-
-      for (const u of allUsers) {
-        if (!u.email) continue;
-        const lang: 'UA' | 'EN' = u.country === 'UA' ? 'UA' : 'EN';
-        const name = u.login;
-
-        if (u.role === 'free-trial' || u.role === 'trial') {
-          const createdMs = parseDbDate(u.createdAt);
-          if (!createdMs) continue;
-          const trialEnd = createdMs + freeWeeks * msPerWeek;
-          const diff = trialEnd - now;
-          if (diff > 0 && diff <= THREE_DAYS) {
-            const daysLeft = Math.ceil(diff / msPerDay);
-            const { subject, html } = expiryEmailHtml({ name, lang, type: 'trial-ending', daysLeft });
-            const ok = await sendBrevoEmail(u.email, subject, html);
-            if (ok) sent++; else failed++;
-          } else if (diff <= 0 && diff > -msPerDay) {
-            const { subject, html } = expiryEmailHtml({ name, lang, type: 'trial-expired' });
-            const ok = await sendBrevoEmail(u.email, subject, html);
-            if (ok) sent++; else failed++;
-          }
-        } else if (u.role === 'paid') {
-          const paidUntil = parseDbDate((u as any).paidUntil);
-          if (!paidUntil) continue;
-          const diff = paidUntil - now;
-          if (diff > 0 && diff <= THREE_DAYS) {
-            const daysLeft = Math.ceil(diff / msPerDay);
-            const { subject, html } = expiryEmailHtml({ name, lang, type: 'sub-ending', daysLeft });
-            const ok = await sendBrevoEmail(u.email, subject, html);
-            if (ok) sent++; else failed++;
-          } else if (diff <= 0 && diff > -msPerDay) {
-            const { subject, html } = expiryEmailHtml({ name, lang, type: 'sub-expired' });
-            const ok = await sendBrevoEmail(u.email, subject, html);
-            if (ok) sent++; else failed++;
-          }
-        }
-      }
-
-      return c.json({ ok: true, sent, failed }, 200);
+      const result = await runExpiryNotifications();
+      return c.json({ ok: true, ...result }, 200);
     }
   )
 
@@ -2879,6 +2875,7 @@ app.put('/prefs/:key', async (c) => {
 });
 
 export type AppType = typeof app;
+export { runExpiryNotifications };
 export default app;
 
 // ─── AUTO-MIGRATION ON STARTUP ────────────────────────────────────────────────
