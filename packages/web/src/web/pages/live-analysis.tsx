@@ -49,6 +49,26 @@ function Stat({ label, value, color, sub }: { label: string; value: string | num
   );
 }
 
+function StatWithTooltip({ label, value, color, tooltip }: { label: string; value: string | number; color?: string; tooltip: string }) {
+  const [show, setShow] = React.useState(false);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "10px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, position: "relative" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <div style={{ fontSize: 10, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
+        <div
+          onMouseEnter={() => setShow(true)}
+          onMouseLeave={() => setShow(false)}
+          style={{ width: 13, height: 13, borderRadius: "50%", background: "var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: "var(--text2)", cursor: "default", flexShrink: 0 }}
+        >?</div>
+        {show && (
+          <div style={{ position: "absolute", top: "100%", left: 0, zIndex: 100, marginTop: 4, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 10px", fontSize: 11, color: "var(--text2)", lineHeight: 1.5, width: 220, boxShadow: "0 4px 16px rgba(0,0,0,0.3)" }}>{tooltip}</div>
+        )}
+      </div>
+      <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "monospace", color: color ?? "var(--text)" }}>{value}</div>
+    </div>
+  );
+}
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "var(--text2)", textTransform: "uppercase", marginBottom: 12, paddingBottom: 6, borderBottom: "1px solid var(--border)" }}>
@@ -1011,7 +1031,7 @@ export default function LiveAnalysis() {
             <Stat label="Max Win Streak" value={maxWinStreak} color="#7eb8f7" />
             <Stat label="Max Loss Streak" value={maxLossStreak} color="#f0a070" />
             <Stat label="TP / SL / BE" value={`${tpCount} / ${slCount} / ${beCount}`} />
-            <Stat label="Sharpe Ratio" value={sharpe} color={sharpe >= 2 ? "#7eb8f7" : sharpe >= 1 ? "#a8d4a0" : "#f0a070"} />
+            <StatWithTooltip label="Sharpe Ratio" value={sharpe} color={sharpe >= 2 ? "#7eb8f7" : sharpe >= 1 ? "#a8d4a0" : "#f0a070"} tooltip="Показує скільки прибутку ти отримуєш на одиницю ризику. Чим вище — тим стабільніша стратегія. ≥2 відмінно, ≥1 добре, <1 слабо." />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginTop: 10 }}>
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
