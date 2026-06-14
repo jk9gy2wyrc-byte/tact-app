@@ -205,6 +205,13 @@ export default function RefLinks({ currentLogin }: { currentLogin: string }) {
   // Copy feedback
   const [copied, setCopied] = useState<string | null>(null);
 
+  // Email modal (per ref-link)
+  const [emailModal, setEmailModal] = useState<{ slug: string; label: string } | null>(null);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailResult, setEmailResult] = useState<string | null>(null);
+
   const load = async () => {
     setLoading(true);
     try {
@@ -255,6 +262,32 @@ export default function RefLinks({ currentLogin }: { currentLogin: string }) {
       setCopied(s);
       setTimeout(() => setCopied(null), 2000);
     });
+  };
+
+  const sendEmailToSlug = async () => {
+    if (!emailModal) return;
+    if (!emailSubject.trim()) { setEmailResult('Введіть тему'); return; }
+    if (!emailBody.trim()) { setEmailResult('Введіть текст'); return; }
+    setEmailSending(true); setEmailResult(null);
+    try {
+      // fetch users of this ref link, then send individually
+      const r = await fetch(`/api/ref-links/${encodeURIComponent(emailModal.slug)}/users?asLogin=${currentLogin}`);
+      const slugUsers: RefUser[] = await r.json();
+      const withEmail = slugUsers.filter(u => u.email);
+      const html = emailBody.replace(/\n/g, '<br>');
+      let sent = 0, failed = 0;
+      for (const u of withEmail) {
+        const res = await fetch('/api/admin/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ asLogin: currentLogin, userId: u.id, subject: emailSubject, html }),
+        });
+        const d = await res.json();
+        if (d.sent > 0) sent++; else failed++;
+      }
+      setEmailResult(`Відправлено: ${sent}, помилок: ${failed}, без email: ${slugUsers.length - withEmail.length}`);
+    } catch { setEmailResult('Помилка з\'єднання'); }
+    setEmailSending(false);
   };
 
   const inputStyle: React.CSSProperties = {
@@ -335,6 +368,12 @@ export default function RefLinks({ currentLogin }: { currentLogin: string }) {
                       {link.userCount}
                     </div>
                     <button
+                      style={{ ...btnStyle('ghost'), padding: '8px 14px', background: 'rgba(126,184,247,0.12)', color: '#7eb8f7', border: '1px solid rgba(126,184,247,0.3)' }}
+                      onClick={() => { setEmailModal({ slug: link.slug, label: link.label }); setEmailSubject(''); setEmailBody(''); setEmailResult(null); }}
+                    >
+                      ✉ Email
+                    </button>
+                    <button
                       style={{ ...btnStyle('ghost'), padding: '8px 14px' }}
                       onClick={() => copyLink(link.slug)}
                     >
@@ -361,6 +400,63 @@ export default function RefLinks({ currentLogin }: { currentLogin: string }) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Email Modal */}
+      {emailModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+        }} onClick={() => setEmailModal(null)}>
+          <div style={{
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: 14, padding: 28, width: 420, maxWidth: '94vw',
+          }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 6px', fontSize: 15, color: 'var(--text)' }}>
+              ✉ Email — {emailModal.label}
+            </h3>
+            <p style={{ fontSize: 11, color: 'var(--text2)', margin: '0 0 16px' }}>
+              Відправить всім юзерам цього реф-лінку, що мають email
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 5 }}>Тема</div>
+                <input
+                  type="text"
+                  value={emailSubject}
+                  onChange={e => setEmailSubject(e.target.value)}
+                  placeholder="Subject..."
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 5 }}>Повідомлення</div>
+                <textarea
+                  value={emailBody}
+                  onChange={e => setEmailBody(e.target.value)}
+                  placeholder="Text or HTML..."
+                  rows={6}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }}
+                />
+              </div>
+            </div>
+            {emailResult && (
+              <div style={{ fontSize: 12, color: emailResult.startsWith('Помилка') ? '#f87171' : '#4ade80', marginBottom: 12 }}>
+                {emailResult}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setEmailModal(null)} style={btnStyle('ghost')}>Закрити</button>
+              <button
+                onClick={sendEmailToSlug}
+                disabled={emailSending}
+                style={{ ...btnStyle('primary'), background: '#7eb8f7', color: '#000' }}
+              >
+                {emailSending ? '...' : 'Відправити'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

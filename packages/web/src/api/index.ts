@@ -9,6 +9,126 @@ import * as XLSX from "xlsx";
 import { DEFAULT_SUBSCRIPTION_SETTINGS } from "../shared/subscription";
 // Email sending via Brevo
 
+// ─── Brevo helper ────────────────────────────────────────────────────────────
+async function sendBrevoEmail(to: string, subject: string, htmlContent: string): Promise<boolean> {
+  const brevoKey = process.env.BREVO_API_KEY;
+  if (!brevoKey) return false;
+  try {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'accept': 'application/json', 'content-type': 'application/json', 'api-key': brevoKey },
+      body: JSON.stringify({
+        sender: { name: 'TSCT', email: 'tsctsupport@gmail.com' },
+        to: [{ email: to }],
+        subject,
+        htmlContent,
+      }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+// ─── Welcome email templates ──────────────────────────────────────────────────
+function welcomeEmailHtml(name: string, lang: 'UA' | 'EN'): { subject: string; html: string } {
+  if (lang === 'UA') {
+    return {
+      subject: 'Ласкаво просимо до TSCT!',
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:36px 32px;background:#0d0f11;color:#e2e8f0;border-radius:16px">
+          <div style="font-size:22px;font-weight:700;margin-bottom:24px;color:#fff">TSCT</div>
+          <p style="font-size:16px;font-weight:700;margin-bottom:12px;color:#fff">Вітаємо на TSCT, ${name}!</p>
+          <p style="color:#94a3b8;margin-bottom:20px;line-height:1.6">
+            Раді бачити вас на нашій платформі. Ваш обліковий запис успішно створено — тепер вам доступні всі інструменти для аналізу торгівлі та стрес-тестування стратегій.
+          </p>
+          <div style="background:#1a1d2a;border-radius:12px;padding:18px 20px;margin-bottom:24px">
+            <div style="font-size:13px;color:#7eb8f7;font-weight:600;margin-bottom:8px">Що далі?</div>
+            <ul style="margin:0;padding:0 0 0 18px;color:#94a3b8;font-size:14px;line-height:1.8">
+              <li>Перейдіть на <a href="https://tsct.space" style="color:#7eb8f7;text-decoration:none">tsct.space</a> та увійдіть у свій акаунт</li>
+              <li>Вивчіть інструменти бектестингу та аналізу</li>
+              <li>Налаштуйте свою торгову стратегію</li>
+            </ul>
+          </div>
+          <p style="color:#94a3b8;font-size:13px;margin-bottom:6px">Якщо у вас виникнуть питання — ми завжди тут:</p>
+          <p style="margin:0"><a href="mailto:tsctsupport@gmail.com" style="color:#7eb8f7;font-size:13px">tsctsupport@gmail.com</a></p>
+        </div>
+      `,
+    };
+  }
+  return {
+    subject: 'Welcome to TSCT!',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:36px 32px;background:#0d0f11;color:#e2e8f0;border-radius:16px">
+        <div style="font-size:22px;font-weight:700;margin-bottom:24px;color:#fff">TSCT</div>
+        <p style="font-size:16px;font-weight:700;margin-bottom:12px;color:#fff">Welcome to TSCT, ${name}!</p>
+        <p style="color:#94a3b8;margin-bottom:20px;line-height:1.6">
+          We're thrilled to have you on board. Your account has been successfully created — you now have access to all trading analysis and strategy stress-testing tools.
+        </p>
+        <div style="background:#1a1d2a;border-radius:12px;padding:18px 20px;margin-bottom:24px">
+          <div style="font-size:13px;color:#7eb8f7;font-weight:600;margin-bottom:8px">What's next?</div>
+          <ul style="margin:0;padding:0 0 0 18px;color:#94a3b8;font-size:14px;line-height:1.8">
+            <li>Head to <a href="https://tsct.space" style="color:#7eb8f7;text-decoration:none">tsct.space</a> and log in to your account</li>
+            <li>Explore backtesting and analysis tools</li>
+            <li>Set up and refine your trading strategy</li>
+          </ul>
+        </div>
+        <p style="color:#94a3b8;font-size:13px;margin-bottom:6px">Have questions? We're always here:</p>
+        <p style="margin:0"><a href="mailto:tsctsupport@gmail.com" style="color:#7eb8f7;font-size:13px">tsctsupport@gmail.com</a></p>
+      </div>
+    `,
+  };
+}
+
+// ─── Expiry notification email templates ─────────────────────────────────────
+function expiryEmailHtml(opts: {
+  name: string;
+  lang: 'UA' | 'EN';
+  type: 'trial-ending' | 'trial-expired' | 'sub-ending' | 'sub-expired';
+  daysLeft?: number;
+}): { subject: string; html: string } {
+  const { name, lang, type, daysLeft } = opts;
+  const UA = lang === 'UA';
+
+  const styles = `font-family:sans-serif;max-width:480px;margin:0 auto;padding:36px 32px;background:#0d0f11;color:#e2e8f0;border-radius:16px`;
+  const link = `<a href="https://tsct.space" style="color:#7eb8f7;text-decoration:none">tsct.space</a>`;
+  const support = `<a href="mailto:tsctsupport@gmail.com" style="color:#7eb8f7;font-size:13px">tsctsupport@gmail.com</a>`;
+
+  if (type === 'trial-ending') {
+    return UA ? {
+      subject: `Ваш пробний період закінчується через ${daysLeft} дн.`,
+      html: `<div style="${styles}"><div style="font-size:22px;font-weight:700;margin-bottom:24px;color:#fff">TSCT</div><p style="font-size:16px;font-weight:700;margin-bottom:12px;color:#fff">Вітаємо, ${name}!</p><p style="color:#94a3b8;margin-bottom:20px;line-height:1.6">Ваш безкоштовний пробний період закінчується через <strong style="color:#facc15">${daysLeft} дні</strong>. Щоб продовжити доступ до всіх інструментів, оформте підписку на ${link}.</p><p style="color:#94a3b8;font-size:13px">Питання? ${support}</p></div>`,
+    } : {
+      subject: `Your trial ends in ${daysLeft} days`,
+      html: `<div style="${styles}"><div style="font-size:22px;font-weight:700;margin-bottom:24px;color:#fff">TSCT</div><p style="font-size:16px;font-weight:700;margin-bottom:12px;color:#fff">Hi ${name}!</p><p style="color:#94a3b8;margin-bottom:20px;line-height:1.6">Your free trial ends in <strong style="color:#facc15">${daysLeft} days</strong>. To keep full access to all tools, upgrade your plan at ${link}.</p><p style="color:#94a3b8;font-size:13px">Questions? ${support}</p></div>`,
+    };
+  }
+  if (type === 'trial-expired') {
+    return UA ? {
+      subject: 'Ваш пробний період завершився',
+      html: `<div style="${styles}"><div style="font-size:22px;font-weight:700;margin-bottom:24px;color:#fff">TSCT</div><p style="font-size:16px;font-weight:700;margin-bottom:12px;color:#fff">Вітаємо, ${name}!</p><p style="color:#94a3b8;margin-bottom:20px;line-height:1.6">Ваш безкоштовний пробний період завершився. Щоб відновити доступ до платформи, оформте підписку на ${link}.</p><p style="color:#94a3b8;font-size:13px">Питання? ${support}</p></div>`,
+    } : {
+      subject: 'Your trial has ended',
+      html: `<div style="${styles}"><div style="font-size:22px;font-weight:700;margin-bottom:24px;color:#fff">TSCT</div><p style="font-size:16px;font-weight:700;margin-bottom:12px;color:#fff">Hi ${name}!</p><p style="color:#94a3b8;margin-bottom:20px;line-height:1.6">Your free trial has ended. To regain access to all platform features, please subscribe at ${link}.</p><p style="color:#94a3b8;font-size:13px">Questions? ${support}</p></div>`,
+    };
+  }
+  if (type === 'sub-ending') {
+    return UA ? {
+      subject: `Ваша підписка закінчується через ${daysLeft} дн.`,
+      html: `<div style="${styles}"><div style="font-size:22px;font-weight:700;margin-bottom:24px;color:#fff">TSCT</div><p style="font-size:16px;font-weight:700;margin-bottom:12px;color:#fff">Вітаємо, ${name}!</p><p style="color:#94a3b8;margin-bottom:20px;line-height:1.6">Ваша підписка на TSCT закінчується через <strong style="color:#facc15">${daysLeft} дні</strong>. Щоб не переривати доступ, продовжте її на ${link}.</p><p style="color:#94a3b8;font-size:13px">Питання? ${support}</p></div>`,
+    } : {
+      subject: `Your subscription ends in ${daysLeft} days`,
+      html: `<div style="${styles}"><div style="font-size:22px;font-weight:700;margin-bottom:24px;color:#fff">TSCT</div><p style="font-size:16px;font-weight:700;margin-bottom:12px;color:#fff">Hi ${name}!</p><p style="color:#94a3b8;margin-bottom:20px;line-height:1.6">Your TSCT subscription ends in <strong style="color:#facc15">${daysLeft} days</strong>. Renew now to keep uninterrupted access at ${link}.</p><p style="color:#94a3b8;font-size:13px">Questions? ${support}</p></div>`,
+    };
+  }
+  // sub-expired
+  return UA ? {
+    subject: 'Ваша підписка завершилася',
+    html: `<div style="${styles}"><div style="font-size:22px;font-weight:700;margin-bottom:24px;color:#fff">TSCT</div><p style="font-size:16px;font-weight:700;margin-bottom:12px;color:#fff">Вітаємо, ${name}!</p><p style="color:#94a3b8;margin-bottom:20px;line-height:1.6">Ваша підписка на TSCT завершилася. Щоб відновити доступ, оформте нову підписку на ${link}.</p><p style="color:#94a3b8;font-size:13px">Питання? ${support}</p></div>`,
+  } : {
+    subject: 'Your subscription has expired',
+    html: `<div style="${styles}"><div style="font-size:22px;font-weight:700;margin-bottom:24px;color:#fff">TSCT</div><p style="font-size:16px;font-weight:700;margin-bottom:12px;color:#fff">Hi ${name}!</p><p style="color:#94a3b8;margin-bottom:20px;line-height:1.6">Your TSCT subscription has expired. To restore access, please renew at ${link}.</p><p style="color:#94a3b8;font-size:13px">Questions? ${support}</p></div>`,
+  };
+}
+
 // ─── disposable email domains list ───────────────────────────────────────────
 import disposableDomains from 'disposable-email-domains';
 const DISPOSABLE_SET = new Set<string>(disposableDomains as string[]);
@@ -242,17 +362,17 @@ const app = new Hono()
             body: JSON.stringify({
               sender: { name: 'TSCT', email: 'tsctsupport@gmail.com' },
               to: [{ email: user.email }],
-              subject: 'Вхід у ваш акаунт TSCT',
+              subject: 'New sign-in to your TSCT account',
               htmlContent: `
                 <div style="font-family:sans-serif;max-width:460px;margin:0 auto;padding:32px;background:#0d0f11;color:#e2e8f0;border-radius:16px">
                   <div style="font-size:20px;font-weight:700;margin-bottom:20px;color:#e2e8f0">TSCT</div>
-                  <p style="font-size:15px;margin-bottom:8px;color:#e2e8f0">Вітаємо, <strong>${displayName}</strong>!</p>
-                  <p style="color:#94a3b8;margin-bottom:20px">У ваш персональний кабінет відбувся вхід:</p>
+                  <p style="font-size:15px;margin-bottom:8px;color:#e2e8f0">Hi, <strong>${displayName}</strong>!</p>
+                  <p style="color:#94a3b8;margin-bottom:20px">A new sign-in to your account was detected:</p>
                   <div style="background:#1a1d2a;border-radius:12px;padding:16px 20px;margin-bottom:20px;color:#e2e8f0;font-size:15px">
                     📅 <strong>${dateStr}</strong> &nbsp; 🕐 <strong>${timeStr} UTC</strong>
                   </div>
-                  <p style="color:#94a3b8;font-size:13px;margin-bottom:8px">Якщо це були ви — проігноруйте це повідомлення.</p>
-                  <p style="color:#94a3b8;font-size:13px">Якщо це були не ви — <strong style="color:#ef5350">негайно змініть пароль</strong> у налаштуваннях акаунту.</p>
+                  <p style="color:#94a3b8;font-size:13px;margin-bottom:8px">If this was you — no action needed.</p>
+                  <p style="color:#94a3b8;font-size:13px">If this wasn't you — <strong style="color:#ef5350">change your password immediately</strong> in account settings.</p>
                 </div>
               `,
             }),
@@ -343,13 +463,13 @@ const app = new Hono()
           body: JSON.stringify({
             sender: { name: 'TSCT', email: 'tsctsupport@gmail.com' },
             to: [{ email }],
-            subject: 'Код підтвердження TSCT',
+            subject: 'Your TSCT verification code',
             htmlContent: `
               <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:32px;background:#0d0f11;color:#e2e8f0;border-radius:16px">
                 <div style="font-size:20px;font-weight:700;margin-bottom:16px">TSCT</div>
-                <p style="color:#94a3b8;margin-bottom:24px">Ваш код підтвердження для реєстрації:</p>
+                <p style="color:#94a3b8;margin-bottom:24px">Your registration verification code:</p>
                 <div style="font-size:40px;font-weight:700;letter-spacing:12px;text-align:center;padding:20px;background:#1a1d2a;border-radius:12px;color:#fff">${code}</div>
-                <p style="color:#94a3b8;font-size:12px;margin-top:20px">Код дійсний 10 хвилин. Якщо ви не реєструвались — проігноруйте цей лист.</p>
+                <p style="color:#94a3b8;font-size:12px;margin-top:20px">Valid for 10 minutes. If you didn't request this — ignore this email.</p>
               </div>
             `,
           }),
@@ -408,6 +528,12 @@ const app = new Hono()
         role: 'free-trial',
         ref: ref ?? null,
       }).returning();
+      // send welcome email (fire & forget)
+      if (newUser.email) {
+        const lang = newUser.country === 'UA' ? 'UA' : 'EN';
+        const { subject, html } = welcomeEmailHtml(newUser.login, lang);
+        sendBrevoEmail(newUser.email, subject, html).catch(() => {});
+      }
       return c.json({
         id: newUser.id,
         login: newUser.login,
@@ -470,6 +596,12 @@ const app = new Hono()
         ref: ref ?? null,
       }).returning();
       await db.delete(emailCodes).where(eq(emailCodes.email, email));
+      // send welcome email (fire & forget)
+      if (newUser.email) {
+        const lang = newUser.country === 'UA' ? 'UA' : 'EN';
+        const { subject, html } = welcomeEmailHtml(newUser.login, lang);
+        sendBrevoEmail(newUser.email, subject, html).catch(() => {});
+      }
       return c.json({
         id: newUser.id,
         login: newUser.login,
@@ -693,6 +825,101 @@ const app = new Hono()
     const slugUsers = await db.select().from(users).where(eq(users.ref, slug)).orderBy(desc(users.createdAt)).all();
     return c.json(slugUsers, 200);
   })
+
+  // ─── ADMIN: manual email blast ───────────────────────────────────────────────
+  .post('/admin/send-email',
+    zValidator('json', z.object({
+      asLogin: z.string().min(1),
+      userId: z.union([z.number(), z.literal('all')]),
+      subject: z.string().min(1).max(200),
+      html: z.string().min(1),
+    })),
+    async (c) => {
+      const { asLogin, userId, subject, html } = c.req.valid('json');
+      const caller = await db.select().from(users).where(eq(users.login, asLogin)).get();
+      if (!caller || caller.role !== 'admin') return c.json({ error: 'Forbidden' }, 403);
+
+      const brevoKey = process.env.BREVO_API_KEY;
+      if (!brevoKey) return c.json({ error: 'BREVO_API_KEY not set' }, 500);
+
+      let targets: { email: string | null; login: string }[] = [];
+      if (userId === 'all') {
+        targets = await db.select({ email: users.email, login: users.login }).from(users).all();
+      } else {
+        const u = await db.select({ email: users.email, login: users.login }).from(users).where(eq(users.id, userId)).get();
+        if (!u) return c.json({ error: 'User not found' }, 404);
+        targets = [u];
+      }
+
+      const withEmail = targets.filter(t => t.email);
+      let sent = 0, failed = 0;
+      for (const t of withEmail) {
+        const ok = await sendBrevoEmail(t.email!, subject, html);
+        if (ok) sent++; else failed++;
+      }
+      return c.json({ ok: true, sent, failed, skipped: targets.length - withEmail.length }, 200);
+    }
+  )
+
+  // ─── ADMIN: notify expiring users ────────────────────────────────────────────
+  .post('/admin/notify-expiring',
+    zValidator('json', z.object({ asLogin: z.string().min(1) })),
+    async (c) => {
+      const { asLogin } = c.req.valid('json');
+      const caller = await db.select().from(users).where(eq(users.login, asLogin)).get();
+      if (!caller || caller.role !== 'admin') return c.json({ error: 'Forbidden' }, 403);
+
+      const allUsers = await db.select().from(users).all();
+      const row = await ensureSubscriptionRow();
+      const plans = parsePlans(row.plansJson);
+      const freeWeeks = plans.firstPurchase.freeWeeks ?? 2;
+      const msPerWeek = 7 * 24 * 3600 * 1000;
+      const msPerDay = 24 * 3600 * 1000;
+      const now = Date.now();
+      const THREE_DAYS = 3 * msPerDay;
+
+      let sent = 0, failed = 0;
+
+      for (const u of allUsers) {
+        if (!u.email) continue;
+        const lang: 'UA' | 'EN' = u.country === 'UA' ? 'UA' : 'EN';
+        const name = u.login;
+
+        if (u.role === 'free-trial' || u.role === 'trial') {
+          const createdMs = parseDbDate(u.createdAt);
+          if (!createdMs) continue;
+          const trialEnd = createdMs + freeWeeks * msPerWeek;
+          const diff = trialEnd - now;
+          if (diff > 0 && diff <= THREE_DAYS) {
+            const daysLeft = Math.ceil(diff / msPerDay);
+            const { subject, html } = expiryEmailHtml({ name, lang, type: 'trial-ending', daysLeft });
+            const ok = await sendBrevoEmail(u.email, subject, html);
+            if (ok) sent++; else failed++;
+          } else if (diff <= 0 && diff > -msPerDay) {
+            const { subject, html } = expiryEmailHtml({ name, lang, type: 'trial-expired' });
+            const ok = await sendBrevoEmail(u.email, subject, html);
+            if (ok) sent++; else failed++;
+          }
+        } else if (u.role === 'paid') {
+          const paidUntil = parseDbDate((u as any).paidUntil);
+          if (!paidUntil) continue;
+          const diff = paidUntil - now;
+          if (diff > 0 && diff <= THREE_DAYS) {
+            const daysLeft = Math.ceil(diff / msPerDay);
+            const { subject, html } = expiryEmailHtml({ name, lang, type: 'sub-ending', daysLeft });
+            const ok = await sendBrevoEmail(u.email, subject, html);
+            if (ok) sent++; else failed++;
+          } else if (diff <= 0 && diff > -msPerDay) {
+            const { subject, html } = expiryEmailHtml({ name, lang, type: 'sub-expired' });
+            const ok = await sendBrevoEmail(u.email, subject, html);
+            if (ok) sent++; else failed++;
+          }
+        }
+      }
+
+      return c.json({ ok: true, sent, failed }, 200);
+    }
+  )
 
   // ─── SUBSCRIPTION SETTINGS ──────────────────────────────────────────────────
   .get('/subscription/settings', async (c) => {

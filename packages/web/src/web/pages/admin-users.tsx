@@ -255,6 +255,16 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
   const [subSaving, setSubSaving] = useState(false);
   const [subErr, setSubErr] = useState('');
 
+  // Email modal
+  const [emailModal, setEmailModal] = useState<{ userId: number | 'all'; login: string } | null>(null);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailResult, setEmailResult] = useState<string | null>(null);
+  // Notify expiring
+  const [notifying, setNotifying] = useState(false);
+  const [notifyResult, setNotifyResult] = useState<string | null>(null);
+
   const { data, isLoading, error } = useQuery<UserRow[]>({
     queryKey: ['admin-users'],
     queryFn: async () => {
@@ -349,6 +359,40 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
     setSubSaving(false);
   };
 
+  const sendEmail = async () => {
+    if (!emailModal) return;
+    if (!emailSubject.trim()) { setEmailResult('Введіть тему'); return; }
+    if (!emailBody.trim()) { setEmailResult('Введіть текст'); return; }
+    setEmailSending(true); setEmailResult(null);
+    try {
+      const html = emailBody.replace(/\n/g, '<br>');
+      const res = await fetch('/api/admin/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asLogin: currentLogin, userId: emailModal.userId, subject: emailSubject, html }),
+      });
+      const d = await res.json();
+      if (d.error) { setEmailResult(`Помилка: ${d.error}`); }
+      else { setEmailResult(`Відправлено: ${d.sent}, помилок: ${d.failed}, без email: ${d.skipped ?? 0}`); }
+    } catch { setEmailResult('Помилка з\'єднання'); }
+    setEmailSending(false);
+  };
+
+  const notifyExpiring = async () => {
+    setNotifying(true); setNotifyResult(null);
+    try {
+      const res = await fetch('/api/admin/notify-expiring', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asLogin: currentLogin }),
+      });
+      const d = await res.json();
+      if (d.error) setNotifyResult(`Помилка: ${d.error}`);
+      else setNotifyResult(`Відправлено: ${d.sent}, помилок: ${d.failed}`);
+    } catch { setNotifyResult('Помилка з\'єднання'); }
+    setNotifying(false);
+  };
+
   const users: UserRow[] = data ?? [];
 
   useEffect(() => {
@@ -415,8 +459,24 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
           background: '#facc1522', color: '#facc15', fontSize: 10, fontWeight: 700,
           padding: '2px 10px', borderRadius: 20, border: '1px solid #facc1544',
         }}>ADMIN ONLY</div>
-        <div style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text2)' }}>
-          {users.length} users · auto-refresh 10s
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            onClick={notifyExpiring}
+            disabled={notifying}
+            style={{ fontSize: 11, padding: '5px 12px', borderRadius: 7, background: 'rgba(250,204,21,0.12)', color: '#facc15', border: '1px solid rgba(250,204,21,0.3)', cursor: 'pointer', fontWeight: 600 }}
+          >
+            {notifying ? '...' : '🔔 Notify expiring'}
+          </button>
+          {notifyResult && <span style={{ fontSize: 11, color: 'var(--text2)' }}>{notifyResult}</span>}
+          <button
+            onClick={() => { setEmailModal({ userId: 'all', login: 'all users' }); setEmailSubject(''); setEmailBody(''); setEmailResult(null); }}
+            style={{ fontSize: 11, padding: '5px 12px', borderRadius: 7, background: 'rgba(126,184,247,0.12)', color: '#7eb8f7', border: '1px solid rgba(126,184,247,0.3)', cursor: 'pointer', fontWeight: 600 }}
+          >
+            📧 Broadcast
+          </button>
+          <div style={{ fontSize: 11, color: 'var(--text2)' }}>
+            {users.length} users · auto-refresh 10s
+          </div>
         </div>
       </div>
 
@@ -609,34 +669,44 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                         </td>
                       )}
                       <td style={{ padding: '10px 16px' }}>
-                        {u.login !== currentLogin && (
-                          <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap' }}>
-                            {u.role === 'paid' && u.login !== OWNER_LOGIN && (
-                              <button
-                                onClick={() => {
-                                  const today = new Date().toISOString().slice(0, 10);
-                                  setSubModal({ id: u.id, login: u.login, paidFrom: u.paidUntil ?? null, paidUntil: u.paidUntil ?? null });
-                                  setSubFrom(u.paidUntil ? u.paidUntil.slice(0, 10) : today);
-                                  setSubUntil('');
-                                  setSubErr('');
-                                }}
-                                style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                              >
-                                Підписка
-                              </button>
-                            )}
-                            {confirmDelete === u.id ? (
-                              <>
-                                <button onClick={() => deleteMutation.mutate(u.id)} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: '#f87171', color: '#fff', border: 'none', cursor: 'pointer' }}>{t.yes}</button>
-                                <button onClick={() => setConfirmDelete(null)} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }}>{t.no}</button>
-                              </>
-                            ) : (
-                              <button onClick={() => setConfirmDelete(u.id)} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'transparent', color: '#f87171', border: '1px solid #f8717133', cursor: 'pointer' }}>
-                                {t.delete}
-                              </button>
-                            )}
-                          </div>
-                        )}
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap' }}>
+                          {u.email && (
+                            <button
+                              onClick={() => { setEmailModal({ userId: u.id, login: u.login }); setEmailSubject(''); setEmailBody(''); setEmailResult(null); }}
+                              style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'rgba(126,184,247,0.12)', color: '#7eb8f7', border: '1px solid rgba(126,184,247,0.3)', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            >
+                              ✉ Email
+                            </button>
+                          )}
+                          {u.login !== currentLogin && (
+                            <>
+                              {u.role === 'paid' && u.login !== OWNER_LOGIN && (
+                                <button
+                                  onClick={() => {
+                                    const today = new Date().toISOString().slice(0, 10);
+                                    setSubModal({ id: u.id, login: u.login, paidFrom: u.paidUntil ?? null, paidUntil: u.paidUntil ?? null });
+                                    setSubFrom(u.paidUntil ? u.paidUntil.slice(0, 10) : today);
+                                    setSubUntil('');
+                                    setSubErr('');
+                                  }}
+                                  style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                >
+                                  Підписка
+                                </button>
+                              )}
+                              {confirmDelete === u.id ? (
+                                <>
+                                  <button onClick={() => deleteMutation.mutate(u.id)} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: '#f87171', color: '#fff', border: 'none', cursor: 'pointer' }}>{t.yes}</button>
+                                  <button onClick={() => setConfirmDelete(null)} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }}>{t.no}</button>
+                                </>
+                              ) : (
+                                <button onClick={() => setConfirmDelete(u.id)} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'transparent', color: '#f87171', border: '1px solid #f8717133', cursor: 'pointer' }}>
+                                  {t.delete}
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -652,6 +722,68 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
             </div>
           )}
         </>
+      )}
+
+      {/* Email Modal */}
+      {emailModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={() => setEmailModal(null)}
+        >
+          <div
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 28, width: 420, maxWidth: '94vw' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 6px', fontSize: 15, color: 'var(--text)' }}>
+              ✉ Email — {emailModal.login}
+            </h3>
+            <p style={{ fontSize: 11, color: 'var(--text2)', margin: '0 0 16px' }}>
+              {emailModal.userId === 'all' ? 'Відправить всім юзерам з email' : 'Відправить особисто'}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 5 }}>Тема</div>
+                <input
+                  type="text"
+                  value={emailSubject}
+                  onChange={e => setEmailSubject(e.target.value)}
+                  placeholder="Subject..."
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 5 }}>Повідомлення</div>
+                <textarea
+                  value={emailBody}
+                  onChange={e => setEmailBody(e.target.value)}
+                  placeholder="Text or HTML..."
+                  rows={6}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }}
+                />
+              </div>
+            </div>
+            {emailResult && (
+              <div style={{ fontSize: 12, color: emailResult.startsWith('Помилка') ? '#f87171' : '#4ade80', marginBottom: 12 }}>
+                {emailResult}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setEmailModal(null)}
+                style={{ padding: '8px 16px', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 13 }}
+              >
+                Закрити
+              </button>
+              <button
+                onClick={sendEmail}
+                disabled={emailSending}
+                style={{ padding: '8px 16px', borderRadius: 8, background: '#7eb8f7', color: '#000', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+              >
+                {emailSending ? '...' : 'Відправити'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Subscription Modal */}
