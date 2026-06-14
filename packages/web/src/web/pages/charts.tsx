@@ -3193,21 +3193,22 @@ export default function Charts() {
       </div>{/* end MC+STRESS island */}
 
       {/* ─────────────────────── PBO BLOCK ──────────────────────── */}
-      <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 12 }}>
+      <div>
       {(() => {
         const _pboSession = getSession();
         const _pboIsAdmin = _pboSession?.role === 'admin';
         if (!_pboIsAdmin) return (
-          <div style={{ position: 'relative', minHeight: 320, overflow: 'hidden' }}>
-            {/* blurred placeholder */}
-            <div style={{ filter: 'blur(6px)', pointerEvents: 'none', userSelect: 'none', opacity: 0.35, ...chartStyle(isMobile) }}>
-              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>PBO — Probability of Backtest Overfitting</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+          <div style={{ position: 'relative', overflow: 'hidden', ...chartStyle(isMobile) }}>
+            {/* blurred content */}
+            <div style={{ filter: 'blur(5px)', pointerEvents: 'none', userSelect: 'none', opacity: 0.4 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>PBO — Probability of Backtest Overfitting</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                 {[...Array(2)].map((_, i) => (
-                  <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, height: 90 }} />
+                  <div key={i} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, height: 90 }} />
                 ))}
               </div>
-              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, height: 60 }} />
+              <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, height: 44 }} />
+              <div style={{ marginTop: 12, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, height: 36 }} />
             </div>
             {/* overlay */}
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -3215,12 +3216,12 @@ export default function Charts() {
                 background: 'rgba(20,22,25,0.88)',
                 border: '1px solid var(--border)',
                 borderRadius: 16,
-                padding: '28px 44px',
+                padding: '24px 40px',
                 textAlign: 'center',
                 backdropFilter: 'blur(4px)',
               }}>
-                <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>In development</div>
-                <div style={{ fontSize: 13, color: 'var(--text2)' }}>PBO analysis is coming soon</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>In development</div>
+                <div style={{ fontSize: 12, color: 'var(--text2)' }}>PBO analysis is coming soon</div>
               </div>
             </div>
           </div>
