@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useT } from "../lib/i18n";
 import { useMobile } from "../hooks/useMobile";
 import { useQuery } from "@tanstack/react-query";
-import { uidParam } from "../lib/session";
+import { uidParam, getSession } from "../lib/session";
 import AccessWrapper from "../components/AccessWrapper";
 import { fetchAccess } from "../lib/access";
 import {
@@ -3193,6 +3193,45 @@ export default function Charts() {
       </div>{/* end MC+STRESS island */}
 
       {/* ─────────────────────── PBO BLOCK ──────────────────────── */}
+      <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 12 }}>
+      {(() => {
+        const _pboSession = getSession();
+        const _pboIsAdmin = _pboSession?.role === 'admin';
+        if (!_pboIsAdmin) return (
+          <div style={{ position: 'relative', minHeight: 320, overflow: 'hidden' }}>
+            {/* blurred placeholder */}
+            <div style={{ filter: 'blur(6px)', pointerEvents: 'none', userSelect: 'none', opacity: 0.35, ...chartStyle(isMobile) }}>
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>PBO — Probability of Backtest Overfitting</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                {[...Array(2)].map((_, i) => (
+                  <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, height: 90 }} />
+                ))}
+              </div>
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, height: 60 }} />
+            </div>
+            {/* overlay */}
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{
+                background: 'rgba(20,22,25,0.88)',
+                border: '1px solid var(--border)',
+                borderRadius: 16,
+                padding: '28px 44px',
+                textAlign: 'center',
+                backdropFilter: 'blur(4px)',
+              }}>
+                <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>In development</div>
+                <div style={{ fontSize: 13, color: 'var(--text2)' }}>PBO analysis is coming soon</div>
+              </div>
+            </div>
+          </div>
+        );
+        return null;
+      })()}
+      {(() => {
+        const _pboSession2 = getSession();
+        const _pboIsAdmin2 = _pboSession2?.role === 'admin';
+        if (!_pboIsAdmin2) return null;
+        return (
       <div style={chartStyle(isMobile)}>
         {(() => {
           // PBO label/color helpers
@@ -3379,6 +3418,9 @@ export default function Charts() {
             </div>
           );
         })()}
+      </div>{/* end PBO inner */}
+        );
+      })()}
       </div>{/* end PBO island */}
 
     </div>
