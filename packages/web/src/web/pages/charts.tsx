@@ -3418,10 +3418,10 @@ export default function Charts() {
             </div>
           );
         })()}
-      </div>{/* end PBO inner */}
-        );
+      </div>
+      );
       })()}
-      </div>{/* end PBO island */}
+      </div>{/* end PBO outer wrapper */}
 
     </div>
     </AccessWrapper>
