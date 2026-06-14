@@ -301,14 +301,14 @@ function SubscriptionTab({ session }: { session: Session }) {
       .finally(() => setLoading(false));
   }, [session.id]);
 
-  if (loading) return <div style={{ color: 'var(--text2)', fontSize: 13 }}>Завантаження...</div>;
-  if (!info) return <div style={{ color: 'var(--red)', fontSize: 13 }}>Помилка завантаження</div>;
+  if (loading) return <div style={{ color: 'var(--text2)', fontSize: 13 }}>Loading...</div>;
+  if (!info) return <div style={{ color: 'var(--red)', fontSize: 13 }}>Failed to load</div>;
 
   const now = Date.now();
 
   const fmtDate = (iso: string | null) => {
     if (!iso) return '—';
-    try { return new Date(iso).toLocaleDateString('uk-UA', { day: '2-digit', month: 'long', year: 'numeric' }); } catch { return iso; }
+    try { return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }); } catch { return iso; }
   };
 
   const daysLeft = (iso: string | null) => {
@@ -323,32 +323,32 @@ function SubscriptionTab({ session }: { session: Session }) {
   let statusColor = '#f87171';
   let statusLabel = 'Немає доступу';
 
-  if (info.role === 'admin') { status = 'admin'; statusColor = '#facc15'; statusLabel = 'Адмін'; }
+  if (info.role === 'admin') { status = 'admin'; statusColor = '#facc15'; statusLabel = 'Admin'; }
   else if (info.role === 'paid') {
     if (info.paidUntil && Date.parse(info.paidUntil) < now) {
-      status = 'paid_expired'; statusColor = '#f87171'; statusLabel = 'Підписка закінчилась';
+      status = 'paid_expired'; statusColor = '#f87171'; statusLabel = 'Subscription expired';
     } else {
-      status = 'paid'; statusColor = '#4ade80'; statusLabel = 'Активна підписка';
+      status = 'paid'; statusColor = '#4ade80'; statusLabel = 'Active subscription';
     }
   }
   else if (info.role === 'free-trial' || info.role === 'trial') {
     const trialLeft = daysLeft(info.trialEndsAt);
     if (trialLeft !== null && trialLeft < 0) {
-      status = 'trial_expired'; statusColor = '#f87171'; statusLabel = 'Пробний період закінчився';
+      status = 'trial_expired'; statusColor = '#f87171'; statusLabel = 'Trial expired';
     } else {
-      status = 'trial'; statusColor = '#7eb8f7'; statusLabel = 'Пробний період';
+      status = 'trial'; statusColor = '#7eb8f7'; statusLabel = 'Trial period';
     }
   }
-  else if (info.role === 'free') { status = 'free'; statusColor = '#94a3b8'; statusLabel = 'Безкоштовний'; }
+  else if (info.role === 'free') { status = 'free'; statusColor = '#94a3b8'; statusLabel = 'Free'; }
 
   const FEATURES: Record<StatusType, string[]> = {
-    admin: ['Повний доступ до всіх функцій', 'Управління юзерами', 'Реферальні посилання', 'Налаштування платформи'],
-    paid: ['Повний доступ до всіх функцій', 'Бектест та live-трейди', 'Графіки та аналіз', 'Monte Carlo симуляція'],
-    paid_expired: ['Доступ призупинено', 'Зверніться для продовження підписки'],
-    trial: ['Повний доступ під час пробного періоду', 'Бектест та live-трейди', 'Графіки та аналіз'],
-    trial_expired: ['Пробний період закінчився', 'Для продовження роботи потрібна підписка'],
-    free: ['Базовий доступ', 'Обмежений функціонал'],
-    no_access: ['Доступ заблоковано'],
+    admin: ['Full access to all features', 'User management', 'Referral links', 'Platform settings'],
+    paid: ['Full access to all features', 'Backtest & live trades', 'Charts & analysis', 'Monte Carlo simulation'],
+    paid_expired: ['Access suspended', 'Contact us to renew your subscription'],
+    trial: ['Full access during trial period', 'Backtest & live trades', 'Charts & analysis'],
+    trial_expired: ['Trial period has ended', 'Subscription required to continue'],
+    free: ['Basic access', 'Limited features'],
+    no_access: ['Access blocked'],
   };
 
   const features = FEATURES[status] ?? [];
@@ -370,7 +370,7 @@ function SubscriptionTab({ session }: { session: Session }) {
         <div>
           <div style={{ fontSize: 15, fontWeight: 700, color: statusColor }}>{statusLabel}</div>
           <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>
-            Поточний статус акаунта
+            Current account status
           </div>
         </div>
       </div>
@@ -382,17 +382,17 @@ function SubscriptionTab({ session }: { session: Session }) {
           borderRadius: 10, padding: '12px 16px',
         }}>
           <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            {status === 'paid_expired' ? 'Закінчилась' : 'Дійсна до'}
+            {status === 'paid_expired' ? 'Expired' : 'Valid until'}
           </div>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{fmtDate(info.paidUntil)}</div>
           {paidLeft !== null && paidLeft >= 0 && (
             <div style={{ fontSize: 12, color: '#4ade80', marginTop: 4 }}>
-              ще {paidLeft} {paidLeft === 1 ? 'день' : paidLeft < 5 ? 'дні' : 'днів'}
+              {paidLeft} {paidLeft === 1 ? 'day' : 'days'} left
             </div>
           )}
           {paidLeft !== null && paidLeft < 0 && (
             <div style={{ fontSize: 12, color: '#f87171', marginTop: 4 }}>
-              {Math.abs(paidLeft)} {Math.abs(paidLeft) === 1 ? 'день' : Math.abs(paidLeft) < 5 ? 'дні' : 'днів'} тому
+              {Math.abs(paidLeft)} {Math.abs(paidLeft) === 1 ? 'day' : 'days'} ago
             </div>
           )}
         </div>
@@ -404,17 +404,17 @@ function SubscriptionTab({ session }: { session: Session }) {
           borderRadius: 10, padding: '12px 16px',
         }}>
           <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            {status === 'trial_expired' ? 'Тріал закінчився' : 'Тріал до'}
+            {status === 'trial_expired' ? 'Trial ended' : 'Trial until'}
           </div>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{fmtDate(info.trialEndsAt)}</div>
           {trialLeft !== null && trialLeft >= 0 && (
             <div style={{ fontSize: 12, color: '#7eb8f7', marginTop: 4 }}>
-              ще {trialLeft} {trialLeft === 1 ? 'день' : trialLeft < 5 ? 'дні' : 'днів'}
+              {trialLeft} {trialLeft === 1 ? 'day' : 'days'} left
             </div>
           )}
           {trialLeft !== null && trialLeft < 0 && (
             <div style={{ fontSize: 12, color: '#f87171', marginTop: 4 }}>
-              закінчився {Math.abs(trialLeft)} {Math.abs(trialLeft) === 1 ? 'день' : Math.abs(trialLeft) < 5 ? 'дні' : 'днів'} тому
+              ended {Math.abs(trialLeft)} {Math.abs(trialLeft) === 1 ? 'day' : 'days'} ago
             </div>
           )}
         </div>
@@ -426,7 +426,7 @@ function SubscriptionTab({ session }: { session: Session }) {
         borderRadius: 10, padding: '12px 16px',
       }}>
         <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-          Що доступно
+          What's included
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {features.map((f, i) => (
