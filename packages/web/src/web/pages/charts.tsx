@@ -900,6 +900,10 @@ export default function Charts() {
     btNetEq: number[]; btGrossEq: number[]; lvNetEq: number[]; lvGrossEq: number[];
     btCount: number; lvCount: number;
     sqnDistribution: { bin: number; count: number }[];
+    sharpeDistribution: { bin: number; count: number }[];
+    sharpeSummary: { med: number; p5: number };
+    btSharpe: number;
+    lvSharpe: number | null;
     ddDistribution: { bin: number; count: number }[];
     summary: { med: { totalR: number; sqn: number }; p5: { totalR: number; sqn: number }; p95: { totalR: number; sqn: number } };
     survivalRate: number; ddMed: number; ddP5: number; ddP95: number; ddProbAboveThreshold: number;
@@ -2283,6 +2287,75 @@ export default function Charts() {
                     <ReferenceLine x={r.summary.med.sqn} stroke={MC_MED_COLOR} strokeWidth={2} label={{ value: 'med', position: 'top', fontSize: 9, fill: MC_MED_COLOR }} />
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+
+              {/* ── Sharpe Distribution ── */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>Sharpe Distribution</div>
+                <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 8 }}>
+                  med={r.sharpeSummary.med.toFixed(2)} · p5={r.sharpeSummary.p5.toFixed(2)}
+                </div>
+                <ResponsiveContainer width="100%" height={isMobile ? 140 : 180}>
+                  <BarChart data={r.sharpeDistribution} margin={{ top: 4, right: 8, bottom: 4, left: 0 }} barSize={14}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2d33" />
+                    <XAxis dataKey="bin" stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} tickFormatter={v => v.toFixed(1)} />
+                    <YAxis stroke="#5a5f6a" tick={{ fontSize: 9, fill: '#8b9098' }} />
+                    <Tooltip formatter={(v: any) => [v, 'Sims']} labelFormatter={v => `Sharpe ≈ ${Number(v).toFixed(2)}`} contentStyle={{ background: 'var(--surface2)', border: '1px solid var(--border)', fontSize: 11 }} />
+                    <Bar dataKey="count" fill="#6b7280" radius={[2, 2, 0, 0]} />
+                    <ReferenceLine x={r.sharpeSummary.med} stroke={MC_MED_COLOR} strokeWidth={2} label={{ value: 'med', position: 'top', fontSize: 9, fill: MC_MED_COLOR }} />
+                  </BarChart>
+                </ResponsiveContainer>
+                {/* Comparison row: MC med vs BT and Live real Sharpe */}
+                <div style={{ display: 'grid', gridTemplateColumns: r.lvSharpe !== null ? '1fr 1fr' : '1fr', gap: 10, marginTop: 12 }}>
+                  {/* MC med vs BT Sharpe */}
+                  {(() => {
+                    const delta = r.sharpeSummary.med - r.btSharpe;
+                    const color = Math.abs(delta) < 0.1 ? '#8b9098' : delta > 0 ? '#4ade80' : '#f87171';
+                    return (
+                      <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 6 }}>MC Sharpe vs BT</div>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                          <div>
+                            <div style={{ fontSize: 9, color: 'var(--text2)', marginBottom: 2 }}>MC med</div>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: MC_MED_COLOR, fontVariantNumeric: 'tabular-nums' }}>{r.sharpeSummary.med.toFixed(2)}</div>
+                          </div>
+                          <div style={{ width: 1, height: 32, background: 'var(--border)', alignSelf: 'center' }} />
+                          <div>
+                            <div style={{ fontSize: 9, color: 'var(--text2)', marginBottom: 2 }}>BT</div>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: '#8b9098', fontVariantNumeric: 'tabular-nums' }}>{r.btSharpe.toFixed(2)}</div>
+                          </div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color, alignSelf: 'center', marginLeft: 4 }}>
+                            {delta >= 0 ? '+' : ''}{delta.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  {/* MC med vs Live Sharpe */}
+                  {r.lvSharpe !== null && (() => {
+                    const delta = r.sharpeSummary.med - r.lvSharpe!;
+                    const color = Math.abs(delta) < 0.1 ? '#8b9098' : delta > 0 ? '#4ade80' : '#f87171';
+                    return (
+                      <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 6 }}>MC Sharpe vs Live</div>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                          <div>
+                            <div style={{ fontSize: 9, color: 'var(--text2)', marginBottom: 2 }}>MC med</div>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: MC_MED_COLOR, fontVariantNumeric: 'tabular-nums' }}>{r.sharpeSummary.med.toFixed(2)}</div>
+                          </div>
+                          <div style={{ width: 1, height: 32, background: 'var(--border)', alignSelf: 'center' }} />
+                          <div>
+                            <div style={{ fontSize: 9, color: 'var(--text2)', marginBottom: 2 }}>Live</div>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: '#8b9098', fontVariantNumeric: 'tabular-nums' }}>{r.lvSharpe!.toFixed(2)}</div>
+                          </div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color, alignSelf: 'center', marginLeft: 4 }}>
+                            {delta >= 0 ? '+' : ''}{delta.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
 
               {/* ── Survival Rate ── */}

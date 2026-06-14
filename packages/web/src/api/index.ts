@@ -1675,6 +1675,7 @@ const app = new Hono()
       const finalEqs: number[]  = [];
       const maxDDs: number[]    = [];
       const sqns: number[]      = [];
+      const sharpes: number[]   = [];
       const wrs: number[]       = [];
       const streaks: number[]   = [];
       const pfs: number[]       = [];
@@ -1745,6 +1746,8 @@ const app = new Hono()
         const std = Math.sqrt(netArr.reduce((a, r) => a + (r - mean) ** 2, 0) / denom);
         const sqn = std > 0 ? Math.sqrt(netArr.length) * mean / std : 0;
         sqns.push(sqn);
+        const sharpe = std > 0 ? (mean / std) * Math.sqrt(netArr.length) : 0;
+        sharpes.push(Math.round(sharpe * 100) / 100);
 
         let strkMax = 0, strkCur = 0, wins = 0;
         for (const r of netArr) {
@@ -1774,6 +1777,17 @@ const app = new Hono()
         mcp95.push(Math.round(pctOf(arr, 0.95) * 100) / 100);
       }
 
+      // ── Real BT / Live Sharpe ────────────────────────────────────────────
+      const calcSharpe = (arr: number[]) => {
+        if (arr.length < 2) return 0;
+        const m = arr.reduce((a, b) => a + b, 0) / arr.length;
+        const variance = arr.reduce((s, x) => s + (x - m) ** 2, 0) / (arr.length - 1);
+        const sd = Math.sqrt(variance);
+        return sd > 0 ? Math.round((m / sd) * Math.sqrt(arr.length) * 100) / 100 : 0;
+      };
+      const btSharpe = calcSharpe(bt.map(t => t.netR ?? 0));
+      const lvSharpe = lv.length >= 2 ? calcSharpe(lv.map(t => t.netR ?? 0)) : null;
+
       // ── SQN distribution (histogram, 20 bins) ────────────────────────────
       const sqnMin = Math.floor(pctOf(sqns, 0.01) * 10) / 10;
       const sqnMax = Math.ceil(pctOf(sqns, 0.99) * 10) / 10;
@@ -1787,6 +1801,24 @@ const app = new Hono()
         const i = Math.max(0, Math.min(SQN_BINS - 1, Math.floor((v - sqnMin) / sqnBinW)));
         sqnHist[i].count++;
       }
+
+      // ── Sharpe distribution (histogram, 20 bins) ─────────────────────────
+      const sharpeMin = Math.floor(pctOf(sharpes, 0.01) * 10) / 10;
+      const sharpeMax = Math.ceil(pctOf(sharpes, 0.99) * 10) / 10;
+      const SHARPE_BINS = 20;
+      const sharpeBinW = (sharpeMax - sharpeMin) / SHARPE_BINS || 0.5;
+      const sharpeHist: { bin: number; count: number }[] = Array.from({ length: SHARPE_BINS }, (_, i) => ({
+        bin: Math.round((sharpeMin + (i + 0.5) * sharpeBinW) * 100) / 100,
+        count: 0,
+      }));
+      for (const v of sharpes) {
+        const i = Math.max(0, Math.min(SHARPE_BINS - 1, Math.floor((v - sharpeMin) / sharpeBinW)));
+        sharpeHist[i].count++;
+      }
+      const sharpeSummary = {
+        med: Math.round(pctOf(sharpes, 0.50) * 100) / 100,
+        p5:  Math.round(pctOf(sharpes, 0.05) * 100) / 100,
+      };
 
       // ── Max DD distribution (histogram, 20 bins) ─────────────────────────
       const ddMin  = 0;
@@ -1898,6 +1930,10 @@ const app = new Hono()
         btCount: bt.length, lvCount: lv.length,
         // Distributions
         sqnDistribution: sqnHist,
+        sharpeDistribution: sharpeHist,
+        sharpeSummary,
+        btSharpe,
+        lvSharpe,
         ddDistribution: ddHist,
         // Summary stats
         summary: {
