@@ -670,14 +670,6 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
                       )}
                       <td style={{ padding: '10px 16px' }}>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap' }}>
-                          {u.email && (
-                            <button
-                              onClick={() => { setEmailModal({ userId: u.id, login: u.login }); setEmailSubject(''); setEmailBody(''); setEmailResult(null); }}
-                              style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'rgba(126,184,247,0.12)', color: '#7eb8f7', border: '1px solid rgba(126,184,247,0.3)', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                            >
-                              ✉ Email
-                            </button>
-                          )}
                           {u.login !== currentLogin && (
                             <>
                               {u.role === 'paid' && u.login !== OWNER_LOGIN && (
