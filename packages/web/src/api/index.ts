@@ -1858,7 +1858,7 @@ const app = new Hono()
           if (arr.length < 2) return 0;
           const m = arr.reduce((a, b) => a + b, 0) / arr.length;
           const std = Math.sqrt(arr.reduce((s, x) => s + (x - m) ** 2, 0) / (arr.length - 1));
-          return std > 0 ? (m / std) * Math.sqrt(arr.length) : 0;
+          return std > 0 ? m / std : 0;
         };
 
         function* combos(n: number, k: number): Generator<number[]> {
@@ -2102,7 +2102,8 @@ const app = new Hono()
         const std = Math.sqrt(netArr.reduce((a, r) => a + (r - mean) ** 2, 0) / denom);
         const sqn = std > 0 ? Math.sqrt(netArr.length) * mean / std : 0;
         sqns.push(sqn);
-        const sharpe = std > 0 ? (mean / std) * Math.sqrt(netArr.length) : 0;
+        // Sharpe = mean/std (per-trade, no √n — SQN already uses √n)
+        const sharpe = std > 0 ? mean / std : 0;
         sharpes.push(Math.round(sharpe * 100) / 100);
 
         let strkMax = 0, strkCur = 0, wins = 0;
@@ -2139,7 +2140,8 @@ const app = new Hono()
         const m = arr.reduce((a, b) => a + b, 0) / arr.length;
         const variance = arr.reduce((s, x) => s + (x - m) ** 2, 0) / (arr.length - 1);
         const sd = Math.sqrt(variance);
-        return sd > 0 ? Math.round((m / sd) * Math.sqrt(arr.length) * 100) / 100 : 0;
+        // Sharpe per-trade = mean/std (no √n annualization — that's SQN's job)
+        return sd > 0 ? Math.round((m / sd) * 100) / 100 : 0;
       };
       const btSharpe = calcSharpe(bt.map(t => t.netR ?? 0));
       const lvSharpe = lv.length >= 2 ? calcSharpe(lv.map(t => t.netR ?? 0)) : null;
