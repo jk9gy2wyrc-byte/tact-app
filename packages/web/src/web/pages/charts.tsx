@@ -2273,7 +2273,20 @@ export default function Charts() {
 
               {/* ── SQN Distribution ── */}
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>SQN Distribution</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700 }}>SQN Distribution</span>
+                  <button onClick={() => setStressDescOpen(prev => { const s = new Set(prev); s.has('sqn') ? s.delete('sqn') : s.add('sqn'); return s; })} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '50%', width: 16, height: 16, cursor: 'pointer', fontSize: 9, color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, lineHeight: 1 }}>?</button>
+                </div>
+                {stressDescOpen.has('sqn') && (
+                  <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 11, color: 'var(--text2)', lineHeight: 1.55 }}>
+                    <b style={{ color: 'var(--text1)', display: 'block', marginBottom: 4 }}>SQN — System Quality Number</b>
+                    Оцінює якість системи відносно кількості угод.<br/>
+                    Формула: <b>(середній R / σR) × √N</b><br/><br/>
+                    <b style={{ color: 'var(--text1)' }}>Орієнтири:</b><br/>
+                    &lt; 1.6 — слабка · 1.6–2.5 — нормальна · 2.5–5 — добра · &gt; 5 — відмінна<br/><br/>
+                    Гістограма показує розподіл SQN по {(stressData as any)?.params?.nSim ?? '…'} симуляціях MC. Лінія — медіана.
+                  </div>
+                )}
                 <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 8 }}>
                   med={r.summary.med.sqn.toFixed(2)} · p5={r.summary.p5.sqn.toFixed(2)} · p95={r.summary.p95.sqn.toFixed(2)}
                 </div>
@@ -2291,7 +2304,20 @@ export default function Charts() {
 
               {/* ── Sharpe Distribution ── */}
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>Sharpe Distribution</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700 }}>Sharpe Distribution</span>
+                  <button onClick={() => setStressDescOpen(prev => { const s = new Set(prev); s.has('sharpe') ? s.delete('sharpe') : s.add('sharpe'); return s; })} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '50%', width: 16, height: 16, cursor: 'pointer', fontSize: 9, color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, lineHeight: 1 }}>?</button>
+                </div>
+                {stressDescOpen.has('sharpe') && (
+                  <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 11, color: 'var(--text2)', lineHeight: 1.55 }}>
+                    <b style={{ color: 'var(--text1)', display: 'block', marginBottom: 4 }}>Sharpe Ratio (в одиницях R)</b>
+                    Показує, скільки ризику ти береш за одиницю прибутку.<br/>
+                    Формула: <b>(середній R / σR) × √N</b><br/><br/>
+                    <b style={{ color: 'var(--text1)' }}>Орієнтири:</b><br/>
+                    &lt; 1 — слабкий · 1–2 — прийнятний · &gt; 2 — хороший<br/><br/>
+                    MC med — медіанний Sharpe по всіх симуляціях. Порівнюється з реальним BT і Live Sharpe нижче.
+                  </div>
+                )}
                 <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 8 }}>
                   med={r.sharpeSummary.med.toFixed(2)} · p5={r.sharpeSummary.p5.toFixed(2)}
                 </div>
@@ -2360,7 +2386,20 @@ export default function Charts() {
 
               {/* ── Survival Rate ── */}
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>Survival Rate</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700 }}>Survival Rate</span>
+                  <button onClick={() => setStressDescOpen(prev => { const s = new Set(prev); s.has('survival') ? s.delete('survival') : s.add('survival'); return s; })} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '50%', width: 16, height: 16, cursor: 'pointer', fontSize: 9, color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, lineHeight: 1 }}>?</button>
+                </div>
+                {stressDescOpen.has('survival') && (
+                  <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 11, color: 'var(--text2)', lineHeight: 1.55 }}>
+                    <b style={{ color: 'var(--text1)', display: 'block', marginBottom: 4 }}>Survival Rate</b>
+                    % симуляцій де максимальна просадка не перевищила поріг виживання.<br/>
+                    Поріг зараз: <b>{stressParams.survivalThreshold}R</b><br/><br/>
+                    <b style={{ color: 'var(--text1)' }}>Орієнтири:</b><br/>
+                    ≥ 90% — безпечно · 70–90% — прийнятно · &lt; 70% — небезпечно<br/><br/>
+                    <b>P(DD &gt; threshold)</b> — ймовірність отримати просадку більшу за поріг. Дублює Survival Rate з іншого кута: 100% − Survival Rate.
+                  </div>
+                )}
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3,1fr)', gap: 10 }}>
                   {/* Survival Rate */}
                   {(() => {
