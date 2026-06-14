@@ -134,7 +134,18 @@ function computeStats(trades: any[]) {
   const longsNet = Math.round(longs.reduce((s, t) => s + (t.netR ?? 0), 0) * 100) / 100;
   const shortsNet = Math.round(shorts.reduce((s, t) => s + (t.netR ?? 0), 0) * 100) / 100;
 
-  return { sorted, equity, distrib, avgNet, months, totalNet, monthlyData, markets, total, tpCount, slCount, beCount, wr, wins, losses, avgWin, avgLoss, profitFactor, maxDd, best, worst, maxWinStreak, maxLossStreak, longs, shorts, longsWR, shortsWR, longsNet, shortsNet };
+  // Sharpe Ratio in R
+  const netRValues = trades.map(t => t.netR ?? 0);
+  const sharpe = (() => {
+    if (netRValues.length < 2) return 0;
+    const mean = netRValues.reduce((a, b) => a + b, 0) / netRValues.length;
+    const variance = netRValues.reduce((s, x) => s + (x - mean) ** 2, 0) / (netRValues.length - 1);
+    const std = Math.sqrt(variance);
+    if (std === 0) return 0;
+    return Math.round((mean / std) * Math.sqrt(netRValues.length) * 100) / 100;
+  })();
+
+  return { sorted, equity, distrib, avgNet, months, totalNet, monthlyData, markets, total, tpCount, slCount, beCount, wr, wins, losses, avgWin, avgLoss, profitFactor, maxDd, best, worst, maxWinStreak, maxLossStreak, sharpe, longs, shorts, longsWR, shortsWR, longsNet, shortsNet };
 }
 
 function diffPct(a: number, b: number): string {
@@ -510,7 +521,7 @@ export default function LiveAnalysis() {
   // ── Normal view ────────────────────────────────────────────────────────────
   const trades = selectedMonth === "all" ? allTrades : allTrades.filter(t => (t.month ?? "").slice(0, 7) === selectedMonth);
   const s = computeStats(trades);
-  const { sorted, equity, distrib, avgNet, monthlyData, markets, total, tpCount, slCount, beCount, wr, avgWin, avgLoss, profitFactor, maxDd, best, worst, maxWinStreak, maxLossStreak, longs, shorts, longsWR, shortsWR, longsNet, shortsNet } = s;
+  const { sorted, equity, distrib, avgNet, monthlyData, markets, total, tpCount, slCount, beCount, wr, avgWin, avgLoss, profitFactor, maxDd, best, worst, maxWinStreak, maxLossStreak, sharpe, longs, shorts, longsWR, shortsWR, longsNet, shortsNet } = s;
 
   return (
     <AccessWrapper blocked={isBlocked} reason={accessData?.reason}>
@@ -1000,6 +1011,7 @@ export default function LiveAnalysis() {
             <Stat label="Max Win Streak" value={maxWinStreak} color="#7eb8f7" />
             <Stat label="Max Loss Streak" value={maxLossStreak} color="#f0a070" />
             <Stat label="TP / SL / BE" value={`${tpCount} / ${slCount} / ${beCount}`} />
+            <Stat label="Sharpe Ratio" value={sharpe} color={sharpe >= 2 ? "#7eb8f7" : sharpe >= 1 ? "#a8d4a0" : "#f0a070"} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginTop: 10 }}>
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>

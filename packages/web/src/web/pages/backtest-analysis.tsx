@@ -706,10 +706,21 @@ export default function BacktestAnalysis() {
     const longsNet = Math.round(longs.reduce((s: number, t: any) => s + (t.netR ?? 0), 0) * 100) / 100;
     const shortsNet = Math.round(shorts.reduce((s: number, t: any) => s + (t.netR ?? 0), 0) * 100) / 100;
 
+    // Sharpe Ratio in R
+    const netRValues = trades.map((t: any) => t.netR ?? 0);
+    const sharpe = (() => {
+      if (netRValues.length < 2) return 0;
+      const mean = netRValues.reduce((a: number, b: number) => a + b, 0) / netRValues.length;
+      const variance = netRValues.reduce((s: number, x: number) => s + (x - mean) ** 2, 0) / (netRValues.length - 1);
+      const std = Math.sqrt(variance);
+      if (std === 0) return 0;
+      return Math.round((mean / std) * Math.sqrt(netRValues.length) * 100) / 100;
+    })();
+
     return {
       total, tpCount, slCount, beCount, fakeCount, wr, totalNet, avgNet,
       avgWin, avgLoss, profitFactor, maxDd, best, worst,
-      maxWinStreak, maxLossStreak,
+      maxWinStreak, maxLossStreak, sharpe,
       longs: longs.length, shorts: shorts.length, longsWR, shortsWR, longsNet, shortsNet,
     };
   }, [trades, sorted]);
@@ -1278,6 +1289,7 @@ export default function BacktestAnalysis() {
                 <Stat label="Win Streak" value={stats.maxWinStreak} color="#7eb8f7" />
                 <Stat label="Loss Streak" value={stats.maxLossStreak} color="#f0a070" />
                 <Stat label="TP / SL / BE" value={`${stats.tpCount} / ${stats.slCount} / ${stats.beCount}`} />
+                <Stat label="Sharpe Ratio" value={stats.sharpe} color={stats.sharpe >= 2 ? "#7eb8f7" : stats.sharpe >= 1 ? "#a8d4a0" : "#f0a070"} />
                 {stats.fakeCount > 0 && <Stat label="Fakes" value={stats.fakeCount} color="#a0a8b8" />}
               </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: isMobile ? 8 : 10, marginTop: isMobile ? 8 : 10 }}>
