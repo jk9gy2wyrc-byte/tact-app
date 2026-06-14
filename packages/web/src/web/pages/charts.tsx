@@ -918,6 +918,19 @@ export default function Charts() {
   const [mcRunResult, setMcRunResult] = useState<MCRunResult | null>(null);
   const [mcRunLoading, setMcRunLoading] = useState(false);
   const [mcRunError,   setMcRunError]   = useState<string | null>(null);
+
+  // ── PBO state ─────────────────────────────────────────────────────────────
+  const [pboBtAssets,  setPboBtAssets]  = useState<Set<string>>(new Set());
+  const [pboBtYears,   setPboBtYears]   = useState<Set<string>>(new Set());
+  const [pboBtMonths,  setPboBtMonths]  = useState<Set<string>>(new Set());
+  const [pboLvAssets,  setPboLvAssets]  = useState<Set<string>>(new Set());
+  const [pboLvYears,   setPboLvYears]   = useState<Set<string>>(new Set());
+  const [pboLvMonths,  setPboLvMonths]  = useState<Set<string>>(new Set());
+  const [pboResult,    setPboResult]    = useState<{ btPBO: { pbo: number; nTrades: number } | null; lvPBO: { pbo: number; nTrades: number } | null } | null>(null);
+  const [pboLoading,   setPboLoading]   = useState(false);
+  const [pboError,     setPboError]     = useState<string | null>(null);
+  const [pboConclusionOpen, setPboConclusionOpen] = useState(false);
+
   const [mcShowBt,     setMcShowBt]     = useState(false);
   const [mcShowLv,     setMcShowLv]     = useState(false);
   const [mcShowBtGross,setMcShowBtGross]= useState(false);
@@ -957,6 +970,82 @@ export default function Charts() {
   }, [mcBtAssets, mcBtYears, mcBtMonths, mcLvAssets, mcLvYears, mcLvMonths, mcNSim, mcHorizon, mcStdDev, mcTradeCost, mcJitter, stressParams]);
 
   const resetStress = () => { setStressParams(defaultStress); setStressData(null); };
+
+  // ── PBO handlers ──────────────────────────────────────────────────────────
+  const handlePboBtToggleAsset = (a: string) => {
+    const tree = mcFilterOptions?.btTree ?? {};
+    const yearMap = tree[a] ?? {};
+    if (pboBtAssets.has(a)) {
+      setPboBtAssets(s => { const ns = new Set(s); ns.delete(a); return ns; });
+      setPboBtYears(prev => { const ny = new Set(prev); [...ny].filter(k => k.startsWith(`${a}__`)).forEach(k => ny.delete(k)); return ny; });
+      setPboBtMonths(prev => { const nm = new Set(prev); [...nm].filter(k => k.startsWith(`${a}__`)).forEach(k => nm.delete(k)); return nm; });
+    } else {
+      setPboBtAssets(s => { const ns = new Set(s); ns.add(a); return ns; });
+      setPboBtYears(prev => { const ny = new Set(prev); Object.keys(yearMap).forEach(y => ny.add(`${a}__${y}`)); return ny; });
+      setPboBtMonths(prev => { const nm = new Set(prev); Object.entries(yearMap).forEach(([, months]) => (months as string[]).forEach(m => nm.add(`${a}__${m}`))); return nm; });
+    }
+  };
+  const handlePboBtToggleYear = (asset: string, year: string) => {
+    const key = `${asset}__${year}`;
+    const months = mcFilterOptions?.btTree?.[asset]?.[year] ?? [];
+    if (pboBtYears.has(key)) {
+      setPboBtYears(prev => { const ny = new Set(prev); ny.delete(key); return ny; });
+      setPboBtMonths(prev => { const nm = new Set(prev); months.forEach((m: string) => nm.delete(`${asset}__${m}`)); return nm; });
+    } else {
+      setPboBtYears(prev => { const ny = new Set(prev); ny.add(key); return ny; });
+      setPboBtMonths(prev => { const nm = new Set(prev); months.forEach((m: string) => nm.add(`${asset}__${m}`)); return nm; });
+    }
+  };
+  const handlePboLvToggleAsset = (a: string) => {
+    const tree = mcFilterOptions?.lvTree ?? {};
+    const yearMap = tree[a] ?? {};
+    if (pboLvAssets.has(a)) {
+      setPboLvAssets(s => { const ns = new Set(s); ns.delete(a); return ns; });
+      setPboLvYears(prev => { const ny = new Set(prev); [...ny].filter(k => k.startsWith(`${a}__`)).forEach(k => ny.delete(k)); return ny; });
+      setPboLvMonths(prev => { const nm = new Set(prev); [...nm].filter(k => k.startsWith(`${a}__`)).forEach(k => nm.delete(k)); return nm; });
+    } else {
+      setPboLvAssets(s => { const ns = new Set(s); ns.add(a); return ns; });
+      setPboLvYears(prev => { const ny = new Set(prev); Object.keys(yearMap).forEach(y => ny.add(`${a}__${y}`)); return ny; });
+      setPboLvMonths(prev => { const nm = new Set(prev); Object.entries(yearMap).forEach(([, months]) => (months as string[]).forEach(m => nm.add(`${a}__${m}`))); return nm; });
+    }
+  };
+  const handlePboLvToggleYear = (asset: string, year: string) => {
+    const key = `${asset}__${year}`;
+    const months = mcFilterOptions?.lvTree?.[asset]?.[year] ?? [];
+    if (pboLvYears.has(key)) {
+      setPboLvYears(prev => { const ny = new Set(prev); ny.delete(key); return ny; });
+      setPboLvMonths(prev => { const nm = new Set(prev); months.forEach((m: string) => nm.delete(`${asset}__${m}`)); return nm; });
+    } else {
+      setPboLvYears(prev => { const ny = new Set(prev); ny.add(key); return ny; });
+      setPboLvMonths(prev => { const nm = new Set(prev); months.forEach((m: string) => nm.add(`${asset}__${m}`)); return nm; });
+    }
+  };
+
+  const runPBO = useCallback(async () => {
+    setPboLoading(true);
+    setPboError(null);
+    setPboResult(null);
+    setPboConclusionOpen(false);
+    try {
+      const body = {
+        btInstruments: [...pboBtAssets].join(','),
+        btYears:       Array.from(new Set([...pboBtYears].map(k => k.split('__')[1]).filter(Boolean))).join(','),
+        btMonths:      Array.from(new Set([...pboBtMonths].map(k => k.split('__').slice(1).join('__')).filter(Boolean))).join(','),
+        lvAssets:      [...pboLvAssets].join(','),
+        lvYears:       Array.from(new Set([...pboLvYears].map(k => k.split('__')[1]).filter(Boolean))).join(','),
+        lvMonths:      Array.from(new Set([...pboLvMonths].map(k => k.split('__').slice(1).join('__')).filter(Boolean))).join(','),
+      };
+      const res = await fetch(`/api/pbo${uidParam()}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? 'Server error'); }
+      setPboResult(await res.json());
+    } catch (e: any) {
+      setPboError(e.message ?? 'Помилка розрахунку PBO');
+    }
+    setPboLoading(false);
+  }, [pboBtAssets, pboBtYears, pboBtMonths, pboLvAssets, pboLvYears, pboLvMonths]);
   const loadCombo = async (combo: SavedCombo) => {
     setStressParams(combo.params);
     // Restore MC params if saved
@@ -3095,6 +3184,165 @@ export default function Charts() {
                 );
               })()}
 
+            </div>
+          );
+        })()}
+
+        {/* ─────────────────────── PBO BLOCK ──────────────────────── */}
+        {(() => {
+          // PBO label/color helpers
+          const pboLabel = (pbo: number) =>
+            pbo < 0.3 ? 'Низький' : pbo < 0.5 ? 'Помірний' : 'Високий';
+          const pboColor = (pbo: number) =>
+            pbo < 0.3 ? '#4ade80' : pbo < 0.5 ? '#facc15' : '#f87171';
+
+          // Generate conclusion text
+          const buildConclusion = () => {
+            if (!pboResult) return '';
+            const bt = pboResult.btPBO;
+            const lv = pboResult.lvPBO;
+            if (!bt) return 'Недостатньо BT даних для розрахунку PBO.';
+
+            const btVal = bt.pbo;
+            const lvVal = lv?.pbo ?? null;
+
+            let text = '';
+
+            // BT assessment
+            if (btVal < 0.3) {
+              text += `BT PBO = ${btVal.toFixed(2)} — низький. Бектест статистично стійкий: результат не є підгонкою під дані, закономірність підтверджується на різних підвибірках.`;
+            } else if (btVal < 0.5) {
+              text += `BT PBO = ${btVal.toFixed(2)} — помірний. Є ознаки часткової підгонки. Бектест має певну достовірність, але не гарантує відтворюваність.`;
+            } else {
+              text += `BT PBO = ${btVal.toFixed(2)} — високий. Висока ймовірність що результат бектесту є перефітом: стратегія добре підігнана під ці дані, але може не працювати на нових.`;
+            }
+
+            // Live assessment if present
+            if (lvVal !== null) {
+              text += '\n\n';
+              if (lvVal < 0.3) {
+                text += `Live PBO = ${lvVal.toFixed(2)} — низький. Live торгівля підтверджує закономірність.`;
+              } else if (lvVal < 0.5) {
+                text += `Live PBO = ${lvVal.toFixed(2)} — помірний. Live результати частково підтверджують стратегію.`;
+              } else {
+                text += `Live PBO = ${lvVal.toFixed(2)} — високий. Live угоди поки не підтверджують закономірність. Можливі причини: мало угод (${lv?.nTrades}), або умови ринку змінились.`;
+              }
+
+              // BT vs Live comparison
+              text += '\n\n';
+              if (btVal < 0.3 && lvVal < 0.3) {
+                text += 'Рекомендація: обидва масиви підтверджують стратегію. Торгуй з нормальним розміром позиції.';
+              } else if (btVal < 0.3 && lvVal >= 0.5) {
+                text += `Рекомендація: BT чесний, але live ще не підтверджує. Зменш розмір позиції до накопичення ${Math.max(100, (lv?.nTrades ?? 0) * 2)}+ live угод.`;
+              } else if (btVal >= 0.5 && lvVal < 0.3) {
+                text += 'Рекомендація: BT перефічений, але live виправляє картину. Довіряй live більше ніж бектесту.';
+              } else {
+                text += 'Рекомендація: обидва показники під питанням. Переглянь параметри стратегії або збери більше даних.';
+              }
+            } else {
+              text += '\n\n';
+              if (btVal < 0.3) {
+                text += 'Рекомендація: BT стійкий. Чекай на live підтвердження перед збільшенням позицій.';
+              } else {
+                text += 'Рекомендація: не збільшуй обсяги до накопичення live угод і перегляду параметрів стратегії.';
+              }
+            }
+            return text;
+          };
+
+          return (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: isMobile ? '16px 14px' : '20px 24px', display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>PBO — Probability of Backtest Overfitting</span>
+                <button
+                  onClick={() => setStressDescOpen(prev => { const s = new Set(prev); s.has('pbo') ? s.delete('pbo') : s.add('pbo'); return s; })}
+                  style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '50%', width: 16, height: 16, cursor: 'pointer', fontSize: 9, color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                >?</button>
+              </div>
+              {stressDescOpen.has('pbo') && (
+                <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', fontSize: 11, color: 'var(--text2)', lineHeight: 1.55 }}>
+                  <b style={{ color: 'var(--text1)', display: 'block', marginBottom: 4 }}>Що це?</b>
+                  PBO показує ймовірність що результат бектесту — це перефіт (підгонка під дані), а не реальна закономірність.<br/><br/>
+                  Алгоритм ділить угоди на блоки, перебирає всі комбінації train/test і рахує як часто "найкращий" in-sample результат програє out-of-sample.<br/><br/>
+                  <b style={{ color: '#4ade80' }}>&lt; 0.3</b> — низький, закономірність реальна &nbsp;·&nbsp;
+                  <b style={{ color: '#facc15' }}>0.3–0.5</b> — помірний, обережно &nbsp;·&nbsp;
+                  <b style={{ color: '#f87171' }}>&gt; 0.5</b> — перефіт
+                </div>
+              )}
+
+              {/* BT filters */}
+              <div>
+                <div style={{ fontSize: 10, color: '#a78bfa', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>BT масив</div>
+                {mcFilterOptions?.btTree
+                  ? <MCFilterPanel tree={mcFilterOptions.btTree} selAssets={pboBtAssets} selYears={pboBtYears} selMonths={pboBtMonths} onToggleAsset={handlePboBtToggleAsset} onToggleYear={handlePboBtToggleYear} onToggleMonth={(asset, m) => setPboBtMonths(s => toggleSet(s, `${asset}__${m}`))} color="#a78bfa" />
+                  : <div style={{ fontSize: 11, color: 'var(--text2)' }}>Всі BT угоди</div>
+                }
+              </div>
+
+              {/* Live filters */}
+              {mcFilterOptions?.lvTree && Object.keys(mcFilterOptions.lvTree).length > 0 && (
+                <div>
+                  <div style={{ fontSize: 10, color: '#4ade80', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Live масив</div>
+                  <MCFilterPanel tree={mcFilterOptions.lvTree} selAssets={pboLvAssets} selYears={pboLvYears} selMonths={pboLvMonths} onToggleAsset={handlePboLvToggleAsset} onToggleYear={handlePboLvToggleYear} onToggleMonth={(asset, m) => setPboLvMonths(s => toggleSet(s, `${asset}__${m}`))} color="#4ade80" />
+                </div>
+              )}
+
+              {/* Run button */}
+              <button
+                onClick={runPBO}
+                disabled={pboLoading}
+                style={{ background: 'var(--surface2)', border: `1px solid ${pboLoading ? 'var(--border)' : '#6b7280'}`, borderRadius: 8, padding: '9px 0', fontSize: 12, fontWeight: 600, color: pboLoading ? 'var(--text2)' : 'var(--text)', cursor: pboLoading ? 'not-allowed' : 'pointer', width: '100%', opacity: pboLoading ? 0.6 : 1, letterSpacing: 0.5 }}
+              >
+                {pboLoading ? 'Розраховую...' : '▶ Розрахувати PBO'}
+              </button>
+
+              {pboError && (
+                <div style={{ color: '#f87171', fontSize: 12, padding: '8px 12px', background: 'rgba(248,113,113,0.1)', borderRadius: 8 }}>{pboError}</div>
+              )}
+
+              {/* Results */}
+              {pboResult && (() => {
+                const bt = pboResult.btPBO;
+                const lv = pboResult.lvPBO;
+                const conclusion = buildConclusion();
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* Cards */}
+                    <div style={{ display: 'grid', gridTemplateColumns: lv ? '1fr 1fr' : '1fr', gap: 12 }}>
+                      {/* BT card */}
+                      {bt && (
+                        <div style={{ background: 'var(--surface2)', border: `1px solid ${pboColor(bt.pbo)}44`, borderRadius: 10, padding: '14px 16px' }}>
+                          <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 6 }}>BT · {bt.nTrades} угод</div>
+                          <div style={{ fontSize: 28, fontWeight: 700, color: pboColor(bt.pbo), fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>{bt.pbo.toFixed(2)}</div>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: pboColor(bt.pbo) }}>{pboLabel(bt.pbo)}</div>
+                        </div>
+                      )}
+                      {/* Live card */}
+                      {lv && (
+                        <div style={{ background: 'var(--surface2)', border: `1px solid ${pboColor(lv.pbo)}44`, borderRadius: 10, padding: '14px 16px' }}>
+                          <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 6 }}>Live · {lv.nTrades} угод</div>
+                          <div style={{ fontSize: 28, fontWeight: 700, color: pboColor(lv.pbo), fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>{lv.pbo.toFixed(2)}</div>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: pboColor(lv.pbo) }}>{pboLabel(lv.pbo)}</div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Conclusion toggle */}
+                    <button
+                      onClick={() => setPboConclusionOpen(o => !o)}
+                      style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 14px', fontSize: 11, color: 'var(--text2)', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <span>{pboConclusionOpen ? '▲' : '▼'}</span> Висновок
+                    </button>
+                    {pboConclusionOpen && (
+                      <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', fontSize: 12, color: 'var(--text1)', lineHeight: 1.7, whiteSpace: 'pre-line' }}>
+                        {conclusion}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           );
         })()}

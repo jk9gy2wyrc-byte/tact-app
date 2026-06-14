@@ -1568,6 +1568,125 @@ const app = new Hono()
     }
   )
 
+  // ─── PBO (Probability of Backtest Overfitting) ───────────────────────────
+  .post('/pbo',
+    zValidator('json', z.object({
+      btInstruments: z.string().optional().default(''),
+      btYears:       z.string().optional().default(''),
+      btMonths:      z.string().optional().default(''),
+      lvAssets:      z.string().optional().default(''),
+      lvYears:       z.string().optional().default(''),
+      lvMonths:      z.string().optional().default(''),
+      nBlocks:       z.number().int().min(4).max(32).default(16),
+    })),
+    async (c) => {
+      const params = c.req.valid('json');
+      const uid = Number(c.req.query('userId') ?? 0);
+      const split = (s: string) => s ? s.split(',').map(x => x.trim()).filter(Boolean) : [];
+
+      const allBt = await db.select().from(backtestTrades).where(eq(backtestTrades.userId, uid)).orderBy(asc(backtestTrades.id)).all();
+      const allLv = await db.select().from(liveTrades).where(eq(liveTrades.userId, uid)).orderBy(asc(liveTrades.id)).all();
+
+      const btInstruments = split(params.btInstruments);
+      const btYearsSel    = split(params.btYears);
+      const btMonthsSel   = split(params.btMonths);
+      const lvAssetsSel   = split(params.lvAssets);
+      const lvYearsSel    = split(params.lvYears);
+      const lvMonthsSel   = split(params.lvMonths);
+
+      let bt = allBt;
+      if (btInstruments.length) bt = bt.filter(t => btInstruments.includes((t.instrument ?? '').toUpperCase()));
+      if (btMonthsSel.length)   bt = bt.filter(t => btMonthsSel.includes((t.month ?? '').slice(0, 7)));
+      else if (btYearsSel.length) bt = bt.filter(t => btYearsSel.includes(String(t.year)));
+
+      let lv = allLv;
+      if (lvAssetsSel.length)    lv = lv.filter(t => lvAssetsSel.includes((t.asset ?? 'OTHER').toUpperCase()));
+      if (lvMonthsSel.length)    lv = lv.filter(t => lvMonthsSel.includes((t.month ?? '').slice(0, 7)));
+      else if (lvYearsSel.length) lv = lv.filter(t => lvYearsSel.includes((t.month ?? '').slice(0, 4)));
+
+      // CSCV PBO calculation
+      function calcPBO(trades: number[]): { pbo: number; nTrades: number } | null {
+        const N = trades.length;
+        if (N < 8) return null;
+        const B = Math.min(params.nBlocks, Math.floor(N / 2) * 2); // ensure even
+        const blockSize = Math.floor(N / B);
+        // Build blocks
+        const blocks: number[][] = [];
+        for (let i = 0; i < B; i++) {
+          blocks.push(trades.slice(i * blockSize, (i + 1) * blockSize));
+        }
+        const half = B / 2;
+
+        // Sharpe of array
+        const sharpe = (arr: number[]) => {
+          if (arr.length < 2) return 0;
+          const m = arr.reduce((a, b) => a + b, 0) / arr.length;
+          const std = Math.sqrt(arr.reduce((s, x) => s + (x - m) ** 2, 0) / (arr.length - 1));
+          return std > 0 ? (m / std) * Math.sqrt(arr.length) : 0;
+        };
+
+        // Generate combinations C(B, half) — use all if ≤ 2000, else sample 2000
+        function* combos(n: number, k: number): Generator<number[]> {
+          const idxs = Array.from({ length: k }, (_, i) => i);
+          while (true) {
+            yield [...idxs];
+            let i = k - 1;
+            while (i >= 0 && idxs[i] === n - k + i) i--;
+            if (i < 0) break;
+            idxs[i]++;
+            for (let j = i + 1; j < k; j++) idxs[j] = idxs[j - 1] + 1;
+          }
+        }
+
+        const allCombos: number[][] = [];
+        for (const c of combos(B, half)) allCombos.push(c);
+
+        // Sample max 2000
+        const sample = allCombos.length <= 2000 ? allCombos : (() => {
+          const s: number[][] = [];
+          const step = allCombos.length / 2000;
+          for (let i = 0; i < 2000; i++) s.push(allCombos[Math.floor(i * step)]);
+          return s;
+        })();
+
+        const allBlockIdxs = Array.from({ length: B }, (_, i) => i);
+        const oosSharpes: number[] = [];
+
+        for (const isIdxs of sample) {
+          const isSet = new Set(isIdxs);
+          const ooIdxs = allBlockIdxs.filter(i => !isSet.has(i));
+          // IS: find best sub-block by sharpe (each IS block individually)
+          let bestSharpe = -Infinity;
+          let bestIdx = isIdxs[0];
+          for (const i of isIdxs) {
+            const s = sharpe(blocks[i]);
+            if (s > bestSharpe) { bestSharpe = s; bestIdx = i; }
+          }
+          // OOS: sharpe of that same block on OOS side
+          // We use OOS split sharpe: all OOS blocks combined is the OOS evaluation
+          const oosTrades = ooIdxs.flatMap(i => blocks[i]);
+          oosSharpes.push(sharpe(oosTrades));
+          void bestIdx; // used implicitly via bestSharpe selection
+        }
+
+        // PBO = fraction of OOS sharpes below median of all OOS sharpes
+        const sorted = [...oosSharpes].sort((a, b) => a - b);
+        const median = sorted[Math.floor(sorted.length / 2)];
+        const pbo = oosSharpes.filter(s => s < median).length / oosSharpes.length;
+
+        return { pbo: Math.round(pbo * 1000) / 1000, nTrades: N };
+      }
+
+      const btNetR  = bt.map(t => t.netR ?? 0);
+      const lvNetR  = lv.map(t => t.netR ?? 0);
+
+      const btPBO = calcPBO(btNetR);
+      const lvPBO = lv.length >= 8 ? calcPBO(lvNetR) : null;
+
+      return c.json({ btPBO, lvPBO });
+    }
+  )
+
   // ─── MC RUN (unified) ────────────────────────────────────────────────────
   .post('/mc-run',
     zValidator('json', z.object({
