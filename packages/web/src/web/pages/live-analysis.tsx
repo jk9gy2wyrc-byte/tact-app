@@ -50,15 +50,14 @@ function Stat({ label, value, color, sub }: { label: string; value: string | num
 }
 
 function StatWithTooltip({ label, value, color, tooltip }: { label: string; value: string | number; color?: string; tooltip: string }) {
-  const [show, setShow] = React.useState(false);
+  const [show, setShow] = useState(false);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "10px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, position: "relative" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
         <div style={{ fontSize: 10, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
         <div
-          onMouseEnter={() => setShow(true)}
-          onMouseLeave={() => setShow(false)}
-          style={{ width: 13, height: 13, borderRadius: "50%", background: "var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: "var(--text2)", cursor: "default", flexShrink: 0 }}
+          onClick={() => setShow(s => !s)}
+          style={{ width: 13, height: 13, borderRadius: "50%", background: "var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: "var(--text2)", cursor: "pointer", flexShrink: 0 }}
         >?</div>
         {show && (
           <div style={{ position: "absolute", top: "100%", left: 0, zIndex: 100, marginTop: 4, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 10px", fontSize: 11, color: "var(--text2)", lineHeight: 1.5, width: 220, boxShadow: "0 4px 16px rgba(0,0,0,0.3)" }}>{tooltip}</div>
