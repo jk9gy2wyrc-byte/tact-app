@@ -3188,7 +3188,10 @@ export default function Charts() {
           );
         })()}
 
-        {/* ─────────────────────── PBO BLOCK ──────────────────────── */}
+      </div>{/* end MC+STRESS island */}
+
+      {/* ─────────────────────── PBO BLOCK ──────────────────────── */}
+      <div style={chartStyle(isMobile)}>
         {(() => {
           // PBO label/color helpers
           const pboLabel = (pbo: number) =>
@@ -3251,7 +3254,7 @@ export default function Charts() {
           };
 
           return (
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: isMobile ? '16px 14px' : '20px 24px', display: 'flex', flexDirection: 'column', gap: 16, marginTop: 32 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {/* Header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 13, fontWeight: 700 }}>PBO — Probability of Backtest Overfitting</span>
@@ -3346,8 +3349,8 @@ export default function Charts() {
             </div>
           );
         })()}
+      </div>{/* end PBO island */}
 
-      </div>
     </div>
     </AccessWrapper>
   );
