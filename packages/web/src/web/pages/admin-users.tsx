@@ -460,20 +460,6 @@ export default function AdminUsers({ currentLogin }: { currentLogin: string }) {
           padding: '2px 10px', borderRadius: 20, border: '1px solid #facc1544',
         }}>ADMIN ONLY</div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <button
-            onClick={notifyExpiring}
-            disabled={notifying}
-            style={{ fontSize: 11, padding: '5px 12px', borderRadius: 7, background: 'rgba(250,204,21,0.12)', color: '#facc15', border: '1px solid rgba(250,204,21,0.3)', cursor: 'pointer', fontWeight: 600 }}
-          >
-            {notifying ? '...' : '🔔 Notify expiring'}
-          </button>
-          {notifyResult && <span style={{ fontSize: 11, color: 'var(--text2)' }}>{notifyResult}</span>}
-          <button
-            onClick={() => { setEmailModal({ userId: 'all', login: 'all users' }); setEmailSubject(''); setEmailBody(''); setEmailResult(null); }}
-            style={{ fontSize: 11, padding: '5px 12px', borderRadius: 7, background: 'rgba(126,184,247,0.12)', color: '#7eb8f7', border: '1px solid rgba(126,184,247,0.3)', cursor: 'pointer', fontWeight: 600 }}
-          >
-            📧 Broadcast
-          </button>
           <div style={{ fontSize: 11, color: 'var(--text2)' }}>
             {users.length} users · auto-refresh 10s
           </div>
