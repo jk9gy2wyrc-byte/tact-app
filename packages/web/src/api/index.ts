@@ -1673,9 +1673,8 @@ const app = new Hono()
           oosSharpes.push(sharpe(ooIdxs.flatMap(i => blocks[i])));
         }
 
-        const sorted = [...oosSharpes].sort((a, b) => a - b);
-        const median = sorted[Math.floor(sorted.length / 2)];
-        const pbo = oosSharpes.filter(s => s < median).length / oosSharpes.length;
+        // PBO = частка комбінацій де OOS Sharpe < 0 (стратегія програє out-of-sample)
+        const pbo = oosSharpes.filter(s => s < 0).length / oosSharpes.length;
 
         return {
           pbo: Math.round(pbo * 1000) / 1000,
