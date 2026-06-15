@@ -2402,10 +2402,10 @@ export default function Charts() {
                 {stressDescOpen.has('sharpe') && (
                   <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 11, color: 'var(--text2)', lineHeight: 1.55 }}>
                     <b style={{ color: 'var(--text1)', display: 'block', marginBottom: 4 }}>Sharpe Ratio (в одиницях R)</b>
-                    Показує, скільки ризику ти береш за одиницю прибутку.<br/>
-                    Формула: <b>(середній R / σR) × √N</b><br/><br/>
+                    Показує скільки прибутку ти отримуєш на одиницю ризику.<br/>
+                    Формула: <b>середній R / σR</b><br/><br/>
                     <b style={{ color: 'var(--text1)' }}>Орієнтири:</b><br/>
-                    &lt; 1 — слабкий · 1–2 — прийнятний · &gt; 2 — хороший<br/><br/>
+                    &lt; 0.3 — слабкий · 0.3–0.7 — прийнятний · &gt; 0.7 — хороший<br/><br/>
                     MC med — медіанний Sharpe по всіх симуляціях. Порівнюється з реальним BT і Live Sharpe нижче.
                   </div>
                 )}

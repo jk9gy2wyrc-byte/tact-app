@@ -1030,7 +1030,7 @@ export default function LiveAnalysis() {
             <Stat label="Max Win Streak" value={maxWinStreak} color="#7eb8f7" />
             <Stat label="Max Loss Streak" value={maxLossStreak} color="#f0a070" />
             <Stat label="TP / SL / BE" value={`${tpCount} / ${slCount} / ${beCount}`} />
-            <StatWithTooltip label="Sharpe Ratio" value={sharpe} color={sharpe >= 2 ? "#7eb8f7" : sharpe >= 1 ? "#a8d4a0" : "#f0a070"} tooltip="Показує скільки прибутку ти отримуєш на одиницю ризику. Чим вище — тим стабільніша стратегія. ≥2 відмінно, ≥1 добре, <1 слабо." />
+            <StatWithTooltip label="Sharpe Ratio" value={sharpe} color={sharpe >= 2 ? "#7eb8f7" : sharpe >= 1 ? "#a8d4a0" : "#f0a070"} tooltip="Показує скільки прибутку ти отримуєш на одиницю ризику (середній R / σR). Чим вище — тим стабільніша стратегія. ≥0.7 відмінно, ≥0.3 добре, <0.3 слабо." />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginTop: 10 }}>
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
