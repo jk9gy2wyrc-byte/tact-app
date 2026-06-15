@@ -161,7 +161,7 @@ function computeStats(trades: any[]) {
     const variance = netRValues.reduce((s, x) => s + (x - mean) ** 2, 0) / (netRValues.length - 1);
     const std = Math.sqrt(variance);
     if (std === 0) return 0;
-    return Math.round((mean / std) * Math.sqrt(netRValues.length) * 100) / 100;
+    return Math.round((mean / std) * 100) / 100;
   })();
 
   return { sorted, equity, distrib, avgNet, months, totalNet, monthlyData, markets, total, tpCount, slCount, beCount, wr, wins, losses, avgWin, avgLoss, profitFactor, maxDd, best, worst, maxWinStreak, maxLossStreak, sharpe, longs, shorts, longsWR, shortsWR, longsNet, shortsNet };
@@ -1030,7 +1030,7 @@ export default function LiveAnalysis() {
             <Stat label="Max Win Streak" value={maxWinStreak} color="#7eb8f7" />
             <Stat label="Max Loss Streak" value={maxLossStreak} color="#f0a070" />
             <Stat label="TP / SL / BE" value={`${tpCount} / ${slCount} / ${beCount}`} />
-            <StatWithTooltip label="Sharpe Ratio" value={sharpe} color={sharpe >= 2 ? "#7eb8f7" : sharpe >= 1 ? "#a8d4a0" : "#f0a070"} tooltip="Показує скільки прибутку ти отримуєш на одиницю ризику (середній R / σR). Чим вище — тим стабільніша стратегія. ≥0.7 відмінно, ≥0.3 добре, <0.3 слабо." />
+            <StatWithTooltip label="Sharpe Ratio" value={sharpe} color={sharpe >= 0.7 ? "#7eb8f7" : sharpe >= 0.3 ? "#a8d4a0" : "#f0a070"} tooltip="Показує скільки прибутку ти отримуєш на одиницю ризику (середній R / σR). Чим вище — тим стабільніша стратегія. ≥0.7 відмінно, ≥0.3 добре, <0.3 слабо." />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginTop: 10 }}>
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>

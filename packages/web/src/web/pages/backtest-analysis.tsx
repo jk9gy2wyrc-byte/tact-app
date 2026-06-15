@@ -745,7 +745,7 @@ export default function BacktestAnalysis() {
       const variance = netRValues.reduce((s: number, x: number) => s + (x - mean) ** 2, 0) / (netRValues.length - 1);
       const std = Math.sqrt(variance);
       if (std === 0) return 0;
-      return Math.round((mean / std) * Math.sqrt(netRValues.length) * 100) / 100;
+      return Math.round((mean / std) * 100) / 100;
     })();
 
     return {
@@ -1320,7 +1320,7 @@ export default function BacktestAnalysis() {
                 <Stat label="Win Streak" value={stats.maxWinStreak} color="#7eb8f7" />
                 <Stat label="Loss Streak" value={stats.maxLossStreak} color="#f0a070" />
                 <Stat label="TP / SL / BE" value={`${stats.tpCount} / ${stats.slCount} / ${stats.beCount}`} />
-                <StatWithTooltip label="Sharpe Ratio" value={stats.sharpe} color={stats.sharpe >= 2 ? "#7eb8f7" : stats.sharpe >= 1 ? "#a8d4a0" : "#f0a070"} tooltip="Показує скільки прибутку ти отримуєш на одиницю ризику (середній R / σR). Чим вище — тим стабільніша стратегія. ≥0.7 відмінно, ≥0.3 добре, <0.3 слабо." />
+                <StatWithTooltip label="Sharpe Ratio" value={stats.sharpe} color={stats.sharpe >= 0.7 ? "#7eb8f7" : stats.sharpe >= 0.3 ? "#a8d4a0" : "#f0a070"} tooltip="Показує скільки прибутку ти отримуєш на одиницю ризику (середній R / σR). Чим вище — тим стабільніша стратегія. ≥0.7 відмінно, ≥0.3 добре, <0.3 слабо." />
                 {stats.fakeCount > 0 && <Stat label="Fakes" value={stats.fakeCount} color="#a0a8b8" />}
               </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: isMobile ? 8 : 10, marginTop: isMobile ? 8 : 10 }}>
