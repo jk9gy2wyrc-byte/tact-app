@@ -607,6 +607,97 @@ function MostTradedInstruments({ trades }: { trades: any[] }) {
   );
 }
 
+// ── Top Gainers ───────────────────────────────────────────────────────────────
+function TopGainerCard({ trades, label }: { trades: any[]; label: string }) {
+  if (!trades.length) return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{label}</div>
+      <div style={{ color: 'var(--text2)', fontSize: 12 }}>No data yet.</div>
+    </div>
+  );
+
+  // aggregate netR per asset
+  const byInst: Record<string, { netR: number; trades: number[] }> = {};
+  for (const t of trades) {
+    const k = ((t.asset as string | null) ?? '—').toUpperCase();
+    if (!byInst[k]) byInst[k] = { netR: 0, trades: [] };
+    byInst[k].netR += t.netR ?? 0;
+    byInst[k].trades.push(t.netR ?? 0);
+  }
+
+  const rows = Object.entries(byInst)
+    .map(([k, v]) => ({ key: k, netR: Math.round(v.netR * 100) / 100, trades: v.trades }))
+    .sort((a, b) => b.netR - a.netR);
+
+  const winner = rows[0];
+  if (!winner) return null;
+
+  // build cumulative equity curve for the winner
+  const curve: number[] = [];
+  let cum = 0;
+  for (const r of winner.trades) { cum += r; curve.push(Math.round(cum * 100) / 100); }
+
+  // SVG sparkline
+  const W = 110, H = 44;
+  const min = Math.min(0, ...curve);
+  const max = Math.max(0, ...curve);
+  const range = max - min || 1;
+  const pts = curve.map((v, i) => {
+    const x = curve.length === 1 ? W / 2 : (i / (curve.length - 1)) * W;
+    const y = H - ((v - min) / range) * H;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const zeroY = H - ((0 - min) / range) * H;
+  const positive = winner.netR >= 0;
+  const lineColor = positive ? '#7eb8f7' : '#f0a070';
+
+  return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        {/* sparkline */}
+        <svg width={W} height={H} style={{ flexShrink: 0, overflow: 'visible' }}>
+          {/* zero line */}
+          <line x1={0} y1={zeroY} x2={W} y2={zeroY} stroke="var(--text2)" strokeWidth={0.5} strokeOpacity={0.3} strokeDasharray="3 3" />
+          {/* fill */}
+          <polyline
+            points={[`0,${H}`, ...pts, `${W},${H}`].join(' ')}
+            fill={lineColor}
+            fillOpacity={0.12}
+            stroke="none"
+          />
+          {/* line */}
+          <polyline points={pts.join(' ')} fill="none" stroke={lineColor} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />
+          {/* end dot */}
+          {pts.length > 0 && (
+            <circle cx={parseFloat(pts[pts.length - 1].split(',')[0])} cy={parseFloat(pts[pts.length - 1].split(',')[1])} r={3} fill={lineColor} />
+          )}
+        </svg>
+        {/* info */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: lineColor }}>
+            {winner.netR >= 0 ? '+' : ''}{winner.netR.toFixed(2)}R
+          </span>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{winner.key}</span>
+          <span style={{ fontSize: 11, color: 'var(--text2)' }}>{winner.trades.length} trades</span>
+        </div>
+      </div>
+      {/* top-5 list */}
+      <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {rows.slice(0, 5).map((r, i) => (
+          <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11 }}>
+            <span style={{ color: 'var(--text2)', width: 14, textAlign: 'right' }}>{i + 1}.</span>
+            <span style={{ fontWeight: 600, minWidth: 44 }}>{r.key}</span>
+            <span style={{ color: r.netR >= 0 ? '#7eb8f7' : '#f0a070', fontFamily: 'monospace' }}>
+              {r.netR >= 0 ? '+' : ''}{r.netR.toFixed(2)}R
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Weak Spots ────────────────────────────────────────────────────────────────
 function WeakSpots({ trades }: { trades: any[] }) {
   if (!trades.length) return <div style={{ color: 'var(--text2)', fontSize: 13 }}>No live trades yet.</div>;
@@ -938,10 +1029,25 @@ export default function Dashboard() {
           </Section>
         </div>
 
-        {/* MOST TRADED INSTRUMENTS */}
-        <Section title="Most Traded Instruments — Live">
-          <MostTradedInstruments trades={liveTrades as any[]} />
-        </Section>
+        {/* MOST TRADED INSTRUMENTS + TOP GAINERS */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
+          <Section title="Most Traded Instruments — Live">
+            <MostTradedInstruments trades={liveTrades as any[]} />
+          </Section>
+          <Section title="Top Gainers — Live">
+            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+              <TopGainerCard
+                trades={currentMonthTrades}
+                label={`Top Gainer of ${now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
+              />
+              <div style={{ width: 1, background: 'var(--border)', alignSelf: 'stretch', flexShrink: 0 }} />
+              <TopGainerCard
+                trades={liveTrades as any[]}
+                label="Top Gainer of All Time"
+              />
+            </div>
+          </Section>
+        </div>
 
       </div>
     </AccessWrapper>
