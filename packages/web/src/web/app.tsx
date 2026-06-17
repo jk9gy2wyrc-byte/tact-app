@@ -1099,7 +1099,7 @@ export default function App() {
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: '0.06em' }}>TSCT</div>
           <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 3 }}>Trading Analysis Tool</div>
           <div style={{ fontSize: 9, color: 'var(--text2)', marginTop: 1, opacity: 0.6 }}>(trading strategy crash test)</div>
-          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 154, overflow: 'hidden' }}>
             <button
               onClick={() => setEditProfileOpen(true)}
               style={{
@@ -1107,17 +1107,20 @@ export default function App() {
                 background: 'var(--surface2)', border: '1px solid var(--border)',
                 borderRadius: 6, padding: '4px 10px', cursor: 'pointer', textAlign: 'left',
                 display: 'flex', alignItems: 'center', gap: 5,
+                width: '100%', overflow: 'hidden',
               }}
             >
               <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, opacity: 0.7 }}>
                 <circle cx="8" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
                 <path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
-              {session.nickname || session.login}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {session.nickname || session.login}
+              </span>
             </button>
             <button
               onClick={handleLogout}
-              style={{ fontSize: 10, color: 'var(--text2)', background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', textAlign: 'left' }}
+              style={{ fontSize: 10, color: 'var(--text2)', background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', textAlign: 'left', width: '100%', overflow: 'hidden' }}
             >
               {tApp.logOut}
             </button>

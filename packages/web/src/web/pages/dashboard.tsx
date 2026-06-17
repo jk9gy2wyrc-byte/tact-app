@@ -33,21 +33,8 @@ function parseFFIsoDate(isoStr: string): Date | null {
   try { return new Date(isoStr); } catch { return null; }
 }
 
-// UTC offset options: UTC-12 to UTC+14
-const UTC_OFFSETS: { label: string; offsetHours: number }[] = (() => {
-  const opts = [];
-  for (let h = -12; h <= 14; h++) {
-    opts.push({ label: h === 0 ? 'UTC' : h > 0 ? `UTC+${h}` : `UTC${h}`, offsetHours: h });
-  }
-  return opts;
-})();
-
-function getStoredTzOffset(): number {
-  try {
-    const v = localStorage.getItem('news_tz_offset');
-    if (v !== null) return Number(v);
-  } catch {}
-  return 0; // default UTC
+function getBrowserTzOffset(): number {
+  return -(new Date().getTimezoneOffset() / 60);
 }
 
 function formatTimeWithOffset(dt: Date, offsetHours: number): string {
@@ -62,113 +49,14 @@ function formatDayLabelWithOffset(dt: Date, offsetHours: number): string {
   const shifted = new Date(dt.getTime() + offsetHours * 3600_000);
   return shifted.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 }
-
-function TimezoneDropdown({ offsetHours, onChange }: { offsetHours: number; onChange: (h: number) => void }) {
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const dropRef = useRef<HTMLDivElement>(null);
-  const selectedLabel = UTC_OFFSETS.find(o => o.offsetHours === offsetHours)?.label ?? 'UTC';
-
-  const updatePos = () => {
-    if (btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect();
-      setPos({ top: r.bottom + 4, left: r.left });
-    }
-  };
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (
-        btnRef.current && !btnRef.current.contains(e.target as Node) &&
-        dropRef.current && !dropRef.current.contains(e.target as Node)
-      ) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-  useEffect(() => {
-    if (!open) return;
-    const onScroll = () => updatePos();
-    const onResize = () => updatePos();
-    window.addEventListener('scroll', onScroll, true);
-    window.addEventListener('resize', onResize);
-    return () => {
-      window.removeEventListener('scroll', onScroll, true);
-      window.removeEventListener('resize', onResize);
-    };
-  }, [open]);
-
-  const handleOpen = () => { updatePos(); setOpen(o => !o); };
-
-  return (
-    <div style={{ display: 'inline-block' }}>
-      <button
-        ref={btnRef}
-        onClick={handleOpen}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          background: 'var(--surface)', border: '1px solid var(--border)',
-          borderRadius: 8, padding: '5px 10px', cursor: 'pointer',
-          color: 'var(--text2)', fontSize: 11,
-        }}
-      >
-        <span>{selectedLabel}</span>
-        <span style={{ fontSize: 9 }}>▼</span>
-      </button>
-      {open && (
-        <div ref={dropRef} style={{
-          position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999,
-          background: 'var(--surface)', border: '1px solid var(--border)',
-          borderRadius: 10, padding: 8, minWidth: 130,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-          display: 'flex', flexDirection: 'column', gap: 2,
-          maxHeight: 260, overflowY: 'auto',
-        }}>
-          {UTC_OFFSETS.map(opt => {
-            const isSelected = opt.offsetHours === offsetHours;
-            return (
-              <button
-                key={opt.label}
-                onClick={() => { onChange(opt.offsetHours); setOpen(false); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '7px 10px', borderRadius: 7, cursor: 'pointer',
-                  background: isSelected ? 'rgba(99,102,241,0.15)' : 'transparent',
-                  border: isSelected ? '1px solid rgba(99,102,241,0.4)' : '1px solid transparent',
-                  color: isSelected ? 'var(--text)' : 'var(--text2)',
-                  fontSize: 12, textAlign: 'left', transition: 'all 0.15s',
-                }}
-              >
-                <span style={{
-                  width: 16, height: 16, borderRadius: 8,
-                  background: isSelected ? 'rgba(99,102,241,0.25)' : 'var(--surface2)',
-                  border: '1px solid var(--border)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0, fontSize: 9,
-                }}>{isSelected ? '●' : ''}</span>
-                <span>{opt.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function NewsWidget({ selectedAssets }: { selectedAssets: string[] }) {
   const [tick, setTick] = useState(0);
-  const [tzOffset, setTzOffset] = useState<number>(getStoredTzOffset);
+  const tzOffset = getBrowserTzOffset();
 
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 30_000);
     return () => clearInterval(id);
   }, [tick]);
-
-  const handleTzChange = (h: number) => {
-    setTzOffset(h);
-    try { localStorage.setItem('news_tz_offset', String(h)); } catch {}
-  };
 
   const { data: news = [], isLoading, isError } = useQuery({
     queryKey: ['news'],
@@ -187,26 +75,35 @@ function NewsWidget({ selectedAssets }: { selectedAssets: string[] }) {
     }
   }
 
-  // Use true UTC "now" for all time math — event timestamps are UTC
+  // Timezone-aware filter: today or tomorrow if >= 18:00 local
   const nowMs = Date.now();
-  // Window: show events from 3h ago up to 2 days ahead (UTC)
-  const windowEnd = new Date(nowMs + 7 * 86400_000);
+  const localNow = new Date(nowMs + tzOffset * 3600_000);
+  const localHourNow = localNow.getUTCHours();
+  // Compute window start/end in UTC
+  const isTomorrow = localHourNow >= 18;
+  // Start of target day (local midnight) in UTC
+  const targetDayStart = new Date(Date.UTC(
+    localNow.getUTCFullYear(), localNow.getUTCMonth(),
+    localNow.getUTCDate() + (isTomorrow ? 1 : 0)
+  ) - tzOffset * 3600_000);
+  // End of target day (local 23:59:59) in UTC
+  const targetDayEnd = new Date(targetDayStart.getTime() + 86400_000 - 1);
+  // windowStart: now (don't show past events)
+  const windowStart = isTomorrow ? targetDayStart : new Date(nowMs);
 
   const enriched = (news as any[])
     .map(item => ({ ...item, dt: parseFFIsoDate(item.isoDate) }))
     .filter(item => {
       if (!item.dt) return false;
       if (!relevantCurrencies.has(item.currency)) return false;
-      return item.dt.getTime() >= nowMs - 3 * 60 * 60_000 && item.dt <= windowEnd;
+      const t = item.dt.getTime();
+      return t >= windowStart.getTime() && t <= targetDayEnd.getTime();
     })
     .sort((a, b) => a.dt!.getTime() - b.dt!.getTime());
 
   if (!enriched.length) return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <TimezoneDropdown offsetHours={tzOffset} onChange={handleTzChange} />
-      </div>
-      <div style={{ color: 'var(--text2)', fontSize: 12, padding: '8px 0' }}>No upcoming high-impact news this week.</div>
+      <div style={{ color: 'var(--text2)', fontSize: 12, padding: '8px 0' }}>Немає новин з імпактом на вибрані активи на сьогодні.</div>
     </div>
   );
 
@@ -220,8 +117,8 @@ function NewsWidget({ selectedAssets }: { selectedAssets: string[] }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-        <TimezoneDropdown offsetHours={tzOffset} onChange={handleTzChange} />
+      <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4, opacity: 0.75 }}>
+        Новини показуються тільки ті, що мають імпакт на вибрані активи у Weekly Changes
       </div>
       {Object.entries(grouped).map(([dayLabel, items]) => {
         const hasLive = items.some(it => it.dt && Math.abs(it.dt.getTime() - nowMs) <= 15 * 60_000);
@@ -991,9 +888,9 @@ export default function Dashboard() {
 
   return (
     <AccessWrapper blocked={isBlocked} reason={accessData?.reason}>
-      <div style={{ padding: p, maxWidth: 1200, width: '100%', overflow: 'hidden' }}>
+      <div style={{ padding: p, width: '100%', overflow: 'hidden' }}>
         {(() => {
-          const localHour = new Date(now.getTime() + getStoredTzOffset() * 3600_000).getUTCHours();
+          const localHour = now.getHours();
           const greeting = localHour >= 5 && localHour < 12 ? 'Good morning' : localHour >= 12 && localHour < 18 ? 'Good afternoon' : 'Good evening';
           const nick = getSession()?.nickname;
           return (
