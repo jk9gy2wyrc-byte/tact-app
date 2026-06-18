@@ -2831,6 +2831,83 @@ async function parseTradesWithOCR(imageBuffer: Buffer, mimeType: string): Promis
   }
 }
 
+// ─── IMPORT LIVE TRADES (xlsx/csv) ────────────────────────────────────────────
+app.post('/import-live', async (c) => {
+  try {
+    const uid = Number(c.req.query('userId') ?? 0);
+    const formData = await c.req.formData();
+    const file = formData.get('file') as File | null;
+    if (!file) return c.json({ error: 'no file' }, 400);
+
+    const arrayBuffer = await file.arrayBuffer();
+    const wb = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+
+    let totalInserted = 0;
+
+    for (const sheetName of wb.SheetNames) {
+      const ws = wb.Sheets[sheetName];
+      const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+      const toInsert: typeof liveTrades.$inferInsert[] = [];
+      const existing = await db.select({ n: liveTrades.tradeNum }).from(liveTrades).where(eq(liveTrades.userId, uid)).all();
+      let maxNum = existing.length > 0 ? Math.max(...existing.map(r => r.n ?? 0)) : 0;
+
+      for (const row of rows) {
+        if (!row || row.length < 6) continue;
+        const id = row[0];
+        if (id === 'ID' || id == null || id === '') continue;
+        if (String(id).toUpperCase() === 'SUMMARY') continue;
+
+        const idNum = typeof id === 'number' ? id : Number(id);
+        if (!Number.isFinite(idNum)) continue;
+
+        const dateRaw = String(row[1] ?? '').trim();
+        const direction = String(row[2] ?? '').trim().toLowerCase();
+        const rr = typeof row[3] === 'number' ? row[3] : parseFloat(String(row[3] ?? ''));
+        const session = String(row[4] ?? '').trim().toLowerCase() || null;
+        const result = String(row[5] ?? '').trim().toLowerCase();
+        const grossR = typeof row[6] === 'number' ? row[6] : parseFloat(String(row[6] ?? ''));
+        const cost = typeof row[8] === 'number' ? row[8] : parseFloat(String(row[8] ?? '-0.1'));
+        const asset = row[9] ? String(row[9]).trim().toUpperCase() : null;
+
+        if (!['long', 'short'].includes(direction)) continue;
+        if (!['tp', 'sl', 'be'].includes(result)) continue;
+        if (!Number.isFinite(grossR)) continue;
+
+        const month = dateRaw.replace(/\s*-\s*/g, '-').trim().slice(0, 7);
+        const validCost = Number.isFinite(cost) ? cost : -0.1;
+        const netR = Math.round((grossR + validCost) * 100) / 100;
+        maxNum++;
+
+        toInsert.push({
+          userId: uid,
+          month,
+          tradeNum: maxNum,
+          asset,
+          direction,
+          rr: Number.isFinite(rr) ? rr : null,
+          session,
+          result: result as 'tp' | 'sl' | 'be',
+          grossR,
+          cost: validCost,
+          netR,
+        });
+      }
+
+      if (toInsert.length > 0) {
+        for (let i = 0; i < toInsert.length; i += 50) {
+          await db.insert(liveTrades).values(toInsert.slice(i, i + 50));
+        }
+        totalInserted += toInsert.length;
+      }
+    }
+
+    return c.json({ ok: true, inserted: totalInserted }, 200);
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
 app.post('/ai-parse-image', async (c) => {
   try {
     const formData = await c.req.formData();
@@ -2841,13 +2918,16 @@ app.post('/ai-parse-image', async (c) => {
     const imageBuffer = Buffer.from(arrayBuffer);
     const mimeType = file.type || 'image/png';
 
-    // 1. Try Tesseract OCR first (free, no API needed)
-    const ocrRows = await parseTradesWithOCR(imageBuffer, mimeType);
+    // Tesseract OCR with timeout guard
+    const ocrPromise = parseTradesWithOCR(imageBuffer, mimeType);
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 25000));
+    const ocrRows = await Promise.race([ocrPromise, timeoutPromise]);
+
     if (ocrRows && ocrRows.length > 0) {
       return c.json({ ok: true, rows: ocrRows, method: 'ocr' });
     }
 
-    return c.json({ error: 'Не вдалось розпізнати угоди. Переконайся що скрін містить таблицю з колонками: Date, Direction, RR, Session, Result.' }, 422);
+    return c.json({ error: 'Не вдалось розпізнати угоди. Переконайся що скрін містить таблицю з колонками: Date, Direction, RR, Session, Result. Або завантаж Excel/CSV файл.' }, 422);
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }

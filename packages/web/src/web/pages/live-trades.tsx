@@ -606,34 +606,55 @@ export default function LiveTrades() {
       </div>
 
       {showUploadWarning && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '28px 28px 24px', maxWidth: 480, width: '90%', position: 'relative' }}>
-            <button onClick={() => setShowUploadWarning(false)} style={{ position: 'absolute', top: 12, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 16, lineHeight: 1, padding: 4 }}>✕</button>
-            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, color: 'var(--text)', paddingRight: 20 }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '28px 28px 24px', maxWidth: 620, width: '100%', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
+            <button onClick={() => setShowUploadWarning(false)} style={{ position: 'absolute', top: 12, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 18, lineHeight: 1, padding: 4 }}>✕</button>
+
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16, color: 'var(--text)', paddingRight: 24 }}>
               {t.uploadRequiredFields}
             </div>
+
+            {/* file format notice */}
+            <div style={{ background: 'rgba(126,184,247,0.08)', border: '1px solid rgba(126,184,247,0.25)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: 'var(--text2)', marginBottom: 14, lineHeight: 1.6 }}>
+              📄 {t.uploadWarning}
+            </div>
+
+            {/* example image */}
             <img
               src="https://storage.googleapis.com/runable-templates/cli-uploads%2FyWU6F2OopHdw0bQIxNc7YVgN2QUzEepa%2FZhgLnmnTM2V0ldapzw_WQ%2Fimage_FxgLef.png"
               alt={t.uploadTableExample}
               style={{ width: '100%', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 14 }}
             />
-            <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, marginBottom: 10 }}>
-              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>{t.uploadFieldDate}</strong> — {t.uploadFieldDateFmt}<br />
-              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>{t.uploadFieldDir}</strong> (Buy / Sell)<br />
-              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>RR</strong> (Risk-to-Reward)<br />
-              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>{t.uploadFieldSession}</strong><br />
-              <span style={{ color: 'var(--text2)', marginRight: 6 }}>•</span><strong>{t.uploadFieldResult}</strong> (Win / Loss / BE)
+
+            {/* ordered fields list */}
+            <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 2, marginBottom: 14 }}>
+              {[
+                ['1', 'ID', 'порядковий номер угоди'],
+                ['2', 'Date', t.uploadFieldDateFmt],
+                ['3', 'Direction', 'Long / Short'],
+                ['4', 'RR', 'Risk-to-Reward'],
+                ['5', 'Session', 'Asia / London / Overlap / New York'],
+                ['6', 'Result', 'TP / SL / BE'],
+                ['7', 'GrossR', 'валовий результат в R'],
+                ['8', 'NetR', 'чистий результат в R'],
+                ['9', 'AVG Costs', 'комісія / ковзання'],
+              ].map(([num, name, desc]) => (
+                <div key={num} style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{ color: 'var(--text2)', fontFamily: 'monospace', fontSize: 11, minWidth: 16, textAlign: 'right' }}>{num}.</span>
+                  <strong style={{ minWidth: 80 }}>{name}</strong>
+                  <span style={{ fontSize: 12, color: 'var(--text2)' }}>{desc}</span>
+                </div>
+              ))}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 14 }}>
-              {t.uploadWarning}
-            </div>
-            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
-              <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 8 }}>
+
+            {/* copy template block */}
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 10, lineHeight: 1.6 }}>
                 {t.uploadCopyHint}
               </div>
               <button
                 className="btn-ghost"
-                style={{ width: '100%', padding: '8px', fontSize: 13, fontWeight: 600 }}
+                style={{ width: '100%', padding: '9px', fontSize: 13, fontWeight: 600 }}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -654,7 +675,8 @@ export default function LiveTrades() {
                 📋 {t.uploadCopyBtn}
               </button>
             </div>
-            <button className="btn-primary" style={{ width: '100%', padding: '10px', fontSize: 13, fontWeight: 600 }}
+
+            <button className="btn-primary" style={{ width: '100%', padding: '11px', fontSize: 14, fontWeight: 600 }}
               onClick={() => { setShowUploadWarning(false); setShowUpload(true); setFileResult(null); }}>
               {t.uploadGotIt}
             </button>
@@ -674,6 +696,7 @@ export default function LiveTrades() {
               style={{ border: `2px dashed ${dragging ? '#4b5263' : 'var(--border)'}`, borderRadius: 12, padding: isMobile ? '28px 16px' : '40px 24px', textAlign: 'center', cursor: 'pointer', background: dragging ? '#1a1d2a' : 'var(--bg)', transition: 'all 0.15s', marginBottom: 12 }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>📂</div>
               <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{isMobile ? 'Tap to browse' : 'Drop file here or click to browse'}</div>
+              <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Excel (.xlsx) · CSV · фото таблиці (JPG/PNG)</div>
               <div style={{ fontSize: 12, color: 'var(--text2)' }}>{t.uploadOrPaste} <kbd style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px', fontSize: 11 }}>Ctrl+V</kbd></div>
               <input ref={fileRef} type="file" accept=".xlsx,.xls,image/*" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }} />
             </div>
