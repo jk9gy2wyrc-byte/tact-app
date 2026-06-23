@@ -47,14 +47,14 @@ function PairSelector({ value, onChange }: { value: string; onChange: (v: string
     <div ref={ref} style={{ position: 'relative' }}>
       <div style={{ display: 'flex', gap: 4 }}>
         <select value={value} onChange={e => { onChange(e.target.value); setOpen(false); }}
-          style={{ flex: 1, borderRadius: 8, padding: '6px 8px', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13, cursor: 'pointer' }}>
+          style={{ flex: 1, borderRadius: 8, boxSizing: 'border-box' }}>
           <option value="">— pair —</option>
           {pairs.map(p => <option key={p} value={p}>{p}</option>)}
           {value && !pairs.includes(value) && <option value={value}>{value}</option>}
         </select>
-        <button type="button" onClick={() => setOpen(o => !o)}
+        <button type="button" className="btn-ghost" onClick={() => setOpen(o => !o)}
           title="Manage pairs"
-          style={{ width: 30, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          style={{ padding: '0 10px', borderRadius: 8, fontSize: 16, cursor: 'pointer', flexShrink: 0, lineHeight: 1 }}>
           +
         </button>
       </div>
