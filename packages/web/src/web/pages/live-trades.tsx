@@ -47,7 +47,9 @@ function PairSelector({ value, onChange }: { value: string; onChange: (v: string
     <div ref={ref} style={{ position: 'relative' }}>
       <div style={{ display: 'flex', gap: 4 }}>
         <select value={value} onChange={e => { onChange(e.target.value); setOpen(false); }}
-          style={{ flex: 1, boxSizing: 'border-box', background: '#4b5263', color: '#fff', border: 'none', borderRadius: '8px', padding: '7px 10px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit', outline: 'none', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none' }}>
+          style={{ flex: 1, boxSizing: 'border-box', background: '#4b5263', color: '#fff', border: 'none', borderRadius: '8px', padding: '7px 10px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit', outline: 'none', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', transition: 'opacity 0.15s' }}
+          onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
           <option value="">— pair —</option>
           {pairs.map(p => <option key={p} value={p}>{p}</option>)}
           {value && !pairs.includes(value) && <option value={value}>{value}</option>}
