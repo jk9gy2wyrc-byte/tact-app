@@ -52,8 +52,9 @@ function PairSelector({ value, onChange }: { value: string; onChange: (v: string
           {pairs.map(p => <option key={p} value={p}>{p}</option>)}
           {value && !pairs.includes(value) && <option value={value}>{value}</option>}
         </select>
-        <button type="button" style={{ background: '#4b5263', color: '#fff', border: 'none', borderRadius: '8px', padding: '7px 14px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, transition: 'opacity 0.15s' }} onClick={() => setOpen(o => !o)}
-          title="Manage pairs">
+        <button type="button" className="btn-primary" onClick={() => setOpen(o => !o)}
+          title="Manage pairs"
+          style={{ flexShrink: 0 }}>
           +
         </button>
       </div>
