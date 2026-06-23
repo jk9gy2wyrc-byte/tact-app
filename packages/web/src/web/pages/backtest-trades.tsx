@@ -12,7 +12,7 @@ async function fetchBT() {
 const SESSIONS = ['Asia', 'Frankfurt', 'London', 'Overlap', 'New York'];
 const DIRECTIONS = ['long', 'short'];
 const RESULTS = ['tp', 'sl', 'be'];
-const PRESET_INSTRUMENTS = ['EUR', 'GBP', 'GER', 'XAU'];
+const PRESET_INSTRUMENTS = ['EUR/USD', 'GBP/USD', 'GER40', 'XAU/USD'];
 
 const labelStyle: React.CSSProperties = {
   fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase',
@@ -39,7 +39,7 @@ interface TradeRow {
   direction: 'long' | 'short' | ''; rr: string; session: string;
   result: 'tp' | 'sl' | 'be'; grossR: string; cost: string;
 }
-const newRow = (instrument = 'EUR', date = new Date().toISOString().slice(0, 10)): TradeRow => ({
+const newRow = (instrument = 'EUR/USD', date = new Date().toISOString().slice(0, 10)): TradeRow => ({
   id: Math.random().toString(36).slice(2), instrument, date,
   direction: 'long', rr: '', session: '', result: 'tp', grossR: '', cost: '-0.1',
 });
@@ -48,7 +48,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 const emptyForm = {
   date: today(),
-  instrument: 'EUR',
+  instrument: 'EUR/USD',
   direction: 'long',
   rr: '',
   session: 'London',
@@ -161,7 +161,7 @@ function DatabaseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
           <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div style={{ flex: '2 1 200px' }}>
               <label style={labelStyle}>Database Name</label>
-              <input placeholder="e.g. EUR 2024 Backtest" value={dbName} onChange={e => setDbName(e.target.value)} style={{ width: '100%', fontSize: 13 }} />
+              <input placeholder="e.g. EUR/USD 2024 Backtest" value={dbName} onChange={e => setDbName(e.target.value)} style={{ width: '100%', fontSize: 13 }} />
             </div>
             <div style={{ flex: '1 1 140px' }}>
               <label style={labelStyle}>Default Instrument</label>
@@ -266,7 +266,7 @@ function EditModal({ trade, onClose, onSave, isPending }: {
   const isMobile = useMobile();
   const [form, setForm] = useState({
     date: trade.month ?? today(),
-    instrument: trade.instrument ?? 'EUR',
+    instrument: trade.instrument ?? 'EUR/USD',
     direction: trade.direction ?? 'long',
     rr: trade.rr != null ? String(trade.rr) : '',
     session: trade.session ? capitalize(trade.session) : 'London',
@@ -306,7 +306,7 @@ function EditModal({ trade, onClose, onSave, isPending }: {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Date</div>{inp('date', 'date')}</div>
-            <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Pair</div><input type="text" value={form.instrument} placeholder="EUR" onChange={e => setField('instrument', e.target.value.toUpperCase())} style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box' }} /></div>
+            <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Pair</div><input type="text" value={form.instrument} placeholder="EUR/USD" onChange={e => setField('instrument', e.target.value.toUpperCase())} style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box' }} /></div>
           </div>
           <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Direction</div><ToggleGroup value={form.direction} options={DIRECTIONS} onChange={v => setField('direction', v)} /></div>
           <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Session</div><ToggleGroup value={form.session} options={SESSIONS} onChange={v => setField('session', v)} small /></div>
@@ -863,7 +863,7 @@ export default function BacktestTrades() {
             </div>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Pair</div>
-              <input type="text" value={form.instrument} placeholder="EUR" onChange={e => setForm(f => ({ ...f, instrument: e.target.value.toUpperCase() }))} style={{ width: '100%', borderRadius: 8 }} />
+              <input type="text" value={form.instrument} placeholder="EUR/USD" onChange={e => setForm(f => ({ ...f, instrument: e.target.value.toUpperCase() }))} style={{ width: '100%', borderRadius: 8 }} />
             </div>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>RR</div>

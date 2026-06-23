@@ -492,7 +492,7 @@ async function fetchBT() {
   return r.json();
 }
 
-const INSTRUMENTS = ["ALL", "EUR", "GER", "XAU"];
+const INSTRUMENTS = ["ALL", "EUR/USD", "GER40", "XAU/USD"];
 
 const capitalize = (s: string) => {
   if (!s) return s;

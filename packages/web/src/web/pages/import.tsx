@@ -4,7 +4,7 @@ import { uidParam } from "../lib/session";
 import { useMobile } from "../hooks/useMobile";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const PRESET_INSTRUMENTS = ['EUR', 'GBP', 'GER', 'XAU'];
+const PRESET_INSTRUMENTS = ['EUR/USD', 'GBP/USD', 'GER40', 'XAU/USD'];
 const RESULTS = ['tp', 'sl', 'be'] as const;
 const DIRECTIONS = ['long', 'short'] as const;
 const SESSIONS = ['Asia', 'Frankfurt', 'London', 'Overlap', 'New York'];
@@ -24,7 +24,7 @@ interface TradeRow {
   cost: string;
 }
 
-const newRow = (instrument = 'EUR', date = new Date().toISOString().slice(0, 10)): TradeRow => ({
+const newRow = (instrument = 'EUR/USD', date = new Date().toISOString().slice(0, 10)): TradeRow => ({
   id: Math.random().toString(36).slice(2),
   instrument,
   date,
@@ -164,7 +164,7 @@ function DatabaseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
             <div style={{ flex: '2 1 200px' }}>
               <label style={labelStyle}>Database Name</label>
               <input
-                placeholder="e.g. EUR 2024 Backtest"
+                placeholder="e.g. EUR/USD 2024 Backtest"
                 value={dbName}
                 onChange={e => setDbName(e.target.value)}
                 style={{ width: '100%', fontSize: 13 }}
@@ -356,7 +356,7 @@ function ToggleGroup({ value, options, onChange, small }: {
 
 // ─── Single Trade Form ────────────────────────────────────────────────────────
 const emptyForm = () => ({
-  instrument: 'EUR', date: new Date().toISOString().slice(0, 10),
+  instrument: 'EUR/USD', date: new Date().toISOString().slice(0, 10),
   direction: 'long' as Direction, rr: '', session: 'London',
   result: 'tp' as Result, grossR: '', cost: '-0.1',
   customInstrument: '',
@@ -649,7 +649,7 @@ export default function Import() {
           <div style={{ marginTop: 24, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
             <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>Expected format</div>
             <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.7 }}>
-              Sheet: <strong style={{ color: 'var(--text)' }}>EUR</strong>, <strong style={{ color: 'var(--text)' }}>GER</strong>, or <strong style={{ color: 'var(--text)' }}>XAU/GOLD</strong><br />
+              Sheet: <strong style={{ color: 'var(--text)' }}>EUR/USD</strong>, <strong style={{ color: 'var(--text)' }}>GER40</strong>, or <strong style={{ color: 'var(--text)' }}>XAU/GOLD</strong><br />
               Columns: <span className="mono" style={{ color: 'var(--text)', fontSize: 11 }}>ID | Date | Direction | RR | Session | Result | GrossR | NetR | Costs | WR</span>
             </div>
           </div>

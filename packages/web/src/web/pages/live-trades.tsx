@@ -13,6 +13,73 @@ const SESSIONS = ['Asia', 'Frankfurt', 'London', 'Overlap', 'New York'];
 const DIRECTIONS = ['long', 'short'];
 const RESULTS = ['tp', 'sl', 'be'];
 
+const DEFAULT_PAIRS = ['EUR/USD', 'GBP/USD', 'GER40', 'XAU/USD', 'ETH/USD', 'BTC/USD'];
+
+function PairSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [pairs, setPairs] = useState<string[]>(() => {
+    try { const saved = localStorage.getItem('tact_pairs'); return saved ? JSON.parse(saved) : DEFAULT_PAIRS; } catch { return DEFAULT_PAIRS; }
+  });
+  const [open, setOpen] = useState(false);
+  const [newPair, setNewPair] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const savePairs = (updated: string[]) => {
+    setPairs(updated);
+    try { localStorage.setItem('tact_pairs', JSON.stringify(updated)); } catch {}
+  };
+
+  const addPair = () => {
+    const p = newPair.trim().toUpperCase();
+    if (!p || pairs.includes(p)) { setNewPair(''); return; }
+    savePairs([...pairs, p]);
+    setNewPair('');
+  };
+
+  const removePair = (p: string) => savePairs(pairs.filter(x => x !== p));
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <div style={{ display: 'flex', gap: 4 }}>
+        <select value={value} onChange={e => { onChange(e.target.value); setOpen(false); }}
+          style={{ flex: 1, borderRadius: 8, padding: '6px 8px', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13, cursor: 'pointer' }}>
+          <option value="">— pair —</option>
+          {pairs.map(p => <option key={p} value={p}>{p}</option>)}
+          {value && !pairs.includes(value) && <option value={value}>{value}</option>}
+        </select>
+        <button type="button" onClick={() => setOpen(o => !o)}
+          title="Manage pairs"
+          style={{ width: 30, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          +
+        </button>
+      </div>
+      {open && (
+        <div style={{ position: 'absolute', top: '110%', left: 0, zIndex: 999, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, minWidth: 200, boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
+          <div style={{ fontSize: 10, color: 'var(--text2)', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase' }}>Manage pairs</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+            {pairs.map(p => (
+              <div key={p} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '3px 6px', borderRadius: 6, background: 'var(--surface2)' }}>
+                <span style={{ fontSize: 12 }}>{p}</span>
+                <button onClick={() => removePair(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 13, padding: '0 2px', lineHeight: 1 }}>×</button>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 5 }}>
+            <input value={newPair} onChange={e => setNewPair(e.target.value)} onKeyDown={e => e.key === 'Enter' && addPair()}
+              placeholder="e.g. NAS100" style={{ flex: 1, borderRadius: 6, fontSize: 12, padding: '4px 8px', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+            <button onClick={addPair} className="btn-primary" style={{ borderRadius: 6, fontSize: 12, padding: '4px 10px' }}>Add</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const today = () => new Date().toISOString().slice(0, 10);
 
 const emptyForm = {
@@ -210,7 +277,7 @@ function EditModal({ trade, onClose, onSave, isPending }: {
             <>
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                 <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Date</div>{inp('date', 'date')}</div>
-                <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Pair</div>{inp('asset', 'text', { placeholder: 'EUR' })}</div>
+                <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Pair</div>{inp('asset', 'text', { placeholder: 'EUR/USD' })}</div>
               </div>
               <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Direction</div><ToggleGroup value={form.direction} options={DIRECTIONS} onChange={v => setField('direction', v)} /></div>
               <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Session</div><ToggleGroup value={form.session} options={SESSIONS} onChange={v => setField('session', v)} small /></div>
@@ -786,7 +853,7 @@ export default function LiveTrades() {
             </div>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Pair</div>
-              <input type="text" value={form.asset} placeholder="EUR" onChange={e => setForm(f => ({ ...f, asset: e.target.value }))} style={{ width: '100%', borderRadius: 8 }} />
+              <PairSelector value={form.asset} onChange={v => setForm(f => ({ ...f, asset: v }))} />
             </div>
             <div>
               <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>RR</div>

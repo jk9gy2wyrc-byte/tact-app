@@ -1172,7 +1172,7 @@ const app = new Hono()
       liveByMonth[m].avgRR = rrs.length ? Math.round(rrs.reduce((a, b) => a + b, 0) / rrs.length * 1000) / 1000 : 0;
     }
 
-    const instruments = ['EUR', 'GER', 'XAU'];
+    const instruments = ['EUR/USD', 'GER40', 'XAU/USD'];
     const btByInstrument: Record<string, ReturnType<typeof calcStats>> = {};
     for (const inst of instruments) {
       btByInstrument[inst] = calcStats(bt.filter(t => t.instrument === inst));
@@ -2440,9 +2440,9 @@ const app = new Hono()
       let totalInserted = 0;
 
       for (const sheetName of wb.SheetNames) {
-        let instrument = 'EUR';
-        if (sheetName.toUpperCase().includes('GER')) instrument = 'GER';
-        else if (sheetName.toUpperCase().includes('XAU') || sheetName.toUpperCase().includes('GOLD')) instrument = 'XAU';
+        let instrument = 'EUR/USD';
+        if (sheetName.toUpperCase().includes('GER')) instrument = 'GER40';
+        else if (sheetName.toUpperCase().includes('XAU') || sheetName.toUpperCase().includes('GOLD')) instrument = 'XAU/USD';
 
         if (!sheetName.toLowerCase().includes('raw')) continue;
         if (sheetName.toLowerCase().includes('live')) continue;

@@ -201,8 +201,8 @@ const ALL_ASSETS: Record<string, {
     priceKey: 'XAU',
   },
   GER: {
-    label: 'DAX',
-    symbol: <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text2)', fontFamily: 'monospace' }}>DAX</span>,
+    label: 'GER40',
+    symbol: <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text2)', fontFamily: 'monospace' }}>GER40</span>,
     ffCurrencies: ['EUR'],
     priceKey: 'GER',
   },
@@ -232,7 +232,7 @@ const ALL_ASSETS: Record<string, {
   },
 };
 
-const DEFAULT_SELECTED = ['EUR', 'GBP', 'XAU', 'GER'];
+const DEFAULT_SELECTED = ['EUR/USD', 'GBP/USD', 'XAU/USD', 'GER40'];
 
 function useSelectedAssets() {
   const [selected, setSelected] = useState<string[]>(DEFAULT_SELECTED);
@@ -452,7 +452,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-const INSTRUMENTS = ['EUR', 'GER', 'XAU'];
+const INSTRUMENTS = ['EUR/USD', 'GER40', 'XAU/USD'];
 
 // ── Profitability ─────────────────────────────────────────────────────────────
 function Profitability({ trades }: { trades: any[] }) {
