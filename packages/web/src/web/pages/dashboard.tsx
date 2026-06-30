@@ -828,6 +828,7 @@ function WeakSpots({ trades, subOrder, editMode, onReorderSub }: { trades: any[]
           onDragEnd={() => { wSubDragRef.current = null; setWSubDragOver(null); }}
           style={{
             flex: 1, minWidth: 180, borderRadius: 12,
+            boxSizing: 'border-box',
             boxShadow: editMode
               ? (wSubDragOver === subId
                 ? 'inset 0 0 0 2px rgba(255,255,255,0.65), 0 4px 20px rgba(255,255,255,0.07)'
@@ -835,7 +836,7 @@ function WeakSpots({ trades, subOrder, editMode, onReorderSub }: { trades: any[]
               : 'none',
             animation: editMode ? `dashWobble 0.3s ease-in-out ${idx * 40}ms infinite` : 'none',
             cursor: editMode ? 'grab' : 'default',
-            padding: editMode ? 4 : 0, transition: 'box-shadow 0.15s',
+            padding: editMode ? 6 : 0, transition: 'box-shadow 0.15s',
           }}
         >
           {subContent[subId]}
@@ -1022,6 +1023,8 @@ function DraggableBlock({
       onDragEnd={onDragEnd}
       style={{
         position: 'relative', minWidth: 0,
+        boxSizing: 'border-box',
+        padding: editMode ? '22px 10px 10px 10px' : 0,
         opacity: isDragging ? 0.38 : 1,
         borderRadius: 14,
         boxShadow: editMode
