@@ -1070,14 +1070,14 @@ export default function LiveTrades() {
                               </td>
                               <td>
                                 {tLinks.length > 0 ? (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
                                     {tLinks.map((lk: Attachment, i: number) => lk.type === 'image' ? (
-                                      <button key={i} onClick={e => { e.stopPropagation(); setPreviewImg(lk.url); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text2)', textAlign: 'left', padding: 0, whiteSpace: 'nowrap' }}>
-                                        {lk.label.length > 20 ? lk.label.slice(0, 20) + '…' : lk.label}
+                                      <button key={i} onClick={e => { e.stopPropagation(); setPreviewImg(lk.url); }} style={{ display: 'inline-flex', alignItems: 'center', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, cursor: 'pointer', fontSize: 11, color: 'var(--text2)', padding: '1px 6px', whiteSpace: 'nowrap', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {lk.label.length > 14 ? lk.label.slice(0, 14) + '…' : lk.label}
                                       </button>
                                     ) : (
-                                      <a key={i} href={lk.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 11, color: 'var(--text2)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                                        {lk.label.length > 20 ? lk.label.slice(0, 20) + '…' : lk.label}
+                                      <a key={i} href={lk.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', alignItems: 'center', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, fontSize: 11, color: 'var(--text2)', textDecoration: 'none', padding: '1px 6px', whiteSpace: 'nowrap', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {lk.label.length > 14 ? lk.label.slice(0, 14) + '…' : lk.label}
                                       </a>
                                     ))}
                                   </div>
