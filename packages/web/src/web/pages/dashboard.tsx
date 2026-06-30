@@ -1060,19 +1060,23 @@ const DASH_WOBBLE_CSS = `
 `;
 
 function DraggableBlock({
-  id, editMode, isOver, isDragging, index, elRef, gridStyle,
-  onDragStart, onDragOver, onDrop, onDragEnd, children,
+  id, editMode, isOver, isDragging, index, elRef, gridStyle, isMobile,
+  onDragStart, onDragOver, onDrop, onDragEnd, onTouchStart, children,
 }: {
   id: BlockId; editMode: boolean; isOver: boolean; isDragging: boolean; index: number;
   elRef?: React.RefCallback<HTMLDivElement>;
   gridStyle?: React.CSSProperties;
+  isMobile?: boolean;
   onDragStart: () => void; onDragOver: () => void; onDrop: () => void; onDragEnd: () => void;
+  onTouchStart?: React.TouchEventHandler<HTMLDivElement>;
   children: React.ReactNode;
 }) {
   return (
     <div
       ref={elRef}
-      draggable={editMode}
+      data-block-id={id}
+      draggable={editMode && !isMobile}
+      onTouchStart={onTouchStart}
       onDragStart={e => { e.stopPropagation(); onDragStart(); }}
       onDragOver={e => { e.preventDefault(); e.stopPropagation(); onDragOver(); }}
       onDrop={e => { e.stopPropagation(); onDrop(); }}
@@ -1135,6 +1139,14 @@ export default function Dashboard() {
   const origOrderRef = useRef<BlockId[]>([]);
   const origWeakRef = useRef<WeakSubId[]>([]);
   const dragSwapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dashWrapRef = useRef<HTMLDivElement>(null);
+  const touchDragId = useRef<BlockId | null>(null);
+  const previewOrderRef = useRef<BlockId[] | null>(null);
+  const blockOrderRef = useRef<BlockId[]>(blockOrder);
+  const editModeRef = useRef(false);
+  const autoScrollRAF = useRef<number | null>(null);
+  const autoScrollDirRef = useRef<0 | 1 | -1>(0);
+  const autoScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const saveBlockOrder = (order: BlockId[]) => {
     setBlockOrder(order);
@@ -1150,6 +1162,40 @@ export default function Dashboard() {
     for (const [id, el] of blockElRefs.current) {
       prevRectsRef.current.set(id, el.getBoundingClientRect());
     }
+  }
+
+  function getScrollEl(): HTMLElement | null {
+    let el = dashWrapRef.current?.parentElement ?? null;
+    while (el) {
+      const ov = getComputedStyle(el).overflowY;
+      if (ov === 'auto' || ov === 'scroll') return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+  function stopAutoScroll() {
+    if (autoScrollRAF.current) cancelAnimationFrame(autoScrollRAF.current);
+    autoScrollRAF.current = null;
+    if (autoScrollTimerRef.current) clearTimeout(autoScrollTimerRef.current);
+    autoScrollTimerRef.current = null;
+    autoScrollDirRef.current = 0;
+  }
+  function startAutoScrollAfterDelay(dir: 1 | -1) {
+    if (autoScrollDirRef.current === dir) return;
+    stopAutoScroll();
+    autoScrollDirRef.current = dir;
+    autoScrollTimerRef.current = setTimeout(() => {
+      const tick = () => {
+        const scrollEl = getScrollEl();
+        if (scrollEl && autoScrollDirRef.current !== 0) {
+          scrollEl.scrollTop += dir * 5;
+          autoScrollRAF.current = requestAnimationFrame(tick);
+        } else {
+          autoScrollRAF.current = null;
+        }
+      };
+      autoScrollRAF.current = requestAnimationFrame(tick);
+    }, 500);
   }
 
   useLayoutEffect(() => {
@@ -1177,6 +1223,76 @@ export default function Dashboard() {
       el.addEventListener('transitionend', onEnd);
     }
   }, [previewOrder]);
+
+  // Sync refs with state
+  useEffect(() => { previewOrderRef.current = previewOrder; }, [previewOrder]);
+  useEffect(() => { blockOrderRef.current = blockOrder; }, [blockOrder]);
+  useEffect(() => { editModeRef.current = editMode; }, [editMode]);
+
+  // Desktop drag: auto-scroll on dragover
+  useEffect(() => {
+    if (!editMode) return;
+    const handler = (e: DragEvent) => {
+      const zone = 80;
+      if (e.clientY < zone) startAutoScrollAfterDelay(-1);
+      else if (e.clientY > window.innerHeight - zone) startAutoScrollAfterDelay(1);
+      else stopAutoScroll();
+    };
+    document.addEventListener('dragover', handler);
+    return () => { document.removeEventListener('dragover', handler); stopAutoScroll(); };
+  }, [editMode]);
+
+  // Touch drag on mobile
+  useEffect(() => {
+    const onTouchMove = (e: TouchEvent) => {
+      if (!touchDragId.current) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const zone = 80;
+      if (touch.clientY < zone) startAutoScrollAfterDelay(-1);
+      else if (touch.clientY > window.innerHeight - zone) startAutoScrollAfterDelay(1);
+      else stopAutoScroll();
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const blockEl = el?.closest('[data-block-id]') as HTMLElement | null;
+      const overId = blockEl?.dataset.blockId as BlockId | undefined;
+      if (!overId || overId === touchDragId.current) return;
+      const src = touchDragId.current;
+      const cur = previewOrderRef.current ?? blockOrderRef.current;
+      const from = cur.indexOf(src);
+      const to = cur.indexOf(overId);
+      if (from === -1 || to === -1 || from === to) return;
+      const arr = [...cur];
+      arr.splice(from, 1);
+      arr.splice(to, 0, src);
+      if (arr.join(',') === cur.join(',')) return;
+      if (dragSwapTimerRef.current) clearTimeout(dragSwapTimerRef.current);
+      dragSwapTimerRef.current = setTimeout(() => {
+        snapRects();
+        setDragOverId(overId);
+        setPreviewOrder(arr);
+      }, 60);
+    };
+    const onTouchEnd = () => {
+      if (!touchDragId.current) return;
+      stopAutoScroll();
+      if (dragSwapTimerRef.current) clearTimeout(dragSwapTimerRef.current);
+      const cur = previewOrderRef.current;
+      if (cur) saveBlockOrder(cur);
+      setPreviewOrder(null);
+      touchDragId.current = null;
+      blockDragRef.current = null;
+      setDraggingId(null);
+      setDragOverId(null);
+    };
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd);
+    document.addEventListener('touchcancel', onTouchEnd);
+    return () => {
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+      document.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, []);
 
   const session = getSession();
   const { data: accessData } = useQuery({
@@ -1227,7 +1343,7 @@ export default function Dashboard() {
 
   return (
     <AccessWrapper blocked={isBlocked} reason={accessData?.reason}>
-      <div style={{ padding: p, width: '100%', overflowX: 'hidden' }}>
+      <div ref={dashWrapRef} style={{ padding: p, width: '100%', overflowX: 'hidden' }}>
         <style>{DASH_WOBBLE_CSS}</style>
 
         {/* ── Header ── */}
@@ -1241,48 +1357,47 @@ export default function Dashboard() {
               <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text2)' }}>
                 {now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
               </span>
-              {!isMobile && (
-                editMode ? (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      onClick={() => {
-                        setBlockOrder(origOrderRef.current);
-                        setWeakSubOrder(origWeakRef.current);
-                        localStorage.setItem('dash_order', JSON.stringify(origOrderRef.current));
-                        localStorage.setItem('dash_weak_order', JSON.stringify(origWeakRef.current));
-                        setPreviewOrder(null);
-                        setEditMode(false);
-                      }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: 'var(--text2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                    >
-                      ✕ Cancel
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (previewOrder) saveBlockOrder(previewOrder);
-                        setPreviewOrder(null);
-                        setEditMode(false);
-                      }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 8, border: '1px solid rgba(99,102,241,0.6)', background: 'rgba(99,102,241,0.15)', color: '#a5b4fc', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                    >
-                      ✓ Done
-                    </button>
-                  </div>
-                ) : (
+              {editMode ? (
+                <div style={{ display: 'flex', gap: 8 }}>
                   <button
                     onClick={() => {
-                      origOrderRef.current = [...blockOrder];
-                      origWeakRef.current = [...weakSubOrder];
-                      setEditMode(true);
+                      setBlockOrder(origOrderRef.current);
+                      setWeakSubOrder(origWeakRef.current);
+                      localStorage.setItem('dash_order', JSON.stringify(origOrderRef.current));
+                      localStorage.setItem('dash_weak_order', JSON.stringify(origWeakRef.current));
+                      setPreviewOrder(null);
+                      setEditMode(false);
                     }}
-                    title="Customize dashboard layout"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.18)', background: '#111', cursor: 'pointer', flexShrink: 0 }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: 'var(--text2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
                   >
-                    <svg width="13" height="14" viewBox="0 0 20 22" fill="white" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M9 1a1 1 0 0 1 2 0v10.1c.32-.2.68-.1 1-.1a2 2 0 0 1 2 2v.3c.32-.2.68-.3 1-.3a2 2 0 0 1 2 2V16a6 6 0 0 1-6 6H9A6 6 0 0 1 4.76 20.24L1.29 16.77a1.5 1.5 0 0 1 2.12-2.12L5 16.17V9a2 2 0 0 1 4 0V1Z"/>
-                    </svg>
+                    ✕ Cancel
                   </button>
-                )
+                  <button
+                    onClick={() => {
+                      if (previewOrder) saveBlockOrder(previewOrder);
+                      setPreviewOrder(null);
+                      setEditMode(false);
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 8, border: '1px solid rgba(99,102,241,0.6)', background: 'rgba(99,102,241,0.15)', color: '#a5b4fc', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    ✓ Done
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    origOrderRef.current = [...blockOrder];
+                    origWeakRef.current = [...weakSubOrder];
+                    setEditMode(true);
+                  }}
+                  title="Customize dashboard layout"
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px 5px 9px', height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.18)', background: '#111', cursor: 'pointer', flexShrink: 0 }}
+                >
+                  <svg width="11" height="12" viewBox="0 0 20 22" fill="white" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9 1a1 1 0 0 1 2 0v10.1c.32-.2.68-.1 1-.1a2 2 0 0 1 2 2v.3c.32-.2.68-.3 1-.3a2 2 0 0 1 2 2V16a6 6 0 0 1-6 6H9A6 6 0 0 1 4.76 20.24L1.29 16.77a1.5 1.5 0 0 1 2.12-2.12L5 16.17V9a2 2 0 0 1 4 0V1Z"/>
+                  </svg>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'white', whiteSpace: 'nowrap' }}>Dynamic</span>
+                </button>
               )}
             </div>
           );
@@ -1364,7 +1479,9 @@ export default function Dashboard() {
                   gridStyle={FULL_BLOCKS.has(id) || isMobile
                     ? { flexBasis: '100%' }
                     : { flexBasis: 'calc(50% - 10px)', flexShrink: 0 }}
+                  isMobile={isMobile}
                   elRef={el => { if (el) blockElRefs.current.set(id, el); else blockElRefs.current.delete(id); }}
+                  onTouchStart={editMode ? (e) => { e.stopPropagation(); touchDragId.current = id; blockDragRef.current = id; setDraggingId(id); } : undefined}
                   onDragStart={() => { blockDragRef.current = id; setDraggingId(id); }}
                   onDragOver={() => {
                     const src = blockDragRef.current;
