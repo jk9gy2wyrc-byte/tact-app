@@ -1,23 +1,20 @@
-# i18n rollout task
+# Task
 
 ## Goal
-Full EN translation for all pages. UK stays as-is. useT() hook from lib/i18n.ts.
+1. EditModal (both files) — fix Materials tab:
+   - Notes textarea: resize: 'none'
+   - Remove Label input from Links section
+2. Add New Trade form (both files) — add Materials (optional) section:
+   - Profit ($), Notes, Photos button, Links (url + Add btn)
+   - State in main component, send in handleAddSubmit, reset on success
+
+## Files
+- /home/user/tact-app/packages/web/src/web/pages/live-trades.tsx
+- /home/user/tact-app/packages/web/src/web/pages/backtest-trades.tsx
 
 ## Status
-- [x] lib/i18n.ts created
-- [x] app.tsx: dispatchEvent on lang change
-- [ ] mc-simulation.tsx — in progress
-- [ ] dashboard.tsx
-- [ ] admin-users.tsx
-- [ ] live-trades.tsx
-- [ ] backtest-trades.tsx
-- [ ] live-analysis.tsx
-- [ ] backtest-analysis.tsx
-- [ ] charts.tsx (biggest — 346 uk lines)
-- [ ] subscription.tsx
-
-## Approach
-- Add `const t = useT()` to each page's main export function
-- Replace hardcoded UK strings with t.key
-- For sub-components that don't re-render on lang change, pass t as prop or call getLang() directly (less ideal)
-- For sub-components used inside main function, they will get t from closure
+- [ ] live EditModal: remove newLabel state, fix addLink, resize:none, remove Label input row
+- [ ] backtest EditModal: same
+- [ ] live Add Form: add state + UI + handleAddSubmit + reset
+- [ ] backtest Add Form: add state + UI + handleAddSubmit + reset
+- [ ] commit + push

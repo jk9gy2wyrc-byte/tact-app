@@ -803,40 +803,96 @@ function WeakSpots({ trades, subOrder, editMode, onReorderSub }: { trades: any[]
 
   const wSubDragRef = useRef<WeakSubId | null>(null);
   const [wSubDragOver, setWSubDragOver] = useState<WeakSubId | null>(null);
+  const [wSubDragging, setWSubDragging] = useState<WeakSubId | null>(null);
+  const [wSubPreview, setWSubPreview] = useState<WeakSubId[] | null>(null);
+  const wSubElRefs = useRef<Map<WeakSubId, HTMLDivElement>>(new Map());
+  const wSubPrevRectsRef = useRef<Map<WeakSubId, DOMRect>>(new Map());
+  const wSubPrevKeyRef = useRef<string>('');
+  const wSubSwapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function snapWSubRects() {
+    wSubPrevRectsRef.current = new Map();
+    for (const [id, el] of wSubElRefs.current) {
+      wSubPrevRectsRef.current.set(id, el.getBoundingClientRect());
+    }
+  }
+
+  useLayoutEffect(() => {
+    const key = JSON.stringify(wSubPreview);
+    if (key === wSubPrevKeyRef.current) return;
+    wSubPrevKeyRef.current = key;
+    if (!wSubPreview) return;
+    for (const [id, el] of wSubElRefs.current) {
+      const prev = wSubPrevRectsRef.current.get(id);
+      if (!prev) continue;
+      const next = el.getBoundingClientRect();
+      const dx = prev.left - next.left;
+      const dy = prev.top - next.top;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
+      el.style.transition = 'none';
+      el.style.translate = `${dx}px ${dy}px`;
+      void el.getBoundingClientRect();
+      el.style.transition = 'translate 0.28s cubic-bezier(0.25,0.46,0.45,0.94)';
+      el.style.translate = '';
+      const onEnd = () => { el.style.transition = ''; el.style.translate = ''; el.removeEventListener('transitionend', onEnd); };
+      el.addEventListener('transitionend', onEnd);
+    }
+  }, [wSubPreview]);
+
   const subContent: Record<WeakSubId, React.ReactNode> = {
     instrument: <IslandGroup rows={instRows} label="By Instrument" />,
     session: <IslandGroup rows={sessRows} label="By Session" />,
     day: <IslandGroup rows={dayRows} label="By Day" />,
   };
+  const displaySubOrder = wSubPreview ?? subOrder;
   return (
     <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-      {subOrder.map((subId, idx) => (
+      {displaySubOrder.map((subId, idx) => (
         <div
           key={subId}
+          ref={el => { if (el) wSubElRefs.current.set(subId, el); else wSubElRefs.current.delete(subId); }}
           draggable={editMode}
-          onDragStart={e => { e.stopPropagation(); wSubDragRef.current = subId; }}
-          onDragOver={e => { e.preventDefault(); e.stopPropagation(); setWSubDragOver(subId); }}
+          onDragStart={e => { e.stopPropagation(); wSubDragRef.current = subId; setWSubDragging(subId); }}
+          onDragOver={e => {
+            e.preventDefault(); e.stopPropagation();
+            const src = wSubDragRef.current;
+            if (!src || src === subId) return;
+            const cur = wSubPreview ?? subOrder;
+            const from = cur.indexOf(src);
+            const to = cur.indexOf(subId);
+            if (from === -1 || to === -1 || from === to) return;
+            const arr = [...cur];
+            arr.splice(from, 1); arr.splice(to, 0, src);
+            if (arr.join(',') === cur.join(',')) return;
+            if (wSubSwapTimerRef.current) clearTimeout(wSubSwapTimerRef.current);
+            wSubSwapTimerRef.current = setTimeout(() => {
+              snapWSubRects();
+              setWSubDragOver(subId);
+              setWSubPreview(arr);
+            }, 100);
+          }}
           onDrop={e => {
             e.stopPropagation();
-            const src = wSubDragRef.current;
-            if (!src || src === subId) { setWSubDragOver(null); return; }
-            const arr = [...subOrder];
-            const from = arr.indexOf(src); const to = arr.indexOf(subId);
-            arr.splice(from, 1); arr.splice(to, 0, src);
-            onReorderSub(arr); wSubDragRef.current = null; setWSubDragOver(null);
+            if (wSubSwapTimerRef.current) clearTimeout(wSubSwapTimerRef.current);
+            if (wSubPreview) onReorderSub(wSubPreview);
+            wSubDragRef.current = null; setWSubPreview(null); setWSubDragging(null); setWSubDragOver(null);
           }}
-          onDragEnd={() => { wSubDragRef.current = null; setWSubDragOver(null); }}
+          onDragEnd={() => {
+            if (wSubSwapTimerRef.current) clearTimeout(wSubSwapTimerRef.current);
+            wSubDragRef.current = null; setWSubPreview(null); setWSubDragging(null); setWSubDragOver(null);
+          }}
           style={{
             flex: 1, minWidth: 180, borderRadius: 12,
             boxSizing: 'border-box',
+            opacity: wSubDragging === subId ? 0.38 : 1,
             boxShadow: editMode
               ? (wSubDragOver === subId
                 ? 'inset 0 0 0 2px rgba(255,255,255,0.65), 0 4px 20px rgba(255,255,255,0.07)'
                 : 'inset 0 0 0 2px rgba(255,255,255,0.18)')
               : 'none',
             animation: editMode ? `dashWobble 0.3s ease-in-out ${idx * 40}ms infinite` : 'none',
-            cursor: editMode ? 'grab' : 'default',
-            padding: editMode ? 6 : 0, transition: 'box-shadow 0.15s',
+            cursor: editMode ? (wSubDragging === subId ? 'grabbing' : 'grab') : 'default',
+            padding: editMode ? 6 : 0, transition: 'box-shadow 0.15s, opacity 0.15s',
           }}
         >
           {subContent[subId]}
@@ -1078,6 +1134,7 @@ export default function Dashboard() {
   const prevPreviewKeyRef = useRef<string>('');
   const origOrderRef = useRef<BlockId[]>([]);
   const origWeakRef = useRef<WeakSubId[]>([]);
+  const dragSwapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const saveBlockOrder = (order: BlockId[]) => {
     setBlockOrder(order);
@@ -1170,7 +1227,7 @@ export default function Dashboard() {
 
   return (
     <AccessWrapper blocked={isBlocked} reason={accessData?.reason}>
-      <div style={{ padding: p, width: '100%', overflow: 'hidden' }}>
+      <div style={{ padding: p, width: '100%', overflowX: 'hidden' }}>
         <style>{DASH_WOBBLE_CSS}</style>
 
         {/* ── Header ── */}
@@ -1320,11 +1377,15 @@ export default function Dashboard() {
                     arr.splice(from, 1);
                     arr.splice(to, 0, src);
                     if (arr.join(',') === cur.join(',')) return;
-                    snapRects();
-                    setDragOverId(id);
-                    setPreviewOrder(arr);
+                    if (dragSwapTimerRef.current) clearTimeout(dragSwapTimerRef.current);
+                    dragSwapTimerRef.current = setTimeout(() => {
+                      snapRects();
+                      setDragOverId(id);
+                      setPreviewOrder(arr);
+                    }, 100);
                   }}
                   onDrop={() => {
+                    if (dragSwapTimerRef.current) clearTimeout(dragSwapTimerRef.current);
                     if (previewOrder) saveBlockOrder(previewOrder);
                     setPreviewOrder(null);
                     blockDragRef.current = null;
@@ -1332,6 +1393,7 @@ export default function Dashboard() {
                     setDragOverId(null);
                   }}
                   onDragEnd={() => {
+                    if (dragSwapTimerRef.current) clearTimeout(dragSwapTimerRef.current);
                     blockDragRef.current = null;
                     setPreviewOrder(null);
                     setDraggingId(null);
