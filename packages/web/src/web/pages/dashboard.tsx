@@ -828,9 +828,11 @@ function WeakSpots({ trades, subOrder, editMode, onReorderSub }: { trades: any[]
           onDragEnd={() => { wSubDragRef.current = null; setWSubDragOver(null); }}
           style={{
             flex: 1, minWidth: 180, borderRadius: 12,
-            outline: editMode ? `2px solid ${wSubDragOver === subId ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.22)'}` : 'none',
-            outlineOffset: 3,
-            boxShadow: editMode ? (wSubDragOver === subId ? '0 0 0 5px rgba(255,255,255,0.12)' : '0 0 0 3px rgba(255,255,255,0.05)') : 'none',
+            boxShadow: editMode
+              ? (wSubDragOver === subId
+                ? 'inset 0 0 0 2px rgba(255,255,255,0.65), 0 4px 20px rgba(255,255,255,0.07)'
+                : 'inset 0 0 0 2px rgba(255,255,255,0.18)')
+              : 'none',
             animation: editMode ? `dashWobble 0.3s ease-in-out ${idx * 40}ms infinite` : 'none',
             cursor: editMode ? 'grab' : 'default',
             padding: editMode ? 4 : 0, transition: 'box-shadow 0.15s',
@@ -1021,9 +1023,12 @@ function DraggableBlock({
       style={{
         position: 'relative', minWidth: 0,
         opacity: isDragging ? 0.38 : 1,
-        outline: editMode ? `2px solid ${isOver ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.22)'}` : 'none',
-        outlineOffset: 3, borderRadius: 14,
-        boxShadow: editMode ? (isOver ? '0 0 0 5px rgba(255,255,255,0.12)' : '0 0 0 3px rgba(255,255,255,0.05)') : 'none',
+        borderRadius: 14,
+        boxShadow: editMode
+          ? (isOver
+            ? 'inset 0 0 0 2px rgba(255,255,255,0.65), 0 4px 20px rgba(255,255,255,0.07)'
+            : 'inset 0 0 0 2px rgba(255,255,255,0.18)')
+          : 'none',
         animation: editMode ? `dashWobble 0.3s ease-in-out ${index * 40}ms infinite` : 'none',
         cursor: editMode ? (isDragging ? 'grabbing' : 'grab') : 'default',
         transition: 'opacity 0.15s, box-shadow 0.15s',
@@ -1186,11 +1191,10 @@ export default function Dashboard() {
                   <button
                     onClick={() => setEditMode(true)}
                     title="Customize dashboard layout"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text2)', cursor: 'pointer', flexShrink: 0 }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.18)', background: '#111', cursor: 'pointer', flexShrink: 0 }}
                   >
-                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M16.2 12.5a1.38 1.38 0 0 0 .28 1.52l.05.05a1.67 1.67 0 0 1-2.36 2.36l-.05-.05a1.38 1.38 0 0 0-1.52-.28 1.38 1.38 0 0 0-.83 1.26V17.5a1.67 1.67 0 0 1-3.34 0v-.07A1.38 1.38 0 0 0 7.6 16.2a1.38 1.38 0 0 0-1.52.28l-.05.05a1.67 1.67 0 0 1-2.36-2.36l.05-.05A1.38 1.38 0 0 0 4 12.6a1.38 1.38 0 0 0-1.26-.83H2.5a1.67 1.67 0 0 1 0-3.34h.07A1.38 1.38 0 0 0 3.8 7.6a1.38 1.38 0 0 0-.28-1.52l-.05-.05a1.67 1.67 0 0 1 2.36-2.36l.05.05A1.38 1.38 0 0 0 7.4 4a1.38 1.38 0 0 0 .83-1.26V2.5a1.67 1.67 0 0 1 3.34 0v.07A1.38 1.38 0 0 0 12.4 3.8a1.38 1.38 0 0 0 1.52-.28l.05-.05a1.67 1.67 0 0 1 2.36 2.36l-.05.05A1.38 1.38 0 0 0 16.2 7.4a1.38 1.38 0 0 0 1.26.83H17.5a1.67 1.67 0 0 1 0 3.34h-.07a1.38 1.38 0 0 0-1.23.93Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <svg width="13" height="14" viewBox="0 0 20 22" fill="white" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M9 1a1 1 0 0 1 2 0v10.1c.32-.2.68-.1 1-.1a2 2 0 0 1 2 2v.3c.32-.2.68-.3 1-.3a2 2 0 0 1 2 2V16a6 6 0 0 1-6 6H9A6 6 0 0 1 4.76 20.24L1.29 16.77a1.5 1.5 0 0 1 2.12-2.12L5 16.17V9a2 2 0 0 1 4 0V1Z"/>
                     </svg>
                   </button>
                 )
@@ -1277,16 +1281,17 @@ export default function Dashboard() {
                   onDragStart={() => { blockDragRef.current = id; setDraggingId(id); }}
                   onDragOver={() => {
                     const src = blockDragRef.current;
-                    if (!src || src === id || dragOverId === id) return;
-                    setDragOverId(id);
+                    if (!src || src === id) return;
                     const cur = previewOrder ?? blockOrder;
+                    const from = cur.indexOf(src);
+                    const to = cur.indexOf(id);
+                    if (from === -1 || to === -1 || from === to) return;
                     const arr = [...cur];
-                    const from = arr.indexOf(src);
-                    const to = arr.indexOf(id);
-                    if (from === -1 || to === -1) return;
-                    snapRects();
                     arr.splice(from, 1);
                     arr.splice(to, 0, src);
+                    if (arr.join(',') === cur.join(',')) return;
+                    snapRects();
+                    setDragOverId(id);
                     setPreviewOrder(arr);
                   }}
                   onDrop={() => {
