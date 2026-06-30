@@ -1073,6 +1073,8 @@ export default function Dashboard() {
   const blockElRefs = useRef<Map<BlockId, HTMLDivElement>>(new Map());
   const prevRectsRef = useRef<Map<BlockId, DOMRect>>(new Map());
   const prevPreviewKeyRef = useRef<string>('');
+  const origOrderRef = useRef<BlockId[]>([]);
+  const origWeakRef = useRef<WeakSubId[]>([]);
 
   const saveBlockOrder = (order: BlockId[]) => {
     setBlockOrder(order);
@@ -1181,15 +1183,38 @@ export default function Dashboard() {
               </span>
               {!isMobile && (
                 editMode ? (
-                  <button
-                    onClick={() => setEditMode(false)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 8, border: '1px solid rgba(99,102,241,0.6)', background: 'rgba(99,102,241,0.15)', color: '#a5b4fc', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    ✓ Done
-                  </button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => {
+                        setBlockOrder(origOrderRef.current);
+                        setWeakSubOrder(origWeakRef.current);
+                        localStorage.setItem('dash_order', JSON.stringify(origOrderRef.current));
+                        localStorage.setItem('dash_weak_order', JSON.stringify(origWeakRef.current));
+                        setPreviewOrder(null);
+                        setEditMode(false);
+                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: 'var(--text2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      ✕ Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (previewOrder) saveBlockOrder(previewOrder);
+                        setPreviewOrder(null);
+                        setEditMode(false);
+                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 8, border: '1px solid rgba(99,102,241,0.6)', background: 'rgba(99,102,241,0.15)', color: '#a5b4fc', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      ✓ Done
+                    </button>
+                  </div>
                 ) : (
                   <button
-                    onClick={() => setEditMode(true)}
+                    onClick={() => {
+                      origOrderRef.current = [...blockOrder];
+                      origWeakRef.current = [...weakSubOrder];
+                      setEditMode(true);
+                    }}
                     title="Customize dashboard layout"
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.18)', background: '#111', cursor: 'pointer', flexShrink: 0 }}
                   >
@@ -1264,10 +1289,10 @@ export default function Dashboard() {
             }
           };
 
-          // Flat 2-col grid; full blocks span both columns
+          // Flex-wrap layout: full blocks = 100%, half blocks = ~50% (can be alone)
           const displayOrder = previewOrder ?? blockOrder;
           return (
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'flex-start' }}>
               {displayOrder.map((id, idx) => (
                 <DraggableBlock
                   key={id}
@@ -1276,7 +1301,9 @@ export default function Dashboard() {
                   isOver={dragOverId === id}
                   isDragging={draggingId === id}
                   index={idx}
-                  gridStyle={FULL_BLOCKS.has(id) && !isMobile ? { gridColumn: '1 / -1' } : {}}
+                  gridStyle={FULL_BLOCKS.has(id) || isMobile
+                    ? { flexBasis: '100%' }
+                    : { flexBasis: 'calc(50% - 10px)', flexShrink: 0 }}
                   elRef={el => { if (el) blockElRefs.current.set(id, el); else blockElRefs.current.delete(id); }}
                   onDragStart={() => { blockDragRef.current = id; setDraggingId(id); }}
                   onDragOver={() => {
