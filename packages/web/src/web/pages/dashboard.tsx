@@ -1060,12 +1060,13 @@ export default function Dashboard() {
             <MostTradedInstruments trades={liveTrades as any[]} />
           </Section>
           <Section title="Top Gainers — Live">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 20, alignItems: 'flex-start' }}>
               <TopGainerCard
                 trades={currentMonthTrades}
                 label={`Top Gainer of ${now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
               />
-              <div style={{ height: 1, background: 'var(--border)' }} />
+              {isMobile && <div style={{ height: 1, background: 'var(--border)' }} />}
+              {!isMobile && <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />}
               <TopGainerCard
                 trades={liveTrades as any[]}
                 label="Top Gainer of All Time"
