@@ -1189,48 +1189,54 @@ export default function BacktestTrades() {
             <span style={{ fontSize: 10, color: 'var(--text2)', whiteSpace: 'nowrap', fontWeight: 500 }}>Materials (optional)</span>
             <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
           </div>
-          <div>
-            <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Profit ($)</div>
-            <input type="text" inputMode="decimal" value={addMat.profitDollars} placeholder="e.g. 142.50"
-              onChange={e => setAddMat(m => ({ ...m, profitDollars: e.target.value }))}
-              style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box' }} />
-          </div>
-          <div>
-            <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Notes</div>
-            <textarea value={addMat.notes} placeholder="Setup description, mistakes, observations..."
-              onChange={e => setAddMat(m => ({ ...m, notes: e.target.value }))} rows={2}
-              style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box', resize: 'none', fontFamily: 'inherit', fontSize: 12, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 10px' }} />
-          </div>
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <span style={{ fontSize: 10, color: 'var(--text2)' }}>Photos</span>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, cursor: 'pointer', background: '#4b5263', color: '#fff', borderRadius: 6, padding: '3px 8px', fontWeight: 500, opacity: addUploading ? 0.6 : 1 }}>
-                {addUploading ? 'Uploading...' : '+ Add photo'}
-                <input type="file" accept="image/*" multiple style={{ display: 'none' }} ref={addPhotoRef} onChange={e => handleAddPhoto(e.target.files)} disabled={addUploading} />
-              </label>
+          {/* Row 1: Profit + Notes */}
+          <div style={isMobile ? { display: 'flex', flexDirection: 'column', gap: 10 } : { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Profit ($)</div>
+              <input type="text" inputMode="decimal" value={addMat.profitDollars} placeholder="e.g. 142.50"
+                onChange={e => setAddMat(m => ({ ...m, profitDollars: e.target.value }))}
+                style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box' }} />
             </div>
-            {addLinks.filter(l => l.type === 'image').length > 0 && (
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                {addLinks.map((lk, i) => lk.type !== 'image' ? null : (
-                  <div key={i} style={{ position: 'relative', width: 40, height: 40, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                    <img src={lk.url} alt={lk.label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    <button onClick={() => setAddLinks(l => l.filter((_, idx) => idx !== i))} style={{ position: 'absolute', top: 1, right: 1, background: 'rgba(0,0,0,0.7)', border: 'none', cursor: 'pointer', color: '#fff', fontSize: 10, width: 14, height: 14, borderRadius: 3, padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Notes</div>
+              <textarea value={addMat.notes} placeholder="Setup description, mistakes, observations..."
+                onChange={e => setAddMat(m => ({ ...m, notes: e.target.value }))} rows={2}
+                style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box', resize: 'none', fontFamily: 'inherit', fontSize: 12, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 10px' }} />
+            </div>
           </div>
-          <div>
-            <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Links</div>
-            {addLinks.filter(l => !l.type || l.type === 'link').map((lk, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px' }}>
-                <a href={lk.url} target="_blank" rel="noreferrer" style={{ flex: 1, fontSize: 10, color: 'var(--text2)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🔗 {lk.label.length > 40 ? lk.label.slice(0, 40) + '…' : lk.label}</a>
-                <button onClick={() => setAddLinks(l => l.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 12, padding: 0 }}>×</button>
+          {/* Row 2: Photos + Links */}
+          <div style={isMobile ? { display: 'flex', flexDirection: 'column', gap: 10 } : { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <span style={{ fontSize: 10, color: 'var(--text2)' }}>Photos</span>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, cursor: 'pointer', background: '#4b5263', color: '#fff', borderRadius: 6, padding: '3px 8px', fontWeight: 500, opacity: addUploading ? 0.6 : 1 }}>
+                  {addUploading ? 'Uploading...' : '+ Add photo'}
+                  <input type="file" accept="image/*" multiple style={{ display: 'none' }} ref={addPhotoRef} onChange={e => handleAddPhoto(e.target.files)} disabled={addUploading} />
+                </label>
               </div>
-            ))}
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input type="url" value={addNewUrl} placeholder="https://..." onChange={e => setAddNewUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddLink()} style={{ flex: 1, borderRadius: 7, boxSizing: 'border-box', fontSize: 11 }} />
-              <button className="btn-primary" onClick={handleAddLink} style={{ borderRadius: 7, fontSize: 11, padding: '0 10px' }}>Add</button>
+              {addLinks.filter(l => l.type === 'image').length > 0 && (
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {addLinks.map((lk, i) => lk.type !== 'image' ? null : (
+                    <div key={i} style={{ position: 'relative', width: 40, height: 40, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                      <img src={lk.url} alt={lk.label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <button onClick={() => setAddLinks(l => l.filter((_, idx) => idx !== i))} style={{ position: 'absolute', top: 1, right: 1, background: 'rgba(0,0,0,0.7)', border: 'none', cursor: 'pointer', color: '#fff', fontSize: 10, width: 14, height: 14, borderRadius: 3, padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Links</div>
+              {addLinks.filter(l => !l.type || l.type === 'link').map((lk, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px' }}>
+                  <a href={lk.url} target="_blank" rel="noreferrer" style={{ flex: 1, fontSize: 10, color: 'var(--text2)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🔗 {lk.label.length > 40 ? lk.label.slice(0, 40) + '…' : lk.label}</a>
+                  <button onClick={() => setAddLinks(l => l.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 12, padding: 0 }}>×</button>
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input type="url" value={addNewUrl} placeholder="https://..." onChange={e => setAddNewUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddLink()} style={{ flex: 1, borderRadius: 7, boxSizing: 'border-box', fontSize: 11 }} />
+                <button className="btn-primary" onClick={handleAddLink} style={{ borderRadius: 7, fontSize: 11, padding: '0 10px' }}>Add</button>
+              </div>
             </div>
           </div>
         </div>
