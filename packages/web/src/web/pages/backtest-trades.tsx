@@ -353,7 +353,6 @@ function EditModal({ trade, onClose, onSave, isPending }: {
   });
   const [links, setLinks] = useState<Attachment[]>(parseAttachments(trade.attachments));
   const [newUrl, setNewUrl] = useState('');
-  const [newLabel, setNewLabel] = useState('');
   const [error, setError] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
@@ -382,9 +381,8 @@ function EditModal({ trade, onClose, onSave, isPending }: {
   const addLink = () => {
     const url = newUrl.trim();
     if (!url) return;
-    const label = newLabel.trim() || url;
-    setLinks(l => [...l, { url, label }]);
-    setNewUrl(''); setNewLabel('');
+    setLinks(l => [...l, { url, label: url }]);
+    setNewUrl('');
   };
 
   const removeLink = (i: number) => setLinks(l => l.filter((_, idx) => idx !== i));
@@ -480,7 +478,7 @@ function EditModal({ trade, onClose, onSave, isPending }: {
                 <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Notes</div>
                 <textarea value={form.notes} placeholder="Setup description, mistakes, observations..."
                   onChange={e => setField('notes', e.target.value)} rows={3}
-                  style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit', fontSize: 13, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 10px' }} />
+                  style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box', resize: 'none', fontFamily: 'inherit', fontSize: 13, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 10px' }} />
               </div>
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -513,12 +511,9 @@ function EditModal({ trade, onClose, onSave, isPending }: {
                     ))}
                   </div>
                 )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <input type="url" value={newUrl} placeholder="https://..." onChange={e => setNewUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && addLink()} style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box', fontSize: 12 }} />
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <input type="text" value={newLabel} placeholder="Label (optional)" onChange={e => setNewLabel(e.target.value)} onKeyDown={e => e.key === 'Enter' && addLink()} style={{ flex: 1, borderRadius: 8, boxSizing: 'border-box', fontSize: 12 }} />
-                    <button className="btn-primary" onClick={addLink} style={{ borderRadius: 8, fontSize: 12, padding: '0 14px' }}>Add</button>
-                  </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input type="url" value={newUrl} placeholder="https://..." onChange={e => setNewUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && addLink()} style={{ flex: 1, borderRadius: 8, boxSizing: 'border-box', fontSize: 12 }} />
+                  <button className="btn-primary" onClick={addLink} style={{ borderRadius: 8, fontSize: 12, padding: '0 14px' }}>Add</button>
                 </div>
               </div>
               {lightboxSrc && (
@@ -647,9 +642,13 @@ export default function BacktestTrades() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [error, setError] = useState('');
   const [previewImg, setPreviewImg] = useState<string | null>(null);
-
+  const [addMat, setAddMat] = useState({ profitDollars: '', notes: '' });
+  const [addLinks, setAddLinks] = useState<Attachment[]>([]);
+  const [addNewUrl, setAddNewUrl] = useState('');
+  const [addUploading, setAddUploading] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const addPhotoRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const [showModal, setShowModal] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
@@ -675,6 +674,9 @@ export default function BacktestTrades() {
       qc.invalidateQueries({ queryKey: ['backtest-trades'] });
       qc.invalidateQueries({ queryKey: ['stats'] });
       setForm({ ...emptyForm, date: today() });
+      setAddMat({ profitDollars: '', notes: '' });
+      setAddLinks([]);
+      setAddNewUrl('');
       setError('');
     },
     onError: (e: any) => setError(e.message),
@@ -821,7 +823,33 @@ export default function BacktestTrades() {
       rr: form.rr ? parseFloat(form.rr) : undefined, session: form.session.toLowerCase(),
       result: form.result, grossR: grossR ?? 0, cost: parseFloat(form.cost) || -0.1, netR: netR ?? 0,
     };
+    if (addMat.profitDollars !== '') body.profitDollars = parseFloat(addMat.profitDollars);
+    if (addMat.notes.trim()) body.notes = addMat.notes.trim();
+    if (addLinks.length > 0) body.attachments = JSON.stringify(addLinks);
     addMutation.mutate(body);
+  };
+
+  const handleAddPhoto = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setAddUploading(true);
+    try {
+      const photos: Attachment[] = [];
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith('image/')) continue;
+        const dataUrl = await readFileAsDataURL(file);
+        photos.push({ url: dataUrl, label: file.name.replace(/\.[^.]+$/, ''), type: 'image' });
+      }
+      setAddLinks(l => [...l, ...photos]);
+    } finally {
+      setAddUploading(false);
+    }
+  };
+
+  const handleAddLink = () => {
+    const url = addNewUrl.trim();
+    if (!url) return;
+    setAddLinks(l => [...l, { url, label: url }]);
+    setAddNewUrl('');
   };
 
   const preview = calcRValues(form.result, form.rr, form.cost);
@@ -1154,6 +1182,60 @@ export default function BacktestTrades() {
             <button className="btn-primary" onClick={handleAddSubmit} disabled={addMutation.isPending} style={{ borderRadius: 10 }}>
               {addMutation.isPending ? 'Adding...' : 'Add Trade'}
             </button>
+          </div>
+          {/* Materials divider */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            <span style={{ fontSize: 10, color: 'var(--text2)', whiteSpace: 'nowrap', fontWeight: 500 }}>Materials (optional)</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr', gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Profit ($)</div>
+              <input type="text" inputMode="decimal" value={addMat.profitDollars} placeholder="e.g. 142.50"
+                onChange={e => setAddMat(m => ({ ...m, profitDollars: e.target.value }))}
+                style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Notes</div>
+              <textarea value={addMat.notes} placeholder="Setup description, mistakes, observations..."
+                onChange={e => setAddMat(m => ({ ...m, notes: e.target.value }))} rows={2}
+                style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box', resize: 'none', fontFamily: 'inherit', fontSize: 12, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 10px' }} />
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <span style={{ fontSize: 10, color: 'var(--text2)' }}>Photos</span>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, cursor: 'pointer', background: '#4b5263', color: '#fff', borderRadius: 6, padding: '3px 8px', fontWeight: 500, opacity: addUploading ? 0.6 : 1 }}>
+                  {addUploading ? 'Uploading...' : '+ Add photo'}
+                  <input type="file" accept="image/*" multiple style={{ display: 'none' }} ref={addPhotoRef} onChange={e => handleAddPhoto(e.target.files)} disabled={addUploading} />
+                </label>
+              </div>
+              {addLinks.filter(l => l.type === 'image').length > 0 && (
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {addLinks.map((lk, i) => lk.type !== 'image' ? null : (
+                    <div key={i} style={{ position: 'relative', width: 36, height: 36, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                      <img src={lk.url} alt={lk.label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <button onClick={() => setAddLinks(l => l.filter((_, idx) => idx !== i))} style={{ position: 'absolute', top: 1, right: 1, background: 'rgba(0,0,0,0.7)', border: 'none', cursor: 'pointer', color: '#fff', fontSize: 10, width: 14, height: 14, borderRadius: 3, padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginBottom: 4 }}>Links</div>
+              {addLinks.filter(l => !l.type || l.type === 'link').map((lk, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px' }}>
+                  <a href={lk.url} target="_blank" rel="noreferrer" style={{ flex: 1, fontSize: 10, color: 'var(--text2)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🔗 {lk.label.length > 30 ? lk.label.slice(0, 30) + '…' : lk.label}</a>
+                  <button onClick={() => setAddLinks(l => l.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 12, padding: 0 }}>×</button>
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input type="url" value={addNewUrl} placeholder="https://..." onChange={e => setAddNewUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddLink()} style={{ flex: 1, borderRadius: 7, boxSizing: 'border-box', fontSize: 11 }} />
+                <button className="btn-primary" onClick={handleAddLink} style={{ borderRadius: 7, fontSize: 11, padding: '0 10px' }}>Add</button>
+              </div>
+            </div>
           </div>
         </div>
         {error && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 8 }}>{error}</div>}
