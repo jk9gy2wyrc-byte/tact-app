@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { uidParam, getSession } from "../lib/session";
 import { useMobile } from "../hooks/useMobile";
@@ -828,10 +828,10 @@ function WeakSpots({ trades, subOrder, editMode, onReorderSub }: { trades: any[]
           onDragEnd={() => { wSubDragRef.current = null; setWSubDragOver(null); }}
           style={{
             flex: 1, minWidth: 180, borderRadius: 12,
-            outline: editMode ? `2px solid ${wSubDragOver === subId ? '#818cf8' : 'rgba(99,102,241,0.5)'}` : 'none',
+            outline: editMode ? `2px solid ${wSubDragOver === subId ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.22)'}` : 'none',
             outlineOffset: 3,
-            boxShadow: editMode ? (wSubDragOver === subId ? '0 0 0 5px rgba(99,102,241,0.25)' : '0 0 0 3px rgba(99,102,241,0.1)') : 'none',
-            animation: editMode ? `dashWobble 0.42s ease-in-out ${idx * 80}ms infinite` : 'none',
+            boxShadow: editMode ? (wSubDragOver === subId ? '0 0 0 5px rgba(255,255,255,0.12)' : '0 0 0 3px rgba(255,255,255,0.05)') : 'none',
+            animation: editMode ? `dashWobble 0.3s ease-in-out ${idx * 40}ms infinite` : 'none',
             cursor: editMode ? 'grab' : 'default',
             padding: editMode ? 4 : 0, transition: 'box-shadow 0.15s',
           }}
@@ -994,22 +994,25 @@ function calcQuickStats(trades: any[]) {
 // ── Draggable block wrapper ───────────────────────────────────────────────────
 const DASH_WOBBLE_CSS = `
 @keyframes dashWobble {
-  0%,100% { transform: rotate(0deg) scale(1); }
-  20%      { transform: rotate(-0.7deg) scale(1.005); }
-  60%      { transform: rotate(0.7deg) scale(1.005); }
+  0%,100% { rotate: 0deg; }
+  25%      { rotate: -0.4deg; }
+  75%      { rotate:  0.4deg; }
 }
 `;
 
 function DraggableBlock({
-  id, editMode, isOver, isDragging, index,
+  id, editMode, isOver, isDragging, index, elRef, gridStyle,
   onDragStart, onDragOver, onDrop, onDragEnd, children,
 }: {
   id: BlockId; editMode: boolean; isOver: boolean; isDragging: boolean; index: number;
+  elRef?: React.RefCallback<HTMLDivElement>;
+  gridStyle?: React.CSSProperties;
   onDragStart: () => void; onDragOver: () => void; onDrop: () => void; onDragEnd: () => void;
   children: React.ReactNode;
 }) {
   return (
     <div
+      ref={elRef}
       draggable={editMode}
       onDragStart={e => { e.stopPropagation(); onDragStart(); }}
       onDragOver={e => { e.preventDefault(); e.stopPropagation(); onDragOver(); }}
@@ -1018,12 +1021,13 @@ function DraggableBlock({
       style={{
         position: 'relative', minWidth: 0,
         opacity: isDragging ? 0.38 : 1,
-        outline: editMode ? `2px solid ${isOver ? '#818cf8' : 'rgba(99,102,241,0.5)'}` : 'none',
+        outline: editMode ? `2px solid ${isOver ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.22)'}` : 'none',
         outlineOffset: 3, borderRadius: 14,
-        boxShadow: editMode ? (isOver ? '0 0 0 6px rgba(99,102,241,0.28)' : '0 0 0 4px rgba(99,102,241,0.1)') : 'none',
-        animation: editMode ? `dashWobble 0.42s ease-in-out ${index * 55}ms infinite` : 'none',
+        boxShadow: editMode ? (isOver ? '0 0 0 5px rgba(255,255,255,0.12)' : '0 0 0 3px rgba(255,255,255,0.05)') : 'none',
+        animation: editMode ? `dashWobble 0.3s ease-in-out ${index * 40}ms infinite` : 'none',
         cursor: editMode ? (isDragging ? 'grabbing' : 'grab') : 'default',
         transition: 'opacity 0.15s, box-shadow 0.15s',
+        ...gridStyle,
       }}
     >
       {editMode && (
@@ -1031,13 +1035,13 @@ function DraggableBlock({
           position: 'absolute', top: 7, right: 10, zIndex: 20,
           display: 'flex', alignItems: 'center', gap: 5, pointerEvents: 'none',
         }}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ opacity: 0.7 }}>
-            <circle cx="4" cy="3" r="1.3" fill="#818cf8"/>
-            <circle cx="10" cy="3" r="1.3" fill="#818cf8"/>
-            <circle cx="4" cy="7" r="1.3" fill="#818cf8"/>
-            <circle cx="10" cy="7" r="1.3" fill="#818cf8"/>
-            <circle cx="4" cy="11" r="1.3" fill="#818cf8"/>
-            <circle cx="10" cy="11" r="1.3" fill="#818cf8"/>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ opacity: 0.75 }}>
+            <circle cx="4" cy="3" r="1.3" fill="#e2e8f0"/>
+            <circle cx="10" cy="3" r="1.3" fill="#e2e8f0"/>
+            <circle cx="4" cy="7" r="1.3" fill="#e2e8f0"/>
+            <circle cx="10" cy="7" r="1.3" fill="#e2e8f0"/>
+            <circle cx="4" cy="11" r="1.3" fill="#e2e8f0"/>
+            <circle cx="10" cy="11" r="1.3" fill="#e2e8f0"/>
           </svg>
         </div>
       )}
@@ -1059,7 +1063,11 @@ export default function Dashboard() {
   const [weakSubOrder, setWeakSubOrder] = useState<WeakSubId[]>(() => loadOrder('dash_weak_order', DEFAULT_WEAK_ORDER) as WeakSubId[]);
   const [dragOverId, setDragOverId] = useState<BlockId | null>(null);
   const [draggingId, setDraggingId] = useState<BlockId | null>(null);
+  const [previewOrder, setPreviewOrder] = useState<BlockId[] | null>(null);
   const blockDragRef = useRef<BlockId | null>(null);
+  const blockElRefs = useRef<Map<BlockId, HTMLDivElement>>(new Map());
+  const prevRectsRef = useRef<Map<BlockId, DOMRect>>(new Map());
+  const prevPreviewKeyRef = useRef<string>('');
 
   const saveBlockOrder = (order: BlockId[]) => {
     setBlockOrder(order);
@@ -1069,19 +1077,39 @@ export default function Dashboard() {
     setWeakSubOrder(order);
     localStorage.setItem('dash_weak_order', JSON.stringify(order));
   };
-  const handleBlockDrop = (targetId: BlockId) => {
-    const src = blockDragRef.current;
-    if (!src || src === targetId) { setDragOverId(null); setDraggingId(null); return; }
-    setBlockOrder(prev => {
-      const arr = [...prev];
-      const from = arr.indexOf(src); const to = arr.indexOf(targetId);
-      if (from === -1 || to === -1) return prev;
-      arr.splice(from, 1); arr.splice(to, 0, src);
-      localStorage.setItem('dash_order', JSON.stringify(arr));
-      return arr;
-    });
-    blockDragRef.current = null; setDragOverId(null); setDraggingId(null);
-  };
+
+  function snapRects() {
+    prevRectsRef.current = new Map();
+    for (const [id, el] of blockElRefs.current) {
+      prevRectsRef.current.set(id, el.getBoundingClientRect());
+    }
+  }
+
+  useLayoutEffect(() => {
+    const key = JSON.stringify(previewOrder);
+    if (key === prevPreviewKeyRef.current) return;
+    prevPreviewKeyRef.current = key;
+    if (!previewOrder) return;
+    for (const [id, el] of blockElRefs.current) {
+      const prev = prevRectsRef.current.get(id);
+      if (!prev) continue;
+      const next = el.getBoundingClientRect();
+      const dx = prev.left - next.left;
+      const dy = prev.top - next.top;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
+      el.style.transition = 'none';
+      el.style.translate = `${dx}px ${dy}px`;
+      void el.getBoundingClientRect(); // force reflow
+      el.style.transition = 'translate 0.28s cubic-bezier(0.25,0.46,0.45,0.94)';
+      el.style.translate = '';
+      const onEnd = () => {
+        el.style.transition = '';
+        el.style.translate = '';
+        el.removeEventListener('transitionend', onEnd);
+      };
+      el.addEventListener('transitionend', onEnd);
+    }
+  }, [previewOrder]);
 
   const session = getSession();
   const { data: accessData } = useQuery({
@@ -1232,52 +1260,54 @@ export default function Dashboard() {
             }
           };
 
-          // Group into rows: full-width = own row, half-width = pair up 2 per row
-          const rows: BlockId[][] = [];
-          for (const id of blockOrder) {
-            if (FULL_BLOCKS.has(id)) {
-              rows.push([id]);
-            } else {
-              const last = rows[rows.length - 1];
-              if (last && last.length === 1 && !FULL_BLOCKS.has(last[0])) {
-                last.push(id);
-              } else {
-                rows.push([id]);
-              }
-            }
-          }
-
-          let globalIdx = 0;
-          return rows.map(row => {
-            const rowKey = row.join('-');
-            const isHalfRow = row.length === 2;
-            return (
-              <div
-                key={rowKey}
-                style={{ display: 'grid', gridTemplateColumns: isHalfRow && !isMobile ? '1fr 1fr' : '1fr', gap: 20, marginBottom: 0 }}
-              >
-                {row.map(id => {
-                  const idx = globalIdx++;
-                  return (
-                    <DraggableBlock
-                      key={id}
-                      id={id}
-                      editMode={editMode}
-                      isOver={dragOverId === id}
-                      isDragging={draggingId === id}
-                      index={idx}
-                      onDragStart={() => { blockDragRef.current = id; setDraggingId(id); }}
-                      onDragOver={() => setDragOverId(id)}
-                      onDrop={() => handleBlockDrop(id)}
-                      onDragEnd={() => { blockDragRef.current = null; setDraggingId(null); setDragOverId(null); }}
-                    >
-                      {renderBlockContent(id)}
-                    </DraggableBlock>
-                  );
-                })}
-              </div>
-            );
-          });
+          // Flat 2-col grid; full blocks span both columns
+          const displayOrder = previewOrder ?? blockOrder;
+          return (
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
+              {displayOrder.map((id, idx) => (
+                <DraggableBlock
+                  key={id}
+                  id={id}
+                  editMode={editMode}
+                  isOver={dragOverId === id}
+                  isDragging={draggingId === id}
+                  index={idx}
+                  gridStyle={FULL_BLOCKS.has(id) && !isMobile ? { gridColumn: '1 / -1' } : {}}
+                  elRef={el => { if (el) blockElRefs.current.set(id, el); else blockElRefs.current.delete(id); }}
+                  onDragStart={() => { blockDragRef.current = id; setDraggingId(id); }}
+                  onDragOver={() => {
+                    const src = blockDragRef.current;
+                    if (!src || src === id || dragOverId === id) return;
+                    setDragOverId(id);
+                    const cur = previewOrder ?? blockOrder;
+                    const arr = [...cur];
+                    const from = arr.indexOf(src);
+                    const to = arr.indexOf(id);
+                    if (from === -1 || to === -1) return;
+                    snapRects();
+                    arr.splice(from, 1);
+                    arr.splice(to, 0, src);
+                    setPreviewOrder(arr);
+                  }}
+                  onDrop={() => {
+                    if (previewOrder) saveBlockOrder(previewOrder);
+                    setPreviewOrder(null);
+                    blockDragRef.current = null;
+                    setDraggingId(null);
+                    setDragOverId(null);
+                  }}
+                  onDragEnd={() => {
+                    blockDragRef.current = null;
+                    setPreviewOrder(null);
+                    setDraggingId(null);
+                    setDragOverId(null);
+                  }}
+                >
+                  {renderBlockContent(id)}
+                </DraggableBlock>
+              ))}
+            </div>
+          );
         })()}
 
       </div>
