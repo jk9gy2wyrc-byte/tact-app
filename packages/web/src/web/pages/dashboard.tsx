@@ -6,6 +6,16 @@ import AccessWrapper from "../components/AccessWrapper";
 import { fetchAccess } from "../lib/access";
 import { useT } from "../lib/i18n";
 
+// ── Dashboard layout ──────────────────────────────────────────────────────────
+type BlockId = 'news' | 'weekly' | 'weakspots' | 'consistency' | 'profitability' | 'sessions' | 'instruments' | 'gainers';
+type WeakSubId = 'instrument' | 'session' | 'day';
+const FULL_BLOCKS = new Set<BlockId>(['news', 'weekly', 'weakspots', 'consistency']);
+const DEFAULT_BLOCK_ORDER: BlockId[] = ['news', 'weekly', 'weakspots', 'consistency', 'profitability', 'sessions', 'instruments', 'gainers'];
+const DEFAULT_WEAK_ORDER: WeakSubId[] = ['instrument', 'session', 'day'];
+function loadOrder(key: string, def: string[]): string[] {
+  try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : def; } catch { return def; }
+}
+
 async function fetchStats() {
   const r = await fetch(`/api/stats${uidParam()}`);
   return r.json();
@@ -724,7 +734,7 @@ function TopGainerCard({ trades, label }: { trades: any[]; label: string }) {
 }
 
 // ── Weak Spots ────────────────────────────────────────────────────────────────
-function WeakSpots({ trades }: { trades: any[] }) {
+function WeakSpots({ trades, subOrder, editMode, onReorderSub }: { trades: any[]; subOrder: WeakSubId[]; editMode: boolean; onReorderSub: (o: WeakSubId[]) => void }) {
   if (!trades.length) return <div style={{ color: 'var(--text2)', fontSize: 13 }}>No live trades yet.</div>;
 
   const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -791,11 +801,44 @@ function WeakSpots({ trades }: { trades: any[] }) {
     );
   }
 
+  const wSubDragRef = useRef<WeakSubId | null>(null);
+  const [wSubDragOver, setWSubDragOver] = useState<WeakSubId | null>(null);
+  const subContent: Record<WeakSubId, React.ReactNode> = {
+    instrument: <IslandGroup rows={instRows} label="By Instrument" />,
+    session: <IslandGroup rows={sessRows} label="By Session" />,
+    day: <IslandGroup rows={dayRows} label="By Day" />,
+  };
   return (
     <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-      <IslandGroup rows={instRows} label="By Instrument" />
-      <IslandGroup rows={sessRows} label="By Session" />
-      <IslandGroup rows={dayRows} label="By Day" />
+      {subOrder.map((subId, idx) => (
+        <div
+          key={subId}
+          draggable={editMode}
+          onDragStart={e => { e.stopPropagation(); wSubDragRef.current = subId; }}
+          onDragOver={e => { e.preventDefault(); e.stopPropagation(); setWSubDragOver(subId); }}
+          onDrop={e => {
+            e.stopPropagation();
+            const src = wSubDragRef.current;
+            if (!src || src === subId) { setWSubDragOver(null); return; }
+            const arr = [...subOrder];
+            const from = arr.indexOf(src); const to = arr.indexOf(subId);
+            arr.splice(from, 1); arr.splice(to, 0, src);
+            onReorderSub(arr); wSubDragRef.current = null; setWSubDragOver(null);
+          }}
+          onDragEnd={() => { wSubDragRef.current = null; setWSubDragOver(null); }}
+          style={{
+            flex: 1, minWidth: 180, borderRadius: 12,
+            outline: editMode ? `2px solid ${wSubDragOver === subId ? '#818cf8' : 'rgba(99,102,241,0.5)'}` : 'none',
+            outlineOffset: 3,
+            boxShadow: editMode ? (wSubDragOver === subId ? '0 0 0 5px rgba(99,102,241,0.25)' : '0 0 0 3px rgba(99,102,241,0.1)') : 'none',
+            animation: editMode ? `dashWobble 0.42s ease-in-out ${idx * 80}ms infinite` : 'none',
+            cursor: editMode ? 'grab' : 'default',
+            padding: editMode ? 4 : 0, transition: 'box-shadow 0.15s',
+          }}
+        >
+          {subContent[subId]}
+        </div>
+      ))}
     </div>
   );
 }
@@ -948,12 +991,97 @@ function calcQuickStats(trades: any[]) {
   };
 }
 
+// ── Draggable block wrapper ───────────────────────────────────────────────────
+const DASH_WOBBLE_CSS = `
+@keyframes dashWobble {
+  0%,100% { transform: rotate(0deg) scale(1); }
+  20%      { transform: rotate(-0.7deg) scale(1.005); }
+  60%      { transform: rotate(0.7deg) scale(1.005); }
+}
+`;
+
+function DraggableBlock({
+  id, editMode, isOver, isDragging, index,
+  onDragStart, onDragOver, onDrop, onDragEnd, children,
+}: {
+  id: BlockId; editMode: boolean; isOver: boolean; isDragging: boolean; index: number;
+  onDragStart: () => void; onDragOver: () => void; onDrop: () => void; onDragEnd: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      draggable={editMode}
+      onDragStart={e => { e.stopPropagation(); onDragStart(); }}
+      onDragOver={e => { e.preventDefault(); e.stopPropagation(); onDragOver(); }}
+      onDrop={e => { e.stopPropagation(); onDrop(); }}
+      onDragEnd={onDragEnd}
+      style={{
+        position: 'relative', minWidth: 0,
+        opacity: isDragging ? 0.38 : 1,
+        outline: editMode ? `2px solid ${isOver ? '#818cf8' : 'rgba(99,102,241,0.5)'}` : 'none',
+        outlineOffset: 3, borderRadius: 14,
+        boxShadow: editMode ? (isOver ? '0 0 0 6px rgba(99,102,241,0.28)' : '0 0 0 4px rgba(99,102,241,0.1)') : 'none',
+        animation: editMode ? `dashWobble 0.42s ease-in-out ${index * 55}ms infinite` : 'none',
+        cursor: editMode ? (isDragging ? 'grabbing' : 'grab') : 'default',
+        transition: 'opacity 0.15s, box-shadow 0.15s',
+      }}
+    >
+      {editMode && (
+        <div style={{
+          position: 'absolute', top: 7, right: 10, zIndex: 20,
+          display: 'flex', alignItems: 'center', gap: 5, pointerEvents: 'none',
+        }}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ opacity: 0.7 }}>
+            <circle cx="4" cy="3" r="1.3" fill="#818cf8"/>
+            <circle cx="10" cy="3" r="1.3" fill="#818cf8"/>
+            <circle cx="4" cy="7" r="1.3" fill="#818cf8"/>
+            <circle cx="10" cy="7" r="1.3" fill="#818cf8"/>
+            <circle cx="4" cy="11" r="1.3" fill="#818cf8"/>
+            <circle cx="10" cy="11" r="1.3" fill="#818cf8"/>
+          </svg>
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const isMobile = useMobile();
   const { data, isLoading, error } = useQuery({ queryKey: ['stats'], queryFn: fetchStats, refetchInterval: 10000 });
   const { data: liveTrades = [] } = useQuery({ queryKey: ['live-trades'], queryFn: fetchLive, refetchInterval: 10000 });
   const [btTab, setBtTab] = useState('EUR');
   const { selected: selectedAssets, toggle: toggleAsset } = useSelectedAssets();
+
+  // ── Layout edit mode ────────────────────────────────────────────────────────
+  const [editMode, setEditMode] = useState(false);
+  const [blockOrder, setBlockOrder] = useState<BlockId[]>(() => loadOrder('dash_order', DEFAULT_BLOCK_ORDER) as BlockId[]);
+  const [weakSubOrder, setWeakSubOrder] = useState<WeakSubId[]>(() => loadOrder('dash_weak_order', DEFAULT_WEAK_ORDER) as WeakSubId[]);
+  const [dragOverId, setDragOverId] = useState<BlockId | null>(null);
+  const [draggingId, setDraggingId] = useState<BlockId | null>(null);
+  const blockDragRef = useRef<BlockId | null>(null);
+
+  const saveBlockOrder = (order: BlockId[]) => {
+    setBlockOrder(order);
+    localStorage.setItem('dash_order', JSON.stringify(order));
+  };
+  const saveWeakSubOrder = (order: WeakSubId[]) => {
+    setWeakSubOrder(order);
+    localStorage.setItem('dash_weak_order', JSON.stringify(order));
+  };
+  const handleBlockDrop = (targetId: BlockId) => {
+    const src = blockDragRef.current;
+    if (!src || src === targetId) { setDragOverId(null); setDraggingId(null); return; }
+    setBlockOrder(prev => {
+      const arr = [...prev];
+      const from = arr.indexOf(src); const to = arr.indexOf(targetId);
+      if (from === -1 || to === -1) return prev;
+      arr.splice(from, 1); arr.splice(to, 0, src);
+      localStorage.setItem('dash_order', JSON.stringify(arr));
+      return arr;
+    });
+    blockDragRef.current = null; setDragOverId(null); setDraggingId(null);
+  };
 
   const session = getSession();
   const { data: accessData } = useQuery({
@@ -1005,75 +1133,152 @@ export default function Dashboard() {
   return (
     <AccessWrapper blocked={isBlocked} reason={accessData?.reason}>
       <div style={{ padding: p, width: '100%', overflow: 'hidden' }}>
+        <style>{DASH_WOBBLE_CSS}</style>
+
+        {/* ── Header ── */}
         {(() => {
           const localHour = now.getHours();
           const greeting = localHour >= 5 && localHour < 12 ? 'Good morning' : localHour >= 12 && localHour < 18 ? 'Good afternoon' : 'Good evening';
           const nick = getSession()?.nickname;
           return (
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>{greeting}{nick ? `, ${nick}` : ''}</div>
-
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text2)' }}>
-          {now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
-        </span>
-      </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: editMode ? 8 : 20, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>{greeting}{nick ? `, ${nick}` : ''}</div>
+              <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text2)' }}>
+                {now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+              {!isMobile && (
+                editMode ? (
+                  <button
+                    onClick={() => setEditMode(false)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 8, border: '1px solid rgba(99,102,241,0.6)', background: 'rgba(99,102,241,0.15)', color: '#a5b4fc', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    ✓ Done
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setEditMode(true)}
+                    title="Customize dashboard layout"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text2)', cursor: 'pointer', flexShrink: 0 }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M16.2 12.5a1.38 1.38 0 0 0 .28 1.52l.05.05a1.67 1.67 0 0 1-2.36 2.36l-.05-.05a1.38 1.38 0 0 0-1.52-.28 1.38 1.38 0 0 0-.83 1.26V17.5a1.67 1.67 0 0 1-3.34 0v-.07A1.38 1.38 0 0 0 7.6 16.2a1.38 1.38 0 0 0-1.52.28l-.05.05a1.67 1.67 0 0 1-2.36-2.36l.05-.05A1.38 1.38 0 0 0 4 12.6a1.38 1.38 0 0 0-1.26-.83H2.5a1.67 1.67 0 0 1 0-3.34h.07A1.38 1.38 0 0 0 3.8 7.6a1.38 1.38 0 0 0-.28-1.52l-.05-.05a1.67 1.67 0 0 1 2.36-2.36l.05.05A1.38 1.38 0 0 0 7.4 4a1.38 1.38 0 0 0 .83-1.26V2.5a1.67 1.67 0 0 1 3.34 0v.07A1.38 1.38 0 0 0 12.4 3.8a1.38 1.38 0 0 0 1.52-.28l.05-.05a1.67 1.67 0 0 1 2.36 2.36l-.05.05A1.38 1.38 0 0 0 16.2 7.4a1.38 1.38 0 0 0 1.26.83H17.5a1.67 1.67 0 0 1 0 3.34h-.07a1.38 1.38 0 0 0-1.23.93Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                )
+              )}
+            </div>
           );
         })()}
 
-        {/* FOREX NEWS */}
-        <Section title="Upcoming High-Impact News">
-          <NewsWidget selectedAssets={selectedAssets} />
-        </Section>
+        {/* Edit mode hint */}
+        {editMode && (
+          <div style={{ marginBottom: 16, padding: '8px 14px', borderRadius: 10, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)', fontSize: 12, color: '#a5b4fc', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16 }}>⠿</span>
+            Перетягуй блоки щоб змінити їх порядок. Всередині «Weak Spots» — також можна міняти місцями колонки.
+          </div>
+        )}
 
-        {/* WEEKLY CHANGES */}
-        <Section title="Weekly Change">
-          <WeeklyChanges selected={selectedAssets} toggle={toggleAsset} />
-        </Section>
+        {/* ── Dynamic block layout ── */}
+        {(() => {
+          const renderBlockContent = (id: BlockId) => {
+            switch (id) {
+              case 'news': return (
+                <Section title="Upcoming High-Impact News">
+                  <NewsWidget selectedAssets={selectedAssets} />
+                </Section>
+              );
+              case 'weekly': return (
+                <Section title="Weekly Change">
+                  <WeeklyChanges selected={selectedAssets} toggle={toggleAsset} />
+                </Section>
+              );
+              case 'weakspots': return (
+                <Section title="Weak Spots — Live">
+                  <WeakSpots trades={liveTrades as any[]} subOrder={weakSubOrder} editMode={editMode} onReorderSub={saveWeakSubOrder} />
+                </Section>
+              );
+              case 'consistency': return (
+                <Section title="Consistency Score — Live">
+                  <ConsistencyScore trades={liveTrades as any[]} btAvgRR={bt?.avgRR ?? 0} lvAvgRR={lv?.avgRR ?? 0} />
+                </Section>
+              );
+              case 'profitability': return (
+                <Section title="Profitability — Live">
+                  <Profitability trades={liveTrades as any[]} />
+                </Section>
+              );
+              case 'sessions': return (
+                <Section title="Session Win Rates — Live">
+                  <SessionWinRates trades={liveTrades as any[]} />
+                </Section>
+              );
+              case 'instruments': return (
+                <Section title="Most Traded Instruments — Live">
+                  <MostTradedInstruments trades={liveTrades as any[]} />
+                </Section>
+              );
+              case 'gainers': return (
+                <Section title="Top Gainers — Live">
+                  <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 20, alignItems: 'flex-start' }}>
+                    <TopGainerCard trades={currentMonthTrades} label={`Top Gainer of ${now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`} />
+                    {isMobile && <div style={{ height: 1, background: 'var(--border)' }} />}
+                    {!isMobile && <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />}
+                    <TopGainerCard trades={liveTrades as any[]} label="Top Gainer of All Time" />
+                  </div>
+                </Section>
+              );
+              default: return null;
+            }
+          };
 
-        {/* WEAK SPOTS */}
-        <Section title="Weak Spots — Live">
-          <WeakSpots trades={liveTrades as any[]} />
-        </Section>
+          // Group into rows: full-width = own row, half-width = pair up 2 per row
+          const rows: BlockId[][] = [];
+          for (const id of blockOrder) {
+            if (FULL_BLOCKS.has(id)) {
+              rows.push([id]);
+            } else {
+              const last = rows[rows.length - 1];
+              if (last && last.length === 1 && !FULL_BLOCKS.has(last[0])) {
+                last.push(id);
+              } else {
+                rows.push([id]);
+              }
+            }
+          }
 
-        {/* CONSISTENCY */}
-        <Section title="Consistency Score — Live">
-          <ConsistencyScore
-            trades={liveTrades as any[]}
-            btAvgRR={bt?.avgRR ?? 0}
-            lvAvgRR={lv?.avgRR ?? 0}
-          />
-        </Section>
-
-        {/* PROFITABILITY + SESSIONS — side by side on desktop */}
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
-          <Section title="Profitability — Live">
-            <Profitability trades={liveTrades as any[]} />
-          </Section>
-          <Section title="Session Win Rates — Live">
-            <SessionWinRates trades={liveTrades as any[]} />
-          </Section>
-        </div>
-
-        {/* MOST TRADED INSTRUMENTS + TOP GAINERS */}
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
-          <Section title="Most Traded Instruments — Live">
-            <MostTradedInstruments trades={liveTrades as any[]} />
-          </Section>
-          <Section title="Top Gainers — Live">
-            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 20, alignItems: 'flex-start' }}>
-              <TopGainerCard
-                trades={currentMonthTrades}
-                label={`Top Gainer of ${now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
-              />
-              {isMobile && <div style={{ height: 1, background: 'var(--border)' }} />}
-              {!isMobile && <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />}
-              <TopGainerCard
-                trades={liveTrades as any[]}
-                label="Top Gainer of All Time"
-              />
-            </div>
-          </Section>
-        </div>
+          let globalIdx = 0;
+          return rows.map(row => {
+            const rowKey = row.join('-');
+            const isHalfRow = row.length === 2;
+            return (
+              <div
+                key={rowKey}
+                style={{ display: 'grid', gridTemplateColumns: isHalfRow && !isMobile ? '1fr 1fr' : '1fr', gap: 20, marginBottom: 0 }}
+              >
+                {row.map(id => {
+                  const idx = globalIdx++;
+                  return (
+                    <DraggableBlock
+                      key={id}
+                      id={id}
+                      editMode={editMode}
+                      isOver={dragOverId === id}
+                      isDragging={draggingId === id}
+                      index={idx}
+                      onDragStart={() => { blockDragRef.current = id; setDraggingId(id); }}
+                      onDragOver={() => setDragOverId(id)}
+                      onDrop={() => handleBlockDrop(id)}
+                      onDragEnd={() => { blockDragRef.current = null; setDraggingId(null); setDragOverId(null); }}
+                    >
+                      {renderBlockContent(id)}
+                    </DraggableBlock>
+                  );
+                })}
+              </div>
+            );
+          });
+        })()}
 
       </div>
     </AccessWrapper>
