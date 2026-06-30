@@ -2550,7 +2550,7 @@ const app = new Hono()
     const uid = Number(c.req.query('userId') ?? 0);
     const id = Number(c.req.param('id'));
     const body = await c.req.json();
-    const { instrument, date, direction, rr, session, result, cost } = body;
+    const { instrument, date, direction, rr, session, result, cost, profitDollars, notes, attachments } = body;
     const month = date ? String(date).slice(0, 7) : undefined;
     const year = date ? Number(String(date).slice(0, 4)) : undefined;
     const costVal = cost != null ? Number(cost) : -0.1;
@@ -2564,6 +2564,9 @@ const app = new Hono()
       ...(session !== undefined && { session }),
       ...(result !== undefined && { result, grossR: grossVal, netR: netVal }),
       cost: costVal,
+      ...('profitDollars' in body && { profitDollars: profitDollars != null ? Number(profitDollars) : null }),
+      ...('notes' in body && { notes: notes ?? null }),
+      ...('attachments' in body && { attachments: attachments ?? null }),
     };
     await db.update(backtestTrades).set(updates).where(eq(backtestTrades.id, id));
     return c.json({ ok: true }, 200);

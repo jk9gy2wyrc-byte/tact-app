@@ -155,6 +155,22 @@ const fmtDate = (d: string) => {
   return d;
 };
 
+type Attachment = { url: string; label: string; type?: 'link' | 'image' };
+
+function parseAttachments(raw: string | null | undefined): Attachment[] {
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return []; }
+}
+
+function readFileAsDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 // ─── Database Builder Modal ───────────────────────────────────────────────────
 function DatabaseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [dbName, setDbName] = useState('');
@@ -323,6 +339,7 @@ function EditModal({ trade, onClose, onSave, isPending }: {
   trade: any; onClose: () => void; onSave: (body: any) => void; isPending: boolean;
 }) {
   const isMobile = useMobile();
+  const [tab, setTab] = useState<'trade' | 'extra'>('trade');
   const [form, setForm] = useState({
     date: trade.month ?? today(),
     instrument: trade.instrument ?? 'EUR/USD',
@@ -331,19 +348,74 @@ function EditModal({ trade, onClose, onSave, isPending }: {
     session: trade.session ? capitalize(trade.session) : 'London',
     result: trade.result ?? 'tp',
     cost: trade.cost != null ? String(trade.cost) : '-0.10',
+    profitDollars: trade.profitDollars != null ? String(trade.profitDollars) : '',
+    notes: trade.notes ?? '',
   });
+  const [links, setLinks] = useState<Attachment[]>(parseAttachments(trade.attachments));
+  const [newUrl, setNewUrl] = useState('');
+  const [newLabel, setNewLabel] = useState('');
   const [error, setError] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) { const f = item.getAsFile(); if (f) files.push(f); }
+      }
+      if (files.length) {
+        const dt = new DataTransfer();
+        files.forEach(f => dt.items.add(f));
+        addPhotos(dt.files);
+      }
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, []);
 
   const setField = (field: string, val: string) => setForm(f => ({ ...f, [field]: val }));
   const preview = calcRValues(form.result, form.rr, form.cost);
 
+  const addLink = () => {
+    const url = newUrl.trim();
+    if (!url) return;
+    const label = newLabel.trim() || url;
+    setLinks(l => [...l, { url, label }]);
+    setNewUrl(''); setNewLabel('');
+  };
+
+  const removeLink = (i: number) => setLinks(l => l.filter((_, idx) => idx !== i));
+
+  const addPhotos = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploadingPhoto(true);
+    try {
+      const newPhotos: Attachment[] = [];
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith('image/')) continue;
+        const dataUrl = await readFileAsDataURL(file);
+        const label = file.name.replace(/\.[^.]+$/, '');
+        newPhotos.push({ url: dataUrl, label, type: 'image' });
+      }
+      setLinks(l => [...l, ...newPhotos]);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const handleSave = () => {
-    const { grossR } = preview;
+    const { grossR, netR } = preview;
     if (form.result === 'tp' && grossR == null) { setError('RR required for TP'); return; }
     const body: any = {
       date: form.date, instrument: form.instrument, direction: form.direction,
       rr: form.rr ? parseFloat(form.rr) : undefined, session: form.session.toLowerCase(),
-      result: form.result, cost: parseFloat(form.cost) || -0.1,
+      result: form.result, grossR: grossR ?? 0, cost: parseFloat(form.cost) || -0.1, netR: netR ?? 0,
+      profitDollars: form.profitDollars !== '' ? parseFloat(form.profitDollars) : null,
+      notes: form.notes || null,
+      attachments: links.length > 0 ? JSON.stringify(links) : null,
     };
     onSave(body);
   };
@@ -355,6 +427,13 @@ function EditModal({ trade, onClose, onSave, isPending }: {
       {...(opts?.placeholder ? { placeholder: opts.placeholder } : {})} />
   );
 
+  const tabStyle = (active: boolean) => ({
+    padding: '5px 14px', fontSize: 12, fontWeight: active ? 600 : 400,
+    borderRadius: 7, border: 'none', cursor: 'pointer',
+    background: active ? '#4b5263' : 'transparent',
+    color: active ? '#fff' : 'var(--text2)',
+  });
+
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 480, maxHeight: '92vh', overflowY: 'auto' }}>
@@ -362,24 +441,94 @@ function EditModal({ trade, onClose, onSave, isPending }: {
           <div style={{ fontWeight: 700, fontSize: 15 }}>Edit Backtest Trade #{trade.tradeNum}</div>
           <button className="btn-ghost" onClick={onClose} style={{ padding: '2px 10px', fontSize: 16, borderRadius: 8 }}>×</button>
         </div>
+        <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 9, padding: 3 }}>
+          <button style={tabStyle(tab === 'trade')} onClick={() => setTab('trade')}>Trade</button>
+          <button style={tabStyle(tab === 'extra')} onClick={() => setTab('extra')}>
+            Materials {(links.length > 0 || form.notes || form.profitDollars) ? '•' : ''}
+          </button>
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-            <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Date</div>{inp('date', 'date')}</div>
-            <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Pair</div><input type="text" value={form.instrument} placeholder="EUR/USD" onChange={e => setField('instrument', e.target.value.toUpperCase())} style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box' }} /></div>
-          </div>
-          <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Direction</div><ToggleGroup value={form.direction} options={DIRECTIONS} onChange={v => setField('direction', v)} /></div>
-          <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Session</div><ToggleGroup value={form.session} options={SESSIONS} onChange={v => setField('session', v)} small /></div>
-          <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Result</div><ToggleGroup value={form.result} options={RESULTS} onChange={v => setField('result', v)} /></div>
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-            <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>RR</div>{inp('rr', 'number', { placeholder: '3.5' })}</div>
-            <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Cost</div>{inp('cost', 'number', { placeholder: '-0.10' })}</div>
-          </div>
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center', background: 'var(--surface2)', borderRadius: 8, padding: '8px 14px', border: '1px solid var(--border)', fontSize: 13, flexWrap: 'wrap' }}>
-            <span style={{ color: 'var(--text2)' }}>Gross:</span>
-            <span className={`mono ${(preview.grossR ?? 0) >= 0 ? 'pos' : 'neg'}`}>{preview.grossR != null ? preview.grossR.toFixed(2) : '—'}</span>
-            <span style={{ color: 'var(--text2)' }}>Net:</span>
-            <span className={`mono ${(preview.netR ?? 0) > 0 ? 'pos' : (preview.netR ?? 0) < 0 ? 'neg' : 'be'}`}>{preview.netR != null ? preview.netR.toFixed(2) : '—'}</span>
-          </div>
+          {tab === 'trade' ? (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+                <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Date</div>{inp('date', 'date')}</div>
+                <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Pair</div><input type="text" value={form.instrument} placeholder="EUR/USD" onChange={e => setField('instrument', e.target.value.toUpperCase())} style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box' }} /></div>
+              </div>
+              <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Direction</div><ToggleGroup value={form.direction} options={DIRECTIONS} onChange={v => setField('direction', v)} /></div>
+              <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Session</div><ToggleGroup value={form.session} options={SESSIONS} onChange={v => setField('session', v)} small /></div>
+              <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Result</div><ToggleGroup value={form.result} options={RESULTS} onChange={v => setField('result', v)} /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+                <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>RR</div>{inp('rr', 'text', { placeholder: '3.5' })}</div>
+                <div><div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Cost</div>{inp('cost', 'text', { placeholder: '-0.10' })}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 16, alignItems: 'center', background: 'var(--surface2)', borderRadius: 8, padding: '8px 14px', border: '1px solid var(--border)', fontSize: 13, flexWrap: 'wrap' }}>
+                <span style={{ color: 'var(--text2)' }}>Gross:</span>
+                <span className={`mono ${(preview.grossR ?? 0) >= 0 ? 'pos' : 'neg'}`}>{preview.grossR != null ? preview.grossR.toFixed(2) : '—'}</span>
+                <span style={{ color: 'var(--text2)' }}>Net:</span>
+                <span className={`mono ${(preview.netR ?? 0) > 0 ? 'pos' : (preview.netR ?? 0) < 0 ? 'neg' : 'be'}`}>{preview.netR != null ? preview.netR.toFixed(2) : '—'}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Profit ($)</div>
+                <input type="text" inputMode="decimal" value={form.profitDollars} placeholder="e.g. 142.50"
+                  onChange={e => setField('profitDollars', e.target.value)}
+                  style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Notes</div>
+                <textarea value={form.notes} placeholder="Setup description, mistakes, observations..."
+                  onChange={e => setField('notes', e.target.value)} rows={3}
+                  style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit', fontSize: 13, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 10px' }} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text2)' }}>Photos</div>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, cursor: 'pointer', background: '#4b5263', color: '#fff', borderRadius: 7, padding: '4px 10px', fontWeight: 500, opacity: uploadingPhoto ? 0.6 : 1, transition: 'opacity 0.15s' }}>
+                    {uploadingPhoto ? 'Uploading...' : '+ Add photo'}
+                    <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => addPhotos(e.target.files)} disabled={uploadingPhoto} />
+                  </label>
+                </div>
+                {links.filter(l => l.type === 'image').length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 8 }}>
+                    {links.map((lk, i) => lk.type !== 'image' ? null : (
+                      <div key={i} style={{ position: 'relative', aspectRatio: '1', overflow: 'hidden', borderRadius: 8, border: '1px solid var(--border)' }}>
+                        <img src={lk.url} alt={lk.label} onClick={() => setLightboxSrc(lk.url)} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', display: 'block' }} />
+                        <button onClick={() => removeLink(i)} style={{ position: 'absolute', top: 3, right: 3, background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'pointer', color: '#fff', fontSize: 12, width: 20, height: 20, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: 0 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 8 }}>Links</div>
+                {links.filter(l => !l.type || l.type === 'link').length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                    {links.map((lk, i) => (lk.type === 'image') ? null : (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px' }}>
+                        <a href={lk.url} target="_blank" rel="noreferrer" style={{ flex: 1, fontSize: 12, color: 'var(--text2)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🔗 {lk.label}</a>
+                        <button onClick={() => removeLink(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 14, padding: '0 4px', flexShrink: 0 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <input type="url" value={newUrl} placeholder="https://..." onChange={e => setNewUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && addLink()} style={{ width: '100%', borderRadius: 8, boxSizing: 'border-box', fontSize: 12 }} />
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input type="text" value={newLabel} placeholder="Label (optional)" onChange={e => setNewLabel(e.target.value)} onKeyDown={e => e.key === 'Enter' && addLink()} style={{ flex: 1, borderRadius: 8, boxSizing: 'border-box', fontSize: 12 }} />
+                    <button className="btn-primary" onClick={addLink} style={{ borderRadius: 8, fontSize: 12, padding: '0 14px' }}>Add</button>
+                  </div>
+                </div>
+              </div>
+              {lightboxSrc && (
+                <div onClick={() => setLightboxSrc(null)} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+                  <img src={lightboxSrc} style={{ maxWidth: '100%', maxHeight: '90vh', borderRadius: 10, objectFit: 'contain' }} onClick={e => e.stopPropagation()} />
+                  <button onClick={() => setLightboxSrc(null)} style={{ position: 'fixed', top: 16, right: 16, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 22, width: 36, height: 36, borderRadius: 8, cursor: 'pointer' }}>×</button>
+                </div>
+              )}
+            </>
+          )}
           {error && <div style={{ color: 'var(--red)', fontSize: 12 }}>{error}</div>}
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
             <button className="btn-ghost" onClick={onClose} style={{ borderRadius: 10 }}>Cancel</button>
@@ -434,7 +583,8 @@ function DeleteBtn({ onConfirm, style: extraStyle }: { onConfirm: () => void; st
   );
 }
 
-function TradeCard({ t, onEdit, onDelete }: { t: any; onEdit: () => void; onDelete: () => void }) {
+function TradeCard({ t, onEdit, onDelete, onPreview }: { t: any; onEdit: () => void; onDelete: () => void; onPreview: (src: string) => void }) {
+  const links = parseAttachments(t.attachments);
   return (
     <div onClick={onEdit} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer', transition: 'border-color 0.15s' }}
       onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent, #4b5263)')}
@@ -456,7 +606,30 @@ function TradeCard({ t, onEdit, onDelete }: { t: any; onEdit: () => void; onDele
         <span style={{ color: 'var(--text2)' }}>RR: <span style={{ color: 'var(--text)' }}>{fmt(t.rr)}</span></span>
         <span style={{ color: 'var(--text2)' }}>Gross: <span className={(t.grossR ?? 0) >= 0 ? 'pos' : 'neg'}>{fmt(t.grossR)}</span></span>
         <span style={{ color: 'var(--text2)' }}>Net: <span className={(t.netR ?? 0) > 0 ? 'pos' : (t.netR ?? 0) < 0 ? 'neg' : 'be'}>{fmt(t.netR)}</span></span>
+        {t.profitDollars != null && (
+          <span style={{ color: 'var(--text2)' }}>$: <span className={t.profitDollars >= 0 ? 'pos' : 'neg'} style={{ fontWeight: 600 }}>{t.profitDollars >= 0 ? '+' : ''}{t.profitDollars.toFixed(2)}</span></span>
+        )}
       </div>
+      {(t.notes || links.length > 0) && (
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {t.notes && <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.4 }}>{t.notes}</div>}
+          {links.filter((lk: Attachment) => lk.type === 'image').length > 0 && (
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {links.filter((lk: Attachment) => lk.type === 'image').slice(0, 4).map((lk: Attachment, i: number) => (
+                <img key={i} src={lk.url} alt={lk.label} onClick={e => { e.stopPropagation(); onPreview(lk.url); }} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 5, border: '1px solid var(--border)', cursor: 'pointer' }} />
+              ))}
+              {links.filter((lk: Attachment) => lk.type === 'image').length > 4 && (
+                <div style={{ width: 48, height: 48, borderRadius: 5, background: 'var(--surface2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--text2)' }}>
+                  +{links.filter((lk: Attachment) => lk.type === 'image').length - 4}
+                </div>
+              )}
+            </div>
+          )}
+          {links.filter((lk: Attachment) => !lk.type || lk.type === 'link').map((lk: Attachment, i: number) => (
+            <a key={i} href={lk.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 11, color: 'var(--text2)', textDecoration: 'none' }}>🔗 {lk.label}</a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -473,6 +646,7 @@ export default function BacktestTrades() {
   const [editTrade, setEditTrade] = useState<any | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [error, setError] = useState('');
+  const [previewImg, setPreviewImg] = useState<string | null>(null);
 
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -1051,17 +1225,19 @@ export default function BacktestTrades() {
                                     isMobile ? (
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 10px 10px' }}>
                                         {mTrades.map((t: any) => (
-                                          <TradeCard key={t.id} t={t} onEdit={() => setEditTrade(t)} onDelete={() => deleteMutation.mutate(t.id)} />
+                                          <TradeCard key={t.id} t={t} onEdit={() => setEditTrade(t)} onDelete={() => deleteMutation.mutate(t.id)} onPreview={setPreviewImg} />
                                         ))}
                                       </div>
                                     ) : (
                                       <div style={{ borderTop: '1px solid var(--border)' }}>
                                         <table style={{ minWidth: 420 }}>
                                           <thead>
-                                            <tr><th>#</th><th>Date</th><th>Dir</th><th>RR</th><th>Session</th><th>Result</th><th>Gross R</th><th>Cost</th><th>Net R</th><th style={{ width: 40 }}></th></tr>
+                                            <tr><th>#</th><th>Date</th><th>Dir</th><th>RR</th><th>Session</th><th>Result</th><th>Gross R</th><th>Cost</th><th>Net R</th><th>$</th><th>Links</th><th style={{ width: 40 }}></th></tr>
                                           </thead>
                                           <tbody>
-                                            {mTrades.map((t: any) => (
+                                            {mTrades.map((t: any) => {
+                                              const tLinks = parseAttachments(t.attachments);
+                                              return (
                                               <tr key={t.id} onClick={() => setEditTrade(t)} style={{ cursor: 'pointer' }}>
                                                 <td className="mono" style={{ color: 'var(--text2)', fontSize: 11 }}>{t.tradeNum}</td>
                                                 <td className="mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmtDate(t.month)}</td>
@@ -1072,9 +1248,28 @@ export default function BacktestTrades() {
                                                 <td className={`mono ${(t.grossR ?? 0) >= 0 ? 'pos' : 'neg'}`}>{fmt(t.grossR)}</td>
                                                 <td className="mono neg">{fmt(t.cost)}</td>
                                                 <td className={`mono ${(t.netR ?? 0) > 0 ? 'pos' : (t.netR ?? 0) < 0 ? 'neg' : 'be'}`}>{fmt(t.netR)}</td>
+                                                <td className={`mono ${t.profitDollars != null ? (t.profitDollars >= 0 ? 'pos' : 'neg') : ''}`} style={{ fontWeight: t.profitDollars != null ? 600 : 400 }}>
+                                                  {t.profitDollars != null ? `${t.profitDollars >= 0 ? '+' : ''}${t.profitDollars.toFixed(2)}` : <span style={{ color: 'var(--text2)' }}>—</span>}
+                                                </td>
+                                                <td>
+                                                  {tLinks.length > 0 ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                      {tLinks.map((lk: Attachment, i: number) => lk.type === 'image' ? (
+                                                        <button key={i} onClick={e => { e.stopPropagation(); setPreviewImg(lk.url); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text2)', textAlign: 'left', padding: 0, whiteSpace: 'nowrap' }}>
+                                                          {lk.label.length > 20 ? lk.label.slice(0, 20) + '…' : lk.label}
+                                                        </button>
+                                                      ) : (
+                                                        <a key={i} href={lk.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 11, color: 'var(--text2)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                                                          {lk.label.length > 20 ? lk.label.slice(0, 20) + '…' : lk.label}
+                                                        </a>
+                                                      ))}
+                                                    </div>
+                                                  ) : <span style={{ color: 'var(--text2)' }}>—</span>}
+                                                </td>
                                                 <td><DeleteBtn onConfirm={() => deleteMutation.mutate(t.id)} /></td>
                                               </tr>
-                                            ))}
+                                              );
+                                            })}
                                           </tbody>
                                         </table>
                                       </div>
@@ -1129,17 +1324,19 @@ export default function BacktestTrades() {
                               isMobile ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 10px 10px' }}>
                                   {mTrades.map((t: any) => (
-                                    <TradeCard key={t.id} t={t} onEdit={() => setEditTrade(t)} onDelete={() => deleteMutation.mutate(t.id)} />
+                                    <TradeCard key={t.id} t={t} onEdit={() => setEditTrade(t)} onDelete={() => deleteMutation.mutate(t.id)} onPreview={setPreviewImg} />
                                   ))}
                                 </div>
                               ) : (
                                 <div style={{ borderTop: '1px solid var(--border)' }}>
                                   <table style={{ minWidth: 420 }}>
                                     <thead>
-                                      <tr><th>#</th><th>Date</th><th>Dir</th><th>RR</th><th>Session</th><th>Result</th><th>Gross R</th><th>Cost</th><th>Net R</th><th style={{ width: 40 }}></th></tr>
+                                      <tr><th>#</th><th>Date</th><th>Dir</th><th>RR</th><th>Session</th><th>Result</th><th>Gross R</th><th>Cost</th><th>Net R</th><th>$</th><th>Links</th><th style={{ width: 40 }}></th></tr>
                                     </thead>
                                     <tbody>
-                                      {mTrades.map((t: any) => (
+                                      {mTrades.map((t: any) => {
+                                        const tLinks = parseAttachments(t.attachments);
+                                        return (
                                         <tr key={t.id} onClick={() => setEditTrade(t)} style={{ cursor: 'pointer' }}>
                                           <td className="mono" style={{ color: 'var(--text2)', fontSize: 11 }}>{t.tradeNum}</td>
                                           <td className="mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmtDate(t.month)}</td>
@@ -1150,9 +1347,28 @@ export default function BacktestTrades() {
                                           <td className={`mono ${(t.grossR ?? 0) >= 0 ? 'pos' : 'neg'}`}>{fmt(t.grossR)}</td>
                                           <td className="mono neg">{fmt(t.cost)}</td>
                                           <td className={`mono ${(t.netR ?? 0) > 0 ? 'pos' : (t.netR ?? 0) < 0 ? 'neg' : 'be'}`}>{fmt(t.netR)}</td>
+                                          <td className={`mono ${t.profitDollars != null ? (t.profitDollars >= 0 ? 'pos' : 'neg') : ''}`} style={{ fontWeight: t.profitDollars != null ? 600 : 400 }}>
+                                            {t.profitDollars != null ? `${t.profitDollars >= 0 ? '+' : ''}${t.profitDollars.toFixed(2)}` : <span style={{ color: 'var(--text2)' }}>—</span>}
+                                          </td>
+                                          <td>
+                                            {tLinks.length > 0 ? (
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                {tLinks.map((lk: Attachment, i: number) => lk.type === 'image' ? (
+                                                  <button key={i} onClick={e => { e.stopPropagation(); setPreviewImg(lk.url); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text2)', textAlign: 'left', padding: 0, whiteSpace: 'nowrap' }}>
+                                                    {lk.label.length > 20 ? lk.label.slice(0, 20) + '…' : lk.label}
+                                                  </button>
+                                                ) : (
+                                                  <a key={i} href={lk.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 11, color: 'var(--text2)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                                                    {lk.label.length > 20 ? lk.label.slice(0, 20) + '…' : lk.label}
+                                                  </a>
+                                                ))}
+                                              </div>
+                                            ) : <span style={{ color: 'var(--text2)' }}>—</span>}
+                                          </td>
                                           <td><DeleteBtn onConfirm={() => deleteMutation.mutate(t.id)} /></td>
                                         </tr>
-                                      ))}
+                                        );
+                                      })}
                                     </tbody>
                                   </table>
                                 </div>
@@ -1166,6 +1382,12 @@ export default function BacktestTrades() {
                 );
               })
             ).flat()}
+        </div>
+      )}
+      {previewImg && (
+        <div onClick={() => setPreviewImg(null)} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <img src={previewImg} style={{ maxWidth: '100%', maxHeight: '90vh', borderRadius: 10, objectFit: 'contain' }} onClick={e => e.stopPropagation()} />
+          <button onClick={() => setPreviewImg(null)} style={{ position: 'fixed', top: 16, right: 16, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 22, width: 36, height: 36, borderRadius: 8, cursor: 'pointer' }}>×</button>
         </div>
       )}
     </div>
